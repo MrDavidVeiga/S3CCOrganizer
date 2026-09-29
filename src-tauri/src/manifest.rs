@@ -24,6 +24,8 @@ pub struct RestoreManifest {
     pub organization_language: AppLanguage,
     pub root: PathBuf,
     pub status: String,
+    #[serde(default)]
+    pub created_directories: Vec<PathBuf>,
     pub entries: Vec<RestoreEntry>,
 }
 
@@ -73,7 +75,12 @@ pub fn serialize_manifest(manifest: &RestoreManifest) -> String {
     ));
     out.push_str(&format!("root={}\n", manifest.root.display()));
     out.push_str(&format!("status={}\n", manifest.status));
-    out.push_str(&format!("files={}\n\n", manifest.entries.len()));
+    out.push_str(&format!("files={}\n", manifest.entries.len()));
+    out.push_str(&format!("created_directories={}\n", manifest.created_directories.len()));
+    for directory in &manifest.created_directories {
+        out.push_str(&format!("created_dir={}\n", directory.display()));
+    }
+    out.push('\n');
 
     for entry in &manifest.entries {
         out.push_str("[file]\n");
@@ -106,6 +113,8 @@ pub fn parse_manifest(text: &str) -> Result<RestoreManifest, String> {
     let mut root = None;
     let mut status = None;
     let mut declared_files = None;
+    let mut declared_directories = None;
+    let mut created_directories = Vec::new();
     let mut entries = Vec::new();
 
     let all_lines = lines.collect::<Vec<_>>();
@@ -202,6 +211,15 @@ pub fn parse_manifest(text: &str) -> Result<RestoreManifest, String> {
                         .map_err(|_| format!("Invalid files count: {value}"))?,
                 )
             }
+            "created_directories" => {
+                declared_directories = Some(
+                    value
+                        .trim()
+                        .parse::<usize>()
+                        .map_err(|_| format!("Invalid created_directories count: {value}"))?,
+                )
+            }
+            "created_dir" => created_directories.push(PathBuf::from(value.trim())),
             // Backward compatibility with the early preview format.
             "language" if organization_language.is_none() => {
                 organization_language = parse_language(value)
@@ -218,6 +236,7 @@ pub fn parse_manifest(text: &str) -> Result<RestoreManifest, String> {
             .ok_or_else(|| "Manifest has an invalid or missing organization_language.".to_string())?,
         root: root.ok_or_else(|| "Manifest is missing root.".to_string())?,
         status: status.unwrap_or_else(|| "LEGACY".to_string()),
+        created_directories,
         entries,
     };
 
@@ -233,6 +252,15 @@ pub fn parse_manifest(text: &str) -> Result<RestoreManifest, String> {
             return Err(format!(
                 "Manifest declares {expected} files but contains {} entries.",
                 manifest.entries.len()
+            ));
+        }
+    }
+
+    if let Some(expected) = declared_directories {
+        if expected != manifest.created_directories.len() {
+            return Err(format!(
+                "Manifest declares {expected} created directories but contains {}.",
+                manifest.created_directories.len()
             ));
         }
     }
@@ -357,6 +385,7 @@ mod tests {
             organization_language: AppLanguage::En,
             root: PathBuf::from("Packages"),
             status: "COMPLETE".to_string(),
+            created_directories: vec![],
             entries: vec![],
         };
 
@@ -377,6 +406,7 @@ mod tests {
             organization_language: AppLanguage::Pt,
             root: PathBuf::from(r"C:\Mods\Packages"),
             status: "COMPLETE".to_string(),
+            created_directories: vec![],
             entries: vec![RestoreEntry {
                 sha256: "A".repeat(64),
                 size: 123,
