@@ -1760,3 +1760,39 @@ button:disabled {
     display: none;
   }
 }
+
+
+.conflict-pair small {
+  color: var(--muted);
+  font-size: .62rem;
+  overflow-wrap: anywhere;
+}
+
+.conflict-load-order {
+  margin: 12px 0;
+  padding: 10px 11px;
+  border: 1px solid rgba(127,173,45,.22);
+  border-radius: 11px;
+  background: rgba(97,132,34,.08);
+  display: grid;
+  gap: 6px;
+}
+
+.conflict-load-order strong {
+  font-size: .74rem;
+}
+
+.conflict-load-order p {
+  margin: 0;
+  color: var(--muted);
+  font-size: .69rem;
+  line-height: 1.45;
+}
+
+.conflict-load-order code {
+  color: #cbd5d9;
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: .62rem;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
