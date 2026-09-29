@@ -9,29 +9,39 @@
   <body>
     <div class="app-shell">
       <header class="topbar">
-        <div class="tabs" role="tablist">
-          <button class="active" data-tab="organizer" data-i18n="organizer" type="button">Organizer</button>
-          <button data-tab="duplicates" data-i18n="duplicates" type="button">Duplicates</button>
-          <button data-tab="conflicts" data-i18n="conflicts" type="button">Conflicts</button>
-          <button data-tab="restore" data-i18n="restore" type="button">Restore</button>
+        <div class="tabs input-mode-switch topbar-mode-switcher" role="tablist">
+          <button class="mode-btn active" data-tab="organizer" data-i18n="organizer" type="button">Organizer</button>
+          <button class="mode-btn" data-tab="duplicates" data-i18n="duplicates" type="button">Duplicates</button>
+          <button class="mode-btn" data-tab="conflicts" data-i18n="conflicts" type="button">Conflicts</button>
+          <button class="mode-btn" data-tab="restore" data-i18n="restore" type="button">Restore</button>
         </div>
-        <div class="language">
+        <div class="language language-switcher">
           <span data-i18n="language">Language</span>
-          <button id="language-button" type="button">EN ▾</button>
+          <div class="lang-dropdown" id="lang-dropdown">
+            <button id="language-button" class="lang-toggle-btn" type="button" aria-haspopup="listbox" aria-expanded="false">
+              <span id="language-code">EN</span>
+              <i class="fa-solid fa-angle-down" aria-hidden="true"></i>
+            </button>
+            <div id="language-menu" class="lang-menu hidden" role="listbox">
+              <button class="lang-menu-item" data-lang="en" type="button">EN</button>
+              <button class="lang-menu-item" data-lang="es" type="button">ES</button>
+              <button class="lang-menu-item" data-lang="pt" type="button">PT</button>
+            </div>
+          </div>
         </div>
       </header>
 
       <main class="layout">
-        <aside class="sidebar card">
-          <h1>Veiga's S3CC Organizer</h1>
+        <aside class="sidebar left-panel card">
+          <h1 class="app-title">Veiga's S3CC Organizer</h1>
 
-          <button id="choose-folder-btn" class="primary" type="button">
+          <button id="choose-folder-btn" class="primary primary-btn" type="button">
             <i class="fa-solid fa-folder-open" aria-hidden="true"></i>
             <span data-i18n="chooseModsFolder">Choose Mods Folder</span>
           </button>
           <div id="folder-path" class="path-label" data-i18n="noFolder">No folder selected.</div>
 
-          <button id="scan-btn" class="primary" type="button" disabled>
+          <button id="scan-btn" class="primary primary-btn" type="button" disabled>
             <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
             <span data-i18n="scanCcs">Scan CCs</span>
           </button>
@@ -42,7 +52,7 @@
           </div>
         </aside>
 
-        <section class="content card">
+        <section class="content right-panel card">
           <section id="page-organizer" class="tool-page">
             <div class="hero">
               <div>
