@@ -174,6 +174,7 @@ const I18N = {
     noConflictFindings: "No findings match the current search and filter.",
     conflictAnalysisTruncated: "Conflict pair list was limited for performance.",
     resourceCfg: "Resource.cfg",
+    resourceCfgWarnings: "Resource.cfg warnings",
     loadPriority: "Load priority",
     matchingRule: "Matching rule",
     loadOrder: "Load order",
@@ -356,6 +357,7 @@ const I18N = {
     noConflictFindings: "Nenhum resultado corresponde à pesquisa e ao filtro atuais.",
     conflictAnalysisTruncated: "A lista de pares de conflito foi limitada por desempenho.",
     resourceCfg: "Resource.cfg",
+    resourceCfgWarnings: "Avisos do Resource.cfg",
     loadPriority: "Prioridade de carregamento",
     matchingRule: "Regra correspondente",
     loadOrder: "Ordem de carregamento",
@@ -538,6 +540,7 @@ const I18N = {
     noConflictFindings: "Ningún resultado coincide con la búsqueda y el filtro actuales.",
     conflictAnalysisTruncated: "La lista de pares de conflicto fue limitada por rendimiento.",
     resourceCfg: "Resource.cfg",
+    resourceCfgWarnings: "Avisos de Resource.cfg",
     loadPriority: "Prioridad de carga",
     matchingRule: "Regla correspondiente",
     loadOrder: "Orden de carga",
@@ -1211,6 +1214,19 @@ function renderConflictsPreview() {
     const cfg = document.createElement("code");
     cfg.textContent = `${t("resourceCfg")}: ${state.conflictsAnalysis.resourceCfg.path}`;
     loadOrder.appendChild(cfg);
+
+    const cfgWarnings = state.conflictsAnalysis.resourceCfg.warnings || [];
+    if (cfgWarnings.length) {
+      const warningTitle = document.createElement("strong");
+      warningTitle.textContent = t("resourceCfgWarnings");
+      loadOrder.appendChild(warningTitle);
+
+      for (const warning of cfgWarnings) {
+        const warningLine = document.createElement("p");
+        warningLine.textContent = warning;
+        loadOrder.appendChild(warningLine);
+      }
+    }
   }
 
   el.conflictsPreview.appendChild(loadOrder);
