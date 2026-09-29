@@ -1,6 +1,6 @@
 # Organizer Planner milestone
 
-The Planner is a read-only safety layer between package classification and future file moves.
+The Planner is the mandatory safety layer between package classification and organization execution.
 
 ## Current behavior
 
@@ -18,13 +18,9 @@ The Planner:
 - never overwrites an existing file;
 - calculates the folders that would need to be created;
 - generates a human-readable restore manifest preview;
-- never moves, renames, deletes or creates user files in this milestone.
+- does not move files itself; execution is a separate backend command that requires a clean Planner result.
 
-The returned plan deliberately contains:
-
-```text
-canExecute=false
-```
+The returned plan exposes `canExecute=true` only when at least one item is ready and there are no blocked items or collisions.
 
 ## Plan states
 
