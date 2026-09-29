@@ -74,7 +74,9 @@ fn tr(language: AppLanguage, key: &str) -> &'static str {
         (AppLanguage::Es, "Pets") => "Mascotas",
 
         // CAS subcategories
-        (_, "Top") => "Top",
+        (AppLanguage::En, "Top") => "Top",
+        (AppLanguage::Pt, "Top") => "Parte de Cima",
+        (AppLanguage::Es, "Top") => "Parte Superior",
         (AppLanguage::En, "Bottom") => "Bottom",
         (AppLanguage::Pt, "Bottom") => "Parte de Baixo",
         (AppLanguage::Es, "Bottom") => "Parte Inferior",
@@ -137,7 +139,9 @@ fn tr(language: AppLanguage, key: &str) -> &'static str {
         (AppLanguage::En, "Gloves") => "Gloves",
         (AppLanguage::Pt, "Gloves") => "Luvas",
         (AppLanguage::Es, "Gloves") => "Guantes",
-        (_, "Socks") => "Socks",
+        (AppLanguage::En, "Socks") => "Socks",
+        (AppLanguage::Pt, "Socks") => "Meias",
+        (AppLanguage::Es, "Socks") => "Calcetines",
         (AppLanguage::En, "Arm Band") => "Arm Band",
         (AppLanguage::Pt, "Arm Band") => "Braçadeira",
         (AppLanguage::Es, "Arm Band") => "Brazalete",
@@ -156,7 +160,9 @@ fn tr(language: AppLanguage, key: &str) -> &'static str {
         (AppLanguage::En, "Blush") => "Blush",
         (AppLanguage::Pt, "Blush") => "Blush",
         (AppLanguage::Es, "Blush") => "Rubor",
-        (_, "Mascara") => "Mascara",
+        (AppLanguage::En, "Mascara") => "Mascara",
+        (AppLanguage::Pt, "Mascara") => "Rímel",
+        (AppLanguage::Es, "Mascara") => "Máscara de Pestañas",
 
         // Gender/species
         (AppLanguage::En, "Male") => "Male",
@@ -277,6 +283,30 @@ fn tr(language: AppLanguage, key: &str) -> &'static str {
         (AppLanguage::En, "Sofas & Loveseats") => "Sofas & Loveseats",
         (AppLanguage::Pt, "Sofas & Loveseats") => "Sofás",
         (AppLanguage::Es, "Sofas & Loveseats") => "Sofás",
+        (AppLanguage::En, "Ceiling Lights") => "Ceiling Lights",
+        (AppLanguage::Pt, "Ceiling Lights") => "Luzes de Teto",
+        (AppLanguage::Es, "Ceiling Lights") => "Luces de Techo",
+        (AppLanguage::En, "Floor Lamps") => "Floor Lamps",
+        (AppLanguage::Pt, "Floor Lamps") => "Luminárias de Piso",
+        (AppLanguage::Es, "Floor Lamps") => "Lámparas de Pie",
+        (AppLanguage::En, "Table Lamps") => "Table Lamps",
+        (AppLanguage::Pt, "Table Lamps") => "Luminárias de Mesa",
+        (AppLanguage::Es, "Table Lamps") => "Lámparas de Mesa",
+        (AppLanguage::En, "Wall Lamps") => "Wall Lamps",
+        (AppLanguage::Pt, "Wall Lamps") => "Luzes de Parede",
+        (AppLanguage::Es, "Wall Lamps") => "Luces de Pared",
+        (AppLanguage::En, "Outdoor Lights") => "Outdoor Lights",
+        (AppLanguage::Pt, "Outdoor Lights") => "Iluminação Externa",
+        (AppLanguage::Es, "Outdoor Lights") => "Iluminación Exterior",
+        (AppLanguage::En, "Horses") => "Horses",
+        (AppLanguage::Pt, "Horses") => "Cavalos",
+        (AppLanguage::Es, "Horses") => "Caballos",
+        (AppLanguage::En, "Dogs") => "Dogs",
+        (AppLanguage::Pt, "Dogs") => "Cachorros",
+        (AppLanguage::Es, "Dogs") => "Perros",
+        (AppLanguage::En, "Cats") => "Cats",
+        (AppLanguage::Pt, "Cats") => "Gatos",
+        (AppLanguage::Es, "Cats") => "Gatos",
         (AppLanguage::En, "Beds") => "Beds",
         (AppLanguage::Pt, "Beds") => "Camas",
         (AppLanguage::Es, "Beds") => "Camas",
@@ -577,7 +607,7 @@ fn casp_usage_categories(flags: u32, language: AppLanguage) -> Vec<String> {
 
     definitions
         .into_iter()
-        .filter(|(flag, _)| (flags & flag) != 0)
+        .filter(|(flag, _)| (flags & *flag) != 0)
         .map(|(_, key)| localize_usage(language, key))
         .collect()
 }
@@ -868,7 +898,7 @@ fn decode_build(flags: ObjdCatalogFlags) -> Option<&'static str> {
 
     if let Some((_, label)) = build
         .into_iter()
-        .find(|(flag, _)| (flags.build_category_flags & flag) != 0)
+        .find(|(flag, _)| (flags.build_category_flags & *flag) != 0)
     {
         return Some(label);
     }
@@ -886,7 +916,7 @@ fn decode_build(flags: ObjdCatalogFlags) -> Option<&'static str> {
 
     object_fallback
         .into_iter()
-        .find(|(flag, _)| (flags.object_type_flags & flag) != 0)
+        .find(|(flag, _)| (flags.object_type_flags & *flag) != 0)
         .map(|(_, label)| label)
 }
 
@@ -909,7 +939,7 @@ fn decode_buy_main(flags: u32) -> Option<&'static str> {
         (0x4000_0000, "Debug"),
     ]
     .into_iter()
-    .find(|(flag, _)| (flags & flag) != 0)
+    .find(|(flag, _)| (flags & *flag) != 0)
     .map(|(_, label)| label)
 }
 
@@ -939,6 +969,14 @@ fn decode_buy_sub(main: &str, sub1: u64, sub2: u64) -> Option<&'static str> {
             (0x0000_0080_0000_0000, "Sofas & Loveseats"),
             (0x0000_0100_0000_0000, "Miscellaneous"),
             (0x0000_0400_0000_0000, "Beds"),
+        ],
+        "Lighting" => &[
+            (0x0000_0000_0008_0000, "Ceiling Lights"),
+            (0x0000_0000_0010_0000, "Floor Lamps"),
+            (0x0000_0000_0020_0000, "Table Lamps"),
+            (0x0000_0000_0040_0000, "Wall Lamps"),
+            (0x0000_0000_0080_0000, "Outdoor Lights"),
+            (0x0100_0000_0000_0000, "Miscellaneous"),
         ],
         "Plumbing" => &[
             (0x0000_0000_0002_0000, "Sinks"),
@@ -980,10 +1018,15 @@ fn decode_buy_sub(main: &str, sub1: u64, sub2: u64) -> Option<&'static str> {
             (0x0010_0000_0000_0000, "Bicycles"),
             (0x1000_0000_0000_0000, "Miscellaneous"),
         ],
+        "Pets" => &[
+            (0x0000_0000_0000_8000, "Horses"),
+            (0x0000_0002_0000_0000, "Dogs"),
+            (0x4000_0000_0000_0000, "Cats"),
+        ],
         _ => &[],
     };
 
-    if let Some((_, label)) = candidates.iter().find(|(flag, _)| (sub1 & flag) != 0) {
+    if let Some((_, label)) = candidates.iter().find(|(flag, _)| (sub1 & *flag) != 0) {
         return Some(*label);
     }
 
@@ -1061,7 +1104,7 @@ fn room_usage(flags: u32, language: AppLanguage) -> Vec<String> {
 
     definitions
         .into_iter()
-        .filter(|(flag, _)| (flags & flag) != 0)
+        .filter(|(flag, _)| (flags & *flag) != 0)
         .map(|(_, key)| match (language, key) {
             (AppLanguage::Pt, "Living Room") => "Sala de Estar".to_string(),
             (AppLanguage::Es, "Living Room") => "Sala de Estar".to_string(),
