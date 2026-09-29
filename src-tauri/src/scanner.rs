@@ -71,7 +71,7 @@ fn resource_type_label(type_id: u32) -> String {
         TYPE_OBJD => "OBJD".to_string(),
         0x0333_406C => "XML".to_string(),
         0x03B3_3DDF => "ITUN".to_string(),
-        0x073E_93EE => "Manifest".to_string(),
+        0x73E9_3EEB => "Manifest".to_string(),
         0x2205_57DA => "STBL".to_string(),
         0x00B2_D882 => "IMG".to_string(),
         0x015A_1849 => "GEOM".to_string(),
