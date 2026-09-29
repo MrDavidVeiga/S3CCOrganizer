@@ -95,7 +95,44 @@ const I18N = {
     changed: "Changed",
     missing: "Missing",
     ambiguous: "Ambiguous",
-    duplicatesNext: "Exact, content and related-variant detection will be connected after the catalog scanner is validated.",
+    duplicatesIntro: "Find true duplicates and distinguish them from related CC variants without deleting anything.",
+    analyzeDuplicates: "Analyze Duplicates",
+    analyzingDuplicates: "Analyzing package fingerprints…",
+    duplicatesReady: "Duplicate analysis complete",
+    duplicatesFailed: "Duplicate analysis failed",
+    duplicateSearch: "Search duplicate findings…",
+    allDuplicateTypes: "All findings",
+    exactDuplicate: "Exact Duplicate",
+    contentDuplicate: "Content Duplicate",
+    retexture: "Retexture",
+    recategorizedVariant: "Recategorized Variant",
+    relatedVariant: "Related Variant",
+    exactGroups: "Exact Groups",
+    contentGroups: "Content Groups",
+    retextures: "Retextures",
+    relatedVariants: "Related Variants",
+    analyzeDuplicatesToBegin: "Analyze the selected Mods folder to find duplicate relationships.",
+    selectDuplicateFinding: "Select a finding to see why it was detected.",
+    duplicateMembers: "Files in this group",
+    duplicateReason: "Why it was flagged",
+    fileHash: "File SHA-256",
+    normalizedFingerprint: "Normalized fingerprint",
+    resourceCount: "Resource count",
+    sharedResources: "Shared resources",
+    identicalTgiPayloads: "Same TGI + same payload",
+    changedSameTgi: "Same TGI + different payload",
+    sharedStructural: "Shared structural resources",
+    changedTextures: "Changed textures/materials",
+    changedCatalog: "Changed catalog resources",
+    evidence: "Evidence",
+    exactExplanation: "The entire .package file has the same SHA-256. These files are byte-for-byte identical.",
+    contentExplanation: "The package containers differ, but the normalized set of TGI keys and decompressed resource payload hashes is identical.",
+    retextureExplanation: "Structural resources match while texture/material content differs. This is a related visual variant, not a duplicate to delete.",
+    recategorizedExplanation: "Substantive non-catalog content matches while catalog resources differ. This is a recategorized variant, not a duplicate to delete.",
+    relatedExplanation: "Structural resources match, but the remaining package content differs. It is related content and requires user review.",
+    unreadablePackages: "Unreadable packages",
+    noDuplicateFindings: "No findings match the current search and filter.",
+    duplicatesNext: "Duplicate analysis is implemented in read-only mode. No file is deleted or moved.",
     conflictsNext: "Resource-level conflict analysis will distinguish shared identical resources from real overrides.",
   },
   pt: {
@@ -190,7 +227,44 @@ const I18N = {
     changed: "Alterado",
     missing: "Ausente",
     ambiguous: "Ambíguo",
-    duplicatesNext: "A detecção de cópias exatas, duplicados por conteúdo e variantes será conectada depois da validação do scanner de catálogo.",
+    duplicatesIntro: "Encontre duplicados reais e diferencie-os de variantes relacionadas de CC sem apagar nada.",
+    analyzeDuplicates: "Analisar Duplicados",
+    analyzingDuplicates: "Analisando fingerprints dos packages…",
+    duplicatesReady: "Análise de duplicados concluída",
+    duplicatesFailed: "Falha na análise de duplicados",
+    duplicateSearch: "Pesquisar resultados de duplicados…",
+    allDuplicateTypes: "Todos os resultados",
+    exactDuplicate: "Duplicado Exato",
+    contentDuplicate: "Duplicado por Conteúdo",
+    retexture: "Retexture",
+    recategorizedVariant: "Variante Recategorizada",
+    relatedVariant: "Variante Relacionada",
+    exactGroups: "Grupos Exatos",
+    contentGroups: "Grupos por Conteúdo",
+    retextures: "Retextures",
+    relatedVariants: "Variantes Relacionadas",
+    analyzeDuplicatesToBegin: "Analise a pasta de Mods selecionada para encontrar relações de duplicidade.",
+    selectDuplicateFinding: "Selecione um resultado para ver por que ele foi detectado.",
+    duplicateMembers: "Arquivos deste grupo",
+    duplicateReason: "Por que foi marcado",
+    fileHash: "SHA-256 do arquivo",
+    normalizedFingerprint: "Fingerprint normalizado",
+    resourceCount: "Quantidade de resources",
+    sharedResources: "Resources compartilhados",
+    identicalTgiPayloads: "Mesmo TGI + mesmo conteúdo",
+    changedSameTgi: "Mesmo TGI + conteúdo diferente",
+    sharedStructural: "Resources estruturais compartilhados",
+    changedTextures: "Texturas/materiais alterados",
+    changedCatalog: "Resources de catálogo alterados",
+    evidence: "Evidências",
+    exactExplanation: "O arquivo .package inteiro possui o mesmo SHA-256. Esses arquivos são idênticos byte por byte.",
+    contentExplanation: "Os containers dos packages diferem, mas o conjunto normalizado de TGIs e hashes dos resources descomprimidos é idêntico.",
+    retextureExplanation: "Os resources estruturais coincidem, enquanto texturas ou materiais diferem. É uma variante visual relacionada, não um duplicado para apagar.",
+    recategorizedExplanation: "O conteúdo substancial fora do catálogo coincide, enquanto os resources de catálogo diferem. É uma variante recategorizada, não um duplicado para apagar.",
+    relatedExplanation: "Os resources estruturais coincidem, mas o restante do conteúdo do package difere. É conteúdo relacionado e requer revisão.",
+    unreadablePackages: "Packages não legíveis",
+    noDuplicateFindings: "Nenhum resultado corresponde à pesquisa e ao filtro atuais.",
+    duplicatesNext: "A análise de duplicados está implementada em modo somente leitura. Nenhum arquivo é apagado ou movido.",
     conflictsNext: "A análise de conflitos por resource distinguirá resources idênticos compartilhados de overrides reais.",
   },
   es: {
@@ -285,7 +359,44 @@ const I18N = {
     changed: "Modificado",
     missing: "Ausente",
     ambiguous: "Ambiguo",
-    duplicatesNext: "La detección de copias exactas, duplicados por contenido y variantes se conectará después de validar el escáner de catálogo.",
+    duplicatesIntro: "Encuentra duplicados reales y distínguelos de variantes relacionadas de CC sin eliminar nada.",
+    analyzeDuplicates: "Analizar Duplicados",
+    analyzingDuplicates: "Analizando fingerprints de los packages…",
+    duplicatesReady: "Análisis de duplicados completado",
+    duplicatesFailed: "Error en el análisis de duplicados",
+    duplicateSearch: "Buscar resultados de duplicados…",
+    allDuplicateTypes: "Todos los resultados",
+    exactDuplicate: "Duplicado Exacto",
+    contentDuplicate: "Duplicado por Contenido",
+    retexture: "Retexture",
+    recategorizedVariant: "Variante Recategorizada",
+    relatedVariant: "Variante Relacionada",
+    exactGroups: "Grupos Exactos",
+    contentGroups: "Grupos por Contenido",
+    retextures: "Retextures",
+    relatedVariants: "Variantes Relacionadas",
+    analyzeDuplicatesToBegin: "Analiza la carpeta de Mods seleccionada para encontrar relaciones de duplicidad.",
+    selectDuplicateFinding: "Selecciona un resultado para ver por qué fue detectado.",
+    duplicateMembers: "Archivos de este grupo",
+    duplicateReason: "Por qué fue marcado",
+    fileHash: "SHA-256 del archivo",
+    normalizedFingerprint: "Fingerprint normalizado",
+    resourceCount: "Cantidad de resources",
+    sharedResources: "Resources compartidos",
+    identicalTgiPayloads: "Mismo TGI + mismo contenido",
+    changedSameTgi: "Mismo TGI + contenido diferente",
+    sharedStructural: "Resources estructurales compartidos",
+    changedTextures: "Texturas/materiales modificados",
+    changedCatalog: "Resources de catálogo modificados",
+    evidence: "Evidencias",
+    exactExplanation: "El archivo .package completo tiene el mismo SHA-256. Estos archivos son idénticos byte por byte.",
+    contentExplanation: "Los contenedores de los packages difieren, pero el conjunto normalizado de TGIs y hashes de los resources descomprimidos es idéntico.",
+    retextureExplanation: "Los resources estructurales coinciden mientras las texturas o materiales difieren. Es una variante visual relacionada, no un duplicado para eliminar.",
+    recategorizedExplanation: "El contenido sustancial fuera del catálogo coincide mientras los resources de catálogo difieren. Es una variante recategorizada, no un duplicado para eliminar.",
+    relatedExplanation: "Los resources estructurales coinciden, pero el resto del contenido del package difiere. Es contenido relacionado y requiere revisión.",
+    unreadablePackages: "Packages no legibles",
+    noDuplicateFindings: "Ningún resultado coincide con la búsqueda y el filtro actuales.",
+    duplicatesNext: "El análisis de duplicados está implementado en modo de solo lectura. Ningún archivo se elimina ni se mueve.",
     conflictsNext: "El análisis de conflictos por resource distinguirá resources idénticos compartidos de overrides reales.",
   },
 };
@@ -314,6 +425,12 @@ const state = {
   restoreBusy: false,
   restoreError: "",
   restoreNotice: "",
+  duplicatesAnalysis: null,
+  duplicatesBusy: false,
+  duplicatesError: "",
+  duplicatesSearch: "",
+  duplicatesFilter: "all",
+  duplicateSelectedId: "",
   pendingAction: "",
 };
 
@@ -375,6 +492,19 @@ const el = {
   confirmMessage: document.querySelector("#confirm-message"),
   confirmCancelBtn: document.querySelector("#confirm-cancel-btn"),
   confirmActionBtn: document.querySelector("#confirm-action-btn"),
+  analyzeDuplicatesBtn: document.querySelector("#analyze-duplicates-btn"),
+  duplicatesState: document.querySelector("#duplicates-state"),
+  duplicatesSearch: document.querySelector("#duplicates-search"),
+  duplicatesFilter: document.querySelector("#duplicates-filter"),
+  duplicatesEmpty: document.querySelector("#duplicates-empty"),
+  duplicatesResults: document.querySelector("#duplicates-results"),
+  duplicatesList: document.querySelector("#duplicates-list"),
+  duplicatesPreview: document.querySelector("#duplicates-preview"),
+  dupStatPackages: document.querySelector("#dup-stat-packages"),
+  dupStatExact: document.querySelector("#dup-stat-exact"),
+  dupStatContent: document.querySelector("#dup-stat-content"),
+  dupStatRetexture: document.querySelector("#dup-stat-retexture"),
+  dupStatRelated: document.querySelector("#dup-stat-related"),
 };
 
 function t(key) {
@@ -431,7 +561,9 @@ function renderLanguage() {
     String(!el.languageMenu?.classList.contains("hidden"))
   );
   if (el.searchInput) el.searchInput.placeholder = t("search");
+  if (el.duplicatesSearch) el.duplicatesSearch.placeholder = t("duplicateSearch");
   renderStatusFilter();
+  renderDuplicateFilter();
   renderSelectionSummary();
 }
 
@@ -453,6 +585,271 @@ function renderStatusFilter() {
     option.selected = value === current;
     el.statusFilter.appendChild(option);
   }
+}
+
+function renderDuplicateFilter() {
+  if (!el.duplicatesFilter) return;
+  const options = [
+    ["all", t("allDuplicateTypes")],
+    ["exact_duplicate", t("exactDuplicate")],
+    ["content_duplicate", t("contentDuplicate")],
+    ["retexture", t("retexture")],
+    ["recategorized_variant", t("recategorizedVariant")],
+    ["related_variant", t("relatedVariant")],
+  ];
+  el.duplicatesFilter.innerHTML = "";
+  for (const [value, label] of options) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    option.selected = state.duplicatesFilter === value;
+    el.duplicatesFilter.appendChild(option);
+  }
+}
+
+function duplicateKindLabel(kind) {
+  return {
+    exact_duplicate: t("exactDuplicate"),
+    content_duplicate: t("contentDuplicate"),
+    retexture: t("retexture"),
+    recategorized_variant: t("recategorizedVariant"),
+    related_variant: t("relatedVariant"),
+  }[kind] || kind;
+}
+
+function duplicateExplanation(kind) {
+  return {
+    exact_duplicate: t("exactExplanation"),
+    content_duplicate: t("contentExplanation"),
+    retexture: t("retextureExplanation"),
+    recategorized_variant: t("recategorizedExplanation"),
+    related_variant: t("relatedExplanation"),
+  }[kind] || "";
+}
+
+function flattenedDuplicateFindings() {
+  const analysis = state.duplicatesAnalysis;
+  if (!analysis) return [];
+  return [
+    ...(analysis.groups || []).map((item) => ({ ...item, findingType: "group" })),
+    ...(analysis.relations || []).map((item) => ({ ...item, findingType: "relation" })),
+  ];
+}
+
+function visibleDuplicateFindings() {
+  const query = state.duplicatesSearch.trim().toLocaleLowerCase();
+  return flattenedDuplicateFindings().filter((item) => {
+    if (state.duplicatesFilter !== "all" && item.kind !== state.duplicatesFilter) return false;
+    if (!query) return true;
+
+    const memberNames = item.findingType === "group"
+      ? (item.members || []).flatMap((member) => [member.name, member.relativePath])
+      : [
+          item.left?.name,
+          item.left?.relativePath,
+          item.right?.name,
+          item.right?.relativePath,
+          ...(item.evidence || []),
+        ];
+
+    return memberNames
+      .filter(Boolean)
+      .join(" ")
+      .toLocaleLowerCase()
+      .includes(query);
+  });
+}
+
+function renderDuplicatesPreview() {
+  if (!el.duplicatesPreview) return;
+  const item = flattenedDuplicateFindings().find(
+    (finding) => finding.id === state.duplicateSelectedId
+  );
+
+  el.duplicatesPreview.innerHTML = "";
+  if (!item) {
+    const empty = document.createElement("div");
+    empty.className = "preview-empty";
+    empty.textContent = t("selectDuplicateFinding");
+    el.duplicatesPreview.appendChild(empty);
+    return;
+  }
+
+  const header = document.createElement("div");
+  header.className = "preview-header";
+  const title = document.createElement("h3");
+  title.textContent = duplicateKindLabel(item.kind);
+  const badge = document.createElement("span");
+  badge.className = `duplicate-kind duplicate-kind-${item.kind}`;
+  badge.textContent = item.findingType === "group"
+    ? `${item.members?.length || 0} ${t("packages")}`
+    : "2";
+  header.append(title, badge);
+
+  const reason = document.createElement("div");
+  reason.className = "duplicate-reason";
+  const reasonTitle = document.createElement("strong");
+  reasonTitle.textContent = t("duplicateReason");
+  const reasonText = document.createElement("p");
+  reasonText.textContent = duplicateExplanation(item.kind);
+  reason.append(reasonTitle, reasonText);
+
+  el.duplicatesPreview.append(header, reason);
+
+  if (item.findingType === "group") {
+    const listTitle = document.createElement("h4");
+    listTitle.textContent = t("duplicateMembers");
+    el.duplicatesPreview.appendChild(listTitle);
+
+    const members = document.createElement("div");
+    members.className = "duplicate-member-list";
+    for (const member of item.members || []) {
+      const card = document.createElement("article");
+      card.className = "duplicate-member";
+      const name = document.createElement("strong");
+      name.textContent = member.name;
+      const path = document.createElement("code");
+      path.textContent = member.relativePath;
+      const meta = document.createElement("small");
+      const hash = member.fileSha256 ? member.fileSha256.slice(0, 16) : "—";
+      meta.textContent = `${t("fileHash")}: ${hash}… · ${t("resourceCount")}: ${member.resourceCount}`;
+      card.append(name, path, meta);
+      members.appendChild(card);
+    }
+    el.duplicatesPreview.appendChild(members);
+  } else {
+    const pair = document.createElement("div");
+    pair.className = "duplicate-pair";
+    for (const [label, member] of [["A", item.left], ["B", item.right]]) {
+      const card = document.createElement("article");
+      const mark = document.createElement("b");
+      mark.textContent = label;
+      const name = document.createElement("strong");
+      name.textContent = member?.name || "—";
+      const path = document.createElement("code");
+      path.textContent = member?.relativePath || "";
+      card.append(mark, name, path);
+      pair.appendChild(card);
+    }
+    el.duplicatesPreview.appendChild(pair);
+
+    const metrics = document.createElement("div");
+    metrics.className = "duplicate-metrics";
+    const values = [
+      [t("sharedResources"), item.sharedResourceCount],
+      [t("identicalTgiPayloads"), item.identicalTgiPayloadCount],
+      [t("changedSameTgi"), item.changedSameTgiCount],
+      [t("sharedStructural"), item.sharedStructuralCount],
+      [t("changedTextures"), item.changedTextureCount],
+      [t("changedCatalog"), item.changedCatalogCount],
+    ];
+    for (const [label, value] of values) {
+      const row = document.createElement("div");
+      const span = document.createElement("span");
+      span.textContent = label;
+      const strong = document.createElement("strong");
+      strong.textContent = String(value ?? 0);
+      row.append(span, strong);
+      metrics.appendChild(row);
+    }
+    el.duplicatesPreview.appendChild(metrics);
+
+    if (item.evidence?.length) {
+      const evidenceTitle = document.createElement("h4");
+      evidenceTitle.textContent = t("evidence");
+      const list = document.createElement("ul");
+      list.className = "duplicate-evidence";
+      for (const evidence of item.evidence) {
+        const li = document.createElement("li");
+        li.textContent = evidence;
+        list.appendChild(li);
+      }
+      el.duplicatesPreview.append(evidenceTitle, list);
+    }
+  }
+}
+
+function renderDuplicates() {
+  if (!el.analyzeDuplicatesBtn) return;
+  el.analyzeDuplicatesBtn.disabled = !state.folder || state.duplicatesBusy;
+
+  const stats = state.duplicatesAnalysis?.stats || {};
+  el.dupStatPackages.textContent = stats.packagesScanned ?? 0;
+  el.dupStatExact.textContent = stats.exactGroups ?? 0;
+  el.dupStatContent.textContent = stats.contentGroups ?? 0;
+  el.dupStatRetexture.textContent = stats.retextureRelations ?? 0;
+  el.dupStatRelated.textContent =
+    (stats.recategorizedRelations ?? 0) + (stats.relatedVariantRelations ?? 0);
+
+  if (state.duplicatesBusy) {
+    el.duplicatesState.textContent = t("analyzingDuplicates");
+    el.duplicatesState.className = "scan-state busy";
+  } else if (state.duplicatesError) {
+    el.duplicatesState.textContent = `${t("duplicatesFailed")}: ${state.duplicatesError}`;
+    el.duplicatesState.className = "scan-state error";
+  } else if (state.duplicatesAnalysis) {
+    const unreadable = stats.unreadablePackages ?? 0;
+    el.duplicatesState.textContent = unreadable
+      ? `${t("duplicatesReady")} · ${t("unreadablePackages")}: ${unreadable}`
+      : t("duplicatesReady");
+    el.duplicatesState.className = "scan-state success";
+  } else {
+    el.duplicatesState.textContent = "";
+    el.duplicatesState.className = "scan-state";
+  }
+
+  const hasAnalysis = !!state.duplicatesAnalysis;
+  el.duplicatesEmpty.classList.toggle("hidden", hasAnalysis);
+  el.duplicatesResults.classList.toggle("hidden", !hasAnalysis);
+  if (!hasAnalysis) {
+    renderDuplicatesPreview();
+    return;
+  }
+
+  const findings = visibleDuplicateFindings();
+  el.duplicatesList.innerHTML = "";
+
+  if (!findings.length) {
+    const empty = document.createElement("div");
+    empty.className = "list-empty";
+    empty.textContent = t("noDuplicateFindings");
+    el.duplicatesList.appendChild(empty);
+  } else {
+    for (const finding of findings) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className =
+        "duplicate-row" + (finding.id === state.duplicateSelectedId ? " active" : "");
+
+      const main = document.createElement("div");
+      main.className = "duplicate-row-main";
+      const kind = document.createElement("strong");
+      kind.textContent = duplicateKindLabel(finding.kind);
+      const names = document.createElement("span");
+      names.textContent = finding.findingType === "group"
+        ? (finding.members || []).map((member) => member.name).join(" · ")
+        : `${finding.left?.name || "—"} ↔ ${finding.right?.name || "—"}`;
+      main.append(kind, names);
+
+      const count = document.createElement("span");
+      count.className = `duplicate-kind duplicate-kind-${finding.kind}`;
+      count.textContent = finding.findingType === "group"
+        ? String(finding.members?.length || 0)
+        : String(finding.sharedStructuralCount ?? 0);
+
+      button.append(main, count);
+      button.addEventListener("click", () => {
+        state.duplicateSelectedId = finding.id;
+        renderDuplicates();
+      });
+      el.duplicatesList.appendChild(button);
+    }
+  }
+
+  if (!findings.some((item) => item.id === state.duplicateSelectedId)) {
+    state.duplicateSelectedId = findings[0]?.id || "";
+  }
+  renderDuplicatesPreview();
 }
 
 function renderTabs() {
@@ -880,6 +1277,7 @@ function render() {
   renderTabs();
   renderStats();
   renderRestore();
+  renderDuplicates();
 
   el.folderPath.textContent = state.folder || t("noFolder");
   el.folderPath.title = state.folder;
@@ -932,6 +1330,11 @@ async function chooseFolder() {
   state.planError = "";
   state.notice = "";
   state.plan = null;
+  state.duplicatesAnalysis = null;
+  state.duplicatesError = "";
+  state.duplicatesSearch = "";
+  state.duplicatesFilter = "all";
+  state.duplicateSelectedId = "";
   closePlanModal();
   render();
 }
@@ -1125,6 +1528,29 @@ async function executeRestore() {
   }
 }
 
+async function analyzeDuplicates() {
+  if (!state.folder || state.duplicatesBusy) return;
+
+  state.duplicatesBusy = true;
+  state.duplicatesError = "";
+  state.duplicatesAnalysis = null;
+  state.duplicateSelectedId = "";
+  render();
+
+  try {
+    state.duplicatesAnalysis = await invoke("analyze_duplicates", {
+      folder: state.folder,
+    });
+    const first = flattenedDuplicateFindings()[0];
+    state.duplicateSelectedId = first?.id || "";
+  } catch (error) {
+    state.duplicatesError = String(error);
+  } finally {
+    state.duplicatesBusy = false;
+    render();
+  }
+}
+
 function selectAllVisible() {
   for (const item of visibleItems()) {
     if (eligibleForPlan(item)) state.selectedForPlan.add(item.id);
@@ -1201,6 +1627,16 @@ el.planExecuteBtn.addEventListener("click", () => openConfirm("organize"));
 
 el.planModal.addEventListener("click", (event) => {
   if (event.target === el.planModal) closePlanModal();
+});
+
+el.analyzeDuplicatesBtn.addEventListener("click", analyzeDuplicates);
+el.duplicatesSearch.addEventListener("input", (event) => {
+  state.duplicatesSearch = event.currentTarget.value;
+  renderDuplicates();
+});
+el.duplicatesFilter.addEventListener("change", (event) => {
+  state.duplicatesFilter = event.currentTarget.value;
+  renderDuplicates();
 });
 
 el.chooseManifestBtn.addEventListener("click", chooseManifest);
