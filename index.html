@@ -110,10 +110,40 @@
             <p data-i18n="conflictsNext">Resource-level conflict analysis will distinguish shared identical resources from real overrides.</p>
           </section>
 
-          <section id="page-restore" class="tool-page hidden placeholder-page">
-            <i class="fa-solid fa-clock-rotate-left"></i>
-            <h2 data-i18n="restore">Restore</h2>
-            <p data-i18n="restoreNext">Restore manifests will be enabled only after the organizer move engine is validated.</p>
+          <section id="page-restore" class="tool-page hidden restore-page">
+            <div class="hero">
+              <div>
+                <h2 data-i18n="restore">Restore</h2>
+                <p data-i18n="restoreIntro">Choose a restore manifest to preview the exact rollback before changing files.</p>
+              </div>
+              <div id="restore-state" class="scan-state"></div>
+            </div>
+
+            <div class="restore-toolbar">
+              <button id="choose-manifest-btn" class="primary-btn restore-primary" type="button">
+                <i class="fa-solid fa-file-lines" aria-hidden="true"></i>
+                <span data-i18n="chooseManifest">Choose Restore Manifest</span>
+              </button>
+              <div id="restore-manifest-path" class="restore-manifest-path" data-i18n="noManifest">No manifest selected.</div>
+              <button id="preview-restore-btn" class="secondary-btn" type="button" disabled data-i18n="previewRestore">Preview Restore</button>
+              <button id="execute-restore-btn" class="primary-btn restore-primary" type="button" disabled data-i18n="executeRestore">Restore Structure</button>
+            </div>
+
+            <div class="restore-summary">
+              <article><b id="restore-stat-tracked">0</b><span data-i18n="tracked">Tracked</span></article>
+              <article><b id="restore-stat-ready">0</b><span data-i18n="readyToRestore">Ready</span></article>
+              <article><b id="restore-stat-new">0</b><span data-i18n="newFiles">New Files</span></article>
+              <article><b id="restore-stat-collisions">0</b><span data-i18n="collisions">Collisions</span></article>
+              <article><b id="restore-stat-blocked">0</b><span data-i18n="blocked">Blocked</span></article>
+            </div>
+
+            <div id="restore-empty" class="empty">
+              <span data-i18n="chooseManifestToBegin">Choose a restore manifest to begin.</span>
+            </div>
+
+            <div id="restore-results" class="restore-results hidden">
+              <div id="restore-items" class="plan-items"></div>
+            </div>
           </section>
         </section>
       </main>
@@ -156,9 +186,24 @@
         </div>
 
         <footer class="planner-footer">
-          <span><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> <span data-i18n="nothingMoved">Nothing has been moved.</span></span>
-          <button id="plan-close-footer-btn" class="secondary-btn" type="button" data-i18n="close">Close</button>
+          <span><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> <span data-i18n="reviewBeforeMove">Review every change before organizing.</span></span>
+          <div class="planner-footer-actions">
+            <button id="plan-close-footer-btn" class="secondary-btn" type="button" data-i18n="close">Close</button>
+            <button id="plan-execute-btn" class="primary-btn planner-execute-btn" type="button" disabled data-i18n="organizeSelected">Organize Selected</button>
+          </div>
         </footer>
+      </section>
+    </div>
+
+    <div id="confirm-modal" class="modal-backdrop hidden" aria-hidden="true">
+      <section class="confirm-modal card" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+        <div class="confirm-icon"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i></div>
+        <h2 id="confirm-title"></h2>
+        <p id="confirm-message"></p>
+        <div class="confirm-actions">
+          <button id="confirm-cancel-btn" class="secondary-btn" type="button" data-i18n="cancel">Cancel</button>
+          <button id="confirm-action-btn" class="primary-btn" type="button"></button>
+        </div>
       </section>
     </div>
 
