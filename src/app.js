@@ -34,6 +34,7 @@ const I18N = {
     species: "Species",
     usageCategories: "Catalog categories",
     suggestedDestination: "Suggested destination",
+    possibleDestinations: "Possible destinations",
     resources: "Resources",
     originalPath: "Current path",
     warnings: "Review notes",
@@ -76,6 +77,7 @@ const I18N = {
     species: "Espécie",
     usageCategories: "Categorias do catálogo",
     suggestedDestination: "Destino sugerido",
+    possibleDestinations: "Destinos possíveis",
     resources: "Resources",
     originalPath: "Caminho atual",
     warnings: "Notas para revisão",
@@ -118,6 +120,7 @@ const I18N = {
     species: "Especie",
     usageCategories: "Categorías del catálogo",
     suggestedDestination: "Destino sugerido",
+    possibleDestinations: "Destinos posibles",
     resources: "Resources",
     originalPath: "Ruta actual",
     warnings: "Notas para revisión",
@@ -307,6 +310,9 @@ function renderPreview() {
   appendMeta(meta, t("resources"), `${item.resourceCount} · ${(item.resourceTypes || []).join(", ")}`);
   appendMeta(meta, t("originalPath"), item.relativePath);
   appendMeta(meta, t("suggestedDestination"), item.destinationPath || t("noDestination"));
+  if (!item.destinationPath && item.candidateDestinations?.length) {
+    appendMeta(meta, t("possibleDestinations"), item.candidateDestinations);
+  }
 
   el.previewCard.append(header, meta);
 
