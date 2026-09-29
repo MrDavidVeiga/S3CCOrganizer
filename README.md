@@ -86,6 +86,12 @@ The read-only Duplicates engine is implemented. It separates byte-identical pack
 
 See [docs/DUPLICATES-ANALYZER.md](docs/DUPLICATES-ANALYZER.md).
 
+## Conflicts analyzer
+
+The read-only conflict engine is implemented. It indexes shared TGIs, compares decompressed payload hashes, distinguishes identical shared resources from visual/catalog/gameplay/script/text overrides, and adds conservative Resource.cfg priority evidence.
+
+See [docs/CONFLICTS-ANALYZER.md](docs/CONFLICTS-ANALYZER.md) and [docs/RESOURCE-CFG.md](docs/RESOURCE-CFG.md).
+
 ## Status
 
 The repository is organized around four layers:
