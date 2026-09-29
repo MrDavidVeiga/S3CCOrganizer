@@ -873,7 +873,7 @@ fn parse_objd_flags(data: &[u8]) -> Option<ObjdCatalogFlags> {
 }
 
 fn decode_build(flags: ObjdCatalogFlags) -> Option<&'static str> {
-    let build = [
+    [
         (0x0000_0002, "Doors"),
         (0x0000_0004, "Windows"),
         (0x0000_0008, "Gates"),
@@ -894,30 +894,10 @@ fn decode_build(flags: ObjdCatalogFlags) -> Option<&'static str> {
         (0x1000_0000, "Blueprints"),
         (0x2000_0000, "Resort Objects"),
         (0x4000_0000, "Modular Arches"),
-    ];
-
-    if let Some((_, label)) = build
-        .into_iter()
-        .find(|(flag, _)| (flags.build_category_flags & *flag) != 0)
-    {
-        return Some(label);
-    }
-
-    let object_fallback = [
-        (0x0000_0008, "Doors"),
-        (0x0000_0010, "Windows"),
-        (0x0000_0020, "Gates"),
-        (0x0000_0080, "Rabbit Holes"),
-        (0x0000_0800, "Fireplaces"),
-        (0x0000_1000, "Chimneys"),
-        (0x0000_2000, "Plants"),
-        (0x0000_4000, "Columns"),
-    ];
-
-    object_fallback
-        .into_iter()
-        .find(|(flag, _)| (flags.object_type_flags & *flag) != 0)
-        .map(|(_, label)| label)
+    ]
+    .into_iter()
+    .find(|(flag, _)| (flags.build_category_flags & *flag) != 0)
+    .map(|(_, label)| label)
 }
 
 fn decode_buy_main(flags: u32) -> Option<&'static str> {
@@ -1166,5 +1146,30 @@ mod tests {
             build_category_flags: 0x4,
         };
         assert_eq!(decode_build(flags), Some("Windows"));
+    }
+
+    #[test]
+    fn object_type_flags_alone_do_not_invent_a_build_category() {
+        let flags = ObjdCatalogFlags {
+            object_type_flags: 0x10,
+            room_flags: 0,
+            function_category_flags: 0,
+            sub_category1_flags: 0,
+            sub_category2_flags: 0,
+            build_category_flags: 0,
+        };
+        assert_eq!(decode_build(flags), None);
+    }
+
+    #[test]
+    fn documented_pet_subcategories_are_distinct() {
+        assert_eq!(
+            decode_buy_sub("Pets", 0x0000_0002_0000_0000, 0),
+            Some("Dogs")
+        );
+        assert_eq!(
+            decode_buy_sub("Pets", 0x4000_0000_0000_0000, 0),
+            Some("Cats")
+        );
     }
 }
