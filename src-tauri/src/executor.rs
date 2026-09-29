@@ -66,7 +66,7 @@ fn package_extension(path: &Path) -> bool {
 }
 
 fn snapshot_entries(root: &Path, ready: &[&PlanItem]) -> Result<Vec<RestoreEntry>, String> {
-    let mut planned_destinations = HashMap::<PathBuf, PathBuf>::new();
+    let mut planned = HashMap::<PathBuf, (&PlanItem, PathBuf)>::new();
 
     for item in ready {
         let source = PathBuf::from(&item.source_path)
@@ -77,7 +77,7 @@ fn snapshot_entries(root: &Path, ready: &[&PlanItem]) -> Result<Vec<RestoreEntry
             .as_ref()
             .map(PathBuf::from)
             .ok_or_else(|| format!("Planner item {} is missing destination.", item.name))?;
-        planned_destinations.insert(source, destination);
+        planned.insert(source, (item, destination));
     }
 
     let mut entries = Vec::new();
@@ -100,12 +100,7 @@ fn snapshot_entries(root: &Path, ready: &[&PlanItem]) -> Result<Vec<RestoreEntry
         let (sha256, size) = sha256_file(&absolute)
             .map_err(|error| format!("Could not hash snapshot file {}: {error}", absolute.display()))?;
 
-        if let Some(item) = ready.iter().find(|item| {
-            PathBuf::from(&item.source_path)
-                .canonicalize()
-                .map(|path| path == absolute)
-                .unwrap_or(false)
-        }) {
+        let organized_relative = if let Some((item, destination)) = planned.get(&absolute) {
             let expected_hash = item
                 .sha256
                 .as_ref()
@@ -116,12 +111,10 @@ fn snapshot_entries(root: &Path, ready: &[&PlanItem]) -> Result<Vec<RestoreEntry
                     absolute.display()
                 ));
             }
-        }
-
-        let organized_relative = planned_destinations
-            .get(&absolute)
-            .cloned()
-            .unwrap_or_else(|| original_relative.clone());
+            destination.clone()
+        } else {
+            original_relative.clone()
+        };
 
         entries.push(RestoreEntry {
             sha256,
