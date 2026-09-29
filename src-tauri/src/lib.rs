@@ -7,6 +7,7 @@ pub mod duplicates;
 pub mod executor;
 pub mod i18n;
 pub mod manifest;
+pub mod package_family;
 pub mod planner;
 pub mod restore;
 pub mod resource_cfg;
