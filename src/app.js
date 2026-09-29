@@ -131,6 +131,7 @@ const I18N = {
     recategorizedExplanation: "Substantive non-catalog content matches while catalog resources differ. This is a recategorized variant, not a duplicate to delete.",
     relatedExplanation: "Structural resources match, but the remaining package content differs. It is related content and requires user review.",
     unreadablePackages: "Unreadable packages",
+    variantAnalysisTruncated: "Variant relation list was limited for performance.",
     noDuplicateFindings: "No findings match the current search and filter.",
     duplicatesNext: "Duplicate analysis is implemented in read-only mode. No file is deleted or moved.",
     conflictsNext: "Resource-level conflict analysis will distinguish shared identical resources from real overrides.",
@@ -263,6 +264,7 @@ const I18N = {
     recategorizedExplanation: "O conteúdo substancial fora do catálogo coincide, enquanto os resources de catálogo diferem. É uma variante recategorizada, não um duplicado para apagar.",
     relatedExplanation: "Os resources estruturais coincidem, mas o restante do conteúdo do package difere. É conteúdo relacionado e requer revisão.",
     unreadablePackages: "Packages não legíveis",
+    variantAnalysisTruncated: "A lista de relações entre variantes foi limitada por desempenho.",
     noDuplicateFindings: "Nenhum resultado corresponde à pesquisa e ao filtro atuais.",
     duplicatesNext: "A análise de duplicados está implementada em modo somente leitura. Nenhum arquivo é apagado ou movido.",
     conflictsNext: "A análise de conflitos por resource distinguirá resources idênticos compartilhados de overrides reais.",
@@ -395,6 +397,7 @@ const I18N = {
     recategorizedExplanation: "El contenido sustancial fuera del catálogo coincide mientras los resources de catálogo difieren. Es una variante recategorizada, no un duplicado para eliminar.",
     relatedExplanation: "Los resources estructurales coinciden, pero el resto del contenido del package difiere. Es contenido relacionado y requiere revisión.",
     unreadablePackages: "Packages no legibles",
+    variantAnalysisTruncated: "La lista de relaciones entre variantes fue limitada por rendimiento.",
     noDuplicateFindings: "Ningún resultado coincide con la búsqueda y el filtro actuales.",
     duplicatesNext: "El análisis de duplicados está implementado en modo de solo lectura. Ningún archivo se elimina ni se mueve.",
     conflictsNext: "El análisis de conflictos por resource distinguirá resources idénticos compartidos de overrides reales.",
@@ -789,9 +792,14 @@ function renderDuplicates() {
     el.duplicatesState.className = "scan-state error";
   } else if (state.duplicatesAnalysis) {
     const unreadable = stats.unreadablePackages ?? 0;
-    el.duplicatesState.textContent = unreadable
-      ? `${t("duplicatesReady")} · ${t("unreadablePackages")}: ${unreadable}`
-      : t("duplicatesReady");
+    const parts = [t("duplicatesReady")];
+    if (unreadable) {
+      parts.push(`${t("unreadablePackages")}: ${unreadable}`);
+    }
+    if (stats.variantAnalysisTruncated) {
+      parts.push(t("variantAnalysisTruncated"));
+    }
+    el.duplicatesState.textContent = parts.join(" · ");
     el.duplicatesState.className = "scan-state success";
   } else {
     el.duplicatesState.textContent = "";
