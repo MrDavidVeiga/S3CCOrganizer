@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Veiga's S3CC Organizer — Mockup</title>
+<style>
+:root{
+  --bg:#0a0d10;--panel:rgba(20,25,30,.9);--surface:#10161a;--border:rgba(186,196,206,.24);
+  --text:#f0f5f8;--muted:#9eabb4;--green:#618422;--green2:#7fad2d;--yellow:#b58a43;--red:#b83232;
+  --sidebar:282px
+}
+*{box-sizing:border-box} html,body{height:100%;margin:0}
+body{overflow:hidden;font-family:Inter,"Segoe UI",Arial,sans-serif;color:var(--text);background:
+radial-gradient(circle at 90% 0%,rgba(97,132,34,.18),transparent 24%),
+radial-gradient(circle at 0% 100%,rgba(67,92,23,.16),transparent 28%),
+linear-gradient(180deg,#11161c,#090b0e)}
+button,input,select{font:inherit}.app{height:100%;max-width:1720px;margin:auto;padding:18px 24px;display:grid;grid-template-rows:auto 1fr;gap:14px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.tabs{width:min(620px,58vw);display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.tab,.ghost,.lang,.primary{border-radius:11px;cursor:pointer;transition:.15s}
+.tab{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);padding:9px 10px;color:var(--muted);font-weight:700}
+.tab:hover,.tab.active{background:rgba(97,132,34,.19);border-color:rgba(127,173,45,.55);color:#fff}
+.langline{display:flex;align-items:center;gap:9px;color:var(--muted);font-size:.86rem}.lang{border:1px solid rgba(255,255,255,.12);background:var(--green);padding:8px 12px;color:#fff;font-weight:800}
+.shell{display:grid;grid-template-columns:var(--sidebar) minmax(0,1fr);gap:18px;min-height:0}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:22px;box-shadow:0 18px 60px rgba(0,0,0,.32);backdrop-filter:blur(16px)}
+.sidebar{padding:18px;display:flex;flex-direction:column;gap:9px;min-height:0}.title{text-align:center;font-size:1.08rem;font-weight:800;margin:2px 0 19px}
+.primary{border:0;background:var(--green);padding:12px 13px;color:#fff;font-weight:750;width:100%}.primary:hover{background:var(--green2)}
+.ghost{border:1px solid rgba(255,255,255,.11);background:rgba(255,255,255,.055);padding:10px 12px;color:var(--text);font-weight:700}.ghost:hover{background:rgba(255,255,255,.09)}
+.path{font-size:.75rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:1px 3px 9px}.sidecount{text-align:center;color:var(--muted);font-size:.74rem}
+.note{margin-top:auto;padding:11px;border-radius:12px;border:1px solid rgba(255,255,255,.08);background:rgba(0,0,0,.15);font-size:.76rem;color:var(--muted);line-height:1.45}
+.context{display:none}.context.active{display:contents}
+.content{min-width:0;min-height:0;padding:20px;overflow:hidden}.page{height:100%;min-height:0;display:none;flex-direction:column}.page.active{display:flex}
+.hero{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}.hero h2{font-size:1.18rem;margin:0 0 5px}.hero p{font-size:.83rem;color:var(--muted);margin:0;max-width:760px}.state{font-size:.74rem;color:#c7e1b5;text-align:right}
+.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:9px;margin:17px 0 13px}.stat{padding:11px 12px;border:1px solid rgba(255,255,255,.08);border-radius:14px;background:rgba(0,0,0,.15)}.stat b{font-size:1.3rem;display:block}.stat span{font-size:.72rem;color:var(--muted)}
+.toolbar{display:grid;grid-template-columns:minmax(200px,1fr) 190px auto auto;gap:9px;margin-bottom:10px}.input{width:100%;border:1px solid rgba(255,255,255,.11);border-radius:10px;background:rgba(255,255,255,.05);color:#fff;padding:9px 10px;outline:none}option{background:#171d22}
+.workspace{display:grid;grid-template-columns:minmax(360px,1fr) 350px;gap:11px;min-height:0;flex:1}.list,.preview{min-height:0;overflow:auto;border:1px solid rgba(255,255,255,.08);border-radius:17px;background:var(--surface)}.list{padding:8px;display:flex;flex-direction:column;gap:8px}.preview{padding:15px}
+.row{border:1px solid transparent;background:rgba(255,255,255,.04);border-radius:11px;padding:9px 10px;display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:9px;align-items:center}.row.active{border-color:rgba(127,173,45,.48);background:rgba(97,132,34,.15)}.row input{accent-color:var(--green)}
+.row-main{min-width:0}.row-main strong,.row-main small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.row-main strong{font-size:.8rem}.row-main small{font-size:.7rem;color:var(--muted);margin-top:4px}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--green2)}.dot.yellow{background:var(--yellow)}.dot.gray{background:#75828a}.dot.red{background:var(--red)}
+.badge{padding:3px 7px;border:1px solid rgba(255,255,255,.1);border-radius:999px;font-size:.65rem;color:#d8eccb}.preview h3{margin:0 0 13px;font-size:1rem}
+.meta{display:grid}.meta div{display:grid;grid-template-columns:118px 1fr;gap:8px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.07);font-size:.71rem}.meta span{color:var(--muted)}.meta strong{overflow-wrap:anywhere}
+.warning,.reason{margin-top:12px;padding:10px;border:1px solid rgba(181,138,67,.4);background:rgba(97,66,20,.15);border-radius:11px;color:#e8c38a;font-size:.7rem;line-height:1.45}
+.duptool{display:grid;grid-template-columns:auto minmax(220px,1fr) 210px;gap:9px;margin:17px 0 13px}.dupwork{display:grid;grid-template-columns:minmax(390px,1fr) 390px;gap:11px;min-height:0;flex:1}
+.dup-row{border:1px solid transparent;background:rgba(255,255,255,.04);border-radius:11px;padding:10px;display:grid;grid-template-columns:1fr auto;gap:10px;cursor:pointer}.dup-row.active{border-color:rgba(127,173,45,.5);background:rgba(97,132,34,.14)}.dup-row small{display:block;color:var(--muted);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kind{font-size:.64rem;border:1px solid rgba(181,138,67,.45);color:#f0d3a3;padding:3px 7px;border-radius:999px;align-self:center}.kind.good{border-color:rgba(127,173,45,.45);color:#d8eccb}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:10px 0}.pair>div{padding:9px;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:10px}.pair b{display:block;font-size:.72rem;margin-bottom:4px}.pair code{font-size:.63rem;color:#ccd5da;overflow-wrap:anywhere}
+.metric{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.07);font-size:.7rem}.metric span{color:var(--muted)}
+.pills{display:flex;gap:8px;flex-wrap:wrap;margin:15px 0 11px}.pill{border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);border-radius:999px;padding:6px 10px;font-size:.7rem;color:var(--muted)}.pill.active{border-color:rgba(127,173,45,.45);color:#fff;background:rgba(97,132,34,.16)}
+.restorebar{display:grid;grid-template-columns:auto 1fr auto auto;gap:9px;align-items:center;margin:17px 0 13px}.manifest{padding:9px 10px;border:1px solid rgba(255,255,255,.08);border-radius:10px;background:rgba(0,0,0,.14);color:var(--muted);font-size:.72rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.restore-row{border-left:3px solid var(--green2)}
+.mocktag{position:fixed;right:14px;bottom:12px;background:#11181c;border:1px solid rgba(255,255,255,.1);border-radius:999px;padding:6px 10px;font-size:.64rem;color:var(--muted)}
+@media(max-width:1080px){:root{--sidebar:240px}.workspace,.dupwork{grid-template-columns:1fr 310px}.stats{grid-template-columns:repeat(3,1fr)}}
+</style>
+</head>
+<body>
+<div class="app">
+<header class="top">
+  <nav class="tabs">
+    <button class="tab active" data-page="organizer">Organizador</button>
+    <button class="tab" data-page="duplicates">Duplicados</button>
+    <button class="tab" data-page="conflicts">Conflitos</button>
+    <button class="tab" data-page="restore">Restaurar</button>
+  </nav>
+  <div class="langline"><span>Idioma</span><button class="lang" id="langBtn">PT⌄</button></div>
+</header>
+
+<main class="shell">
+<aside class="sidebar card">
+  <div class="title">Veiga's S3CC Organizer</div>
+
+  <div class="context active" data-context="organizer">
+    <button class="primary">▣ &nbsp; Escolher Pasta de Mods</button>
+    <div class="path">C:\Users\David\Documents\Electronic Arts\The Sims 3\Mods\Packages</div>
+    <button class="primary">⌕ &nbsp; Analisar CCs</button>
+    <button class="primary">☷ &nbsp; Visualizar Plano</button>
+    <div class="sidecount">1.086 aptos selecionados</div>
+    <div class="note">Analise primeiro, visualize cada movimento e só depois organize.</div>
+  </div>
+
+  <div class="context" data-context="duplicates">
+    <button class="primary">▣ &nbsp; Escolher Pasta de Mods</button>
+    <div class="path">...\The Sims 3\Mods\Packages</div>
+    <button class="primary">⧉ &nbsp; Analisar Duplicados</button>
+    <div class="sidecount">28 relações encontradas</div>
+    <div class="note">Duplicados são apenas identificados. Retextures e variantes nunca são tratados como arquivos para apagar.</div>
+  </div>
+
+  <div class="context" data-context="conflicts">
+    <button class="primary">▣ &nbsp; Escolher Pasta de Mods</button>
+    <div class="path">...\The Sims 3\Mods\Packages</div>
+    <button class="primary">⇄ &nbsp; Analisar Conflitos</button>
+    <div class="sidecount">8 requerem atenção</div>
+    <div class="note">Mesmo TGI não significa conflito. O payload e a semântica do resource também são comparados.</div>
+  </div>
+
+  <div class="context" data-context="restore">
+    <button class="primary">▤ &nbsp; Escolher Manifesto</button>
+    <div class="path">...\S3CC Organizer\Restore Manifests\S3CC-Organizer-Restore.txt</div>
+    <button class="primary">⌕ &nbsp; Visualizar Restauração</button>
+    <button class="primary">↶ &nbsp; Restaurar Estrutura</button>
+    <div class="note">Nada é sobrescrito. Arquivos novos são preservados em Não Categorizado.</div>
+  </div>
+</aside>
+
+<section class="content card">
+  <div class="page active" id="organizer">
+    <div class="hero"><div><h2>Analise antes de organizar</h2><p>Os packages são classificados pelos resources reais. Revise o plano antes de qualquer movimentação.</p></div><div class="state">Análise concluída</div></div>
+    <div class="stats"><div class="stat"><b>1.247</b><span>Packages</span></div><div class="stat"><b>1.086</b><span>Classificados</span></div><div class="stat"><b>14</b><span>Mistos</span></div><div class="stat"><b>31</b><span>Requer Revisão</span></div><div class="stat"><b>2</b><span>Inválidos</span></div></div>
+    <div class="toolbar"><input class="input" placeholder="Pesquisar packages, categorias ou destinos…"><select class="input"><option>Todos os estados</option><option>Classificados</option><option>Mistos</option></select><button class="ghost">Selecionar Tudo</button><button class="ghost">Selecionar Nenhum</button></div>
+    <div class="workspace">
+      <div class="list">
+        <div class="row active"><input type="checkbox" checked><div class="row-main"><strong>[Veiga] Female Top.package</strong><small>Roupas › Feminino › Jovem Adulto-Adulto › Parte de Cima</small></div><span class="dot"></span></div>
+        <div class="row"><input type="checkbox" checked><div class="row-main"><strong>Modern Sofa.package</strong><small>Compra › Conforto › Sofás</small></div><span class="dot"></span></div>
+        <div class="row"><input type="checkbox" checked><div class="row-main"><strong>F-P_2019-BMW-Z4.package</strong><small>Compra › Veículos › Carros</small></div><span class="dot"></span></div>
+        <div class="row"><input type="checkbox" disabled><div class="row-main"><strong>Mixed Creator Pack.package</strong><small>Misto · múltiplos destinos</small></div><span class="dot yellow"></span></div>
+        <div class="row"><input type="checkbox" disabled><div class="row-main"><strong>[Veiga Sims] PrismHome.package</strong><small>Desconhecido · requer classificador de gameplay</small></div><span class="dot gray"></span></div>
+      </div>
+      <aside class="preview"><h3>[Veiga] Female Top.package</h3><div class="meta"><div><span>Detectado por</span><strong>CASP</strong></div><div><span>Categoria</span><strong>Roupas</strong></div><div><span>Subcategoria</span><strong>Parte de Cima</strong></div><div><span>Gênero</span><strong>Feminino</strong></div><div><span>Idade</span><strong>Jovem Adulto-Adulto</strong></div><div><span>Destino</span><strong>CAS\Roupas\Feminino\Jovem Adulto-Adulto\Parte de Cima</strong></div></div><div class="warning">O manifesto completo é gravado antes do primeiro movimento.</div></aside>
+    </div>
+  </div>
+
+  <div class="page" id="duplicates">
+    <div class="hero"><div><h2>Duplicados</h2><p>Identifica duplicados reais e separa retextures, recategorizações e variantes relacionadas sem excluir nada.</p></div><div class="state">Análise concluída</div></div>
+    <div class="stats"><div class="stat"><b>1.247</b><span>Packages</span></div><div class="stat"><b>7</b><span>Grupos Exatos</span></div><div class="stat"><b>3</b><span>Grupos por Conteúdo</span></div><div class="stat"><b>12</b><span>Retextures</span></div><div class="stat"><b>6</b><span>Variantes Relacionadas</span></div></div>
+    <div class="duptool"><button class="primary">⧉ &nbsp; Analisar Duplicados</button><input class="input" placeholder="Pesquisar resultados…"><select class="input"><option>Todos os resultados</option><option>Duplicado Exato</option><option>Duplicado por Conteúdo</option><option>Retexture</option><option>Variante Recategorizada</option></select></div>
+    <div class="dupwork">
+      <div class="list">
+        <div class="dup-row"><div><strong>Duplicado Exato</strong><small>Hair_A.package · Hair_A Copy.package</small></div><span class="kind good">2</span></div>
+        <div class="dup-row"><div><strong>Duplicado por Conteúdo</strong><small>Sofa.package · Sofa_Repacked.package</small></div><span class="kind good">2</span></div>
+        <div class="dup-row active"><div><strong>Retexture</strong><small>Hair_Black.package ↔ Hair_Red.package</small></div><span class="kind">3 GEOM</span></div>
+        <div class="dup-row"><div><strong>Variante Recategorizada</strong><small>Dress_Everyday.package ↔ Dress_Formal.package</small></div><span class="kind">CASP</span></div>
+      </div>
+      <aside class="preview"><h3>Retexture</h3><div class="reason">Os resources estruturais coincidem, enquanto texturas ou materiais diferem. É uma variante visual relacionada — não um duplicado para apagar.</div><div class="pair"><div><b>A · Hair_Black.package</b><code>CAS\Cabelos\Hair_Black.package</code></div><div><b>B · Hair_Red.package</b><code>CAS\Cabelos\Hair_Red.package</code></div></div><div class="metric"><span>Resources compartilhados</span><strong>8</strong></div><div class="metric"><span>Mesmo TGI + mesmo conteúdo</span><strong>6</strong></div><div class="metric"><span>Mesmo TGI + conteúdo diferente</span><strong>2</strong></div><div class="metric"><span>Resources estruturais compartilhados</span><strong>3</strong></div><div class="metric"><span>Texturas/materiais alterados</span><strong>2</strong></div></aside>
+    </div>
+  </div>
+
+  <div class="page" id="conflicts">
+    <div class="hero"><div><h2>Conflitos</h2><p>Compara resources compartilhados e diferencia dependências idênticas, overrides visuais, catálogo e gameplay.</p></div><div class="state">Mockup da próxima etapa</div></div>
+    <div class="stats"><div class="stat"><b>1.247</b><span>Packages</span></div><div class="stat"><b>8</b><span>Conflitos Reais</span></div><div class="stat"><b>14</b><span>Possíveis</span></div><div class="stat"><b>21</b><span>Overrides</span></div><div class="stat"><b>386</b><span>Compartilhados</span></div></div>
+    <div class="pills"><button class="pill active">Todos</button><button class="pill">Conflito Real</button><button class="pill">Override Visual</button><button class="pill">Catálogo</button><button class="pill">Gameplay</button><button class="pill">Compartilhado</button></div>
+    <div class="workspace"><div class="list"><div class="row active"><span></span><div class="row-main"><strong>Mod_A.package ↔ Mod_B.package</strong><small>ITUN · mesmo TGI, payload diferente</small></div><span class="dot red"></span></div><div class="row"><span></span><div class="row-main"><strong>Pattern_A.package ↔ Object.package</strong><small>Resource compartilhado idêntico · sem conflito</small></div><span class="dot"></span></div><div class="row"><span></span><div class="row-main"><strong>DefaultSkin.package ↔ SkinFix.package</strong><small>Override intencional · load order relevante</small></div><span class="dot yellow"></span></div></div><aside class="preview"><h3>Por que foi marcado?</h3><div class="meta"><div><span>Resource</span><strong>ITUN</strong></div><div><span>TGI</span><strong>0x03B33DDF · 0x00000000 · 0x…</strong></div><div><span>Payload A</span><strong>8E1F…</strong></div><div><span>Payload B</span><strong>C2A7…</strong></div><div><span>Interpretação</span><strong>Gameplay Override</strong></div></div><div class="warning">Mesmo TGI sozinho não é suficiente. Aqui o conteúdo também difere.</div></aside></div>
+  </div>
+
+  <div class="page" id="restore">
+    <div class="hero"><div><h2>Restaurar</h2><p>Use o manifesto salvo para visualizar e desfazer a organização anterior.</p></div><div class="state">Preview pronto</div></div>
+    <div class="restorebar"><button class="primary">▤ &nbsp; Escolher Manifesto</button><div class="manifest">...\S3CC Organizer\Restore Manifests\S3CC-Organizer-Restore.txt</div><button class="ghost">Visualizar Restauração</button><button class="primary">Restaurar Estrutura</button></div>
+    <div class="stats"><div class="stat"><b>1.247</b><span>Rastreados</span></div><div class="stat"><b>1.086</b><span>Prontos</span></div><div class="stat"><b>4</b><span>Arquivos Novos</span></div><div class="stat"><b>0</b><span>Colisões</span></div><div class="stat"><b>0</b><span>Bloqueados</span></div></div>
+    <div class="list" style="flex:1;min-height:0"><div class="row restore-row"><span></span><div class="row-main"><strong>FemaleTop.package</strong><small>CAS\Roupas\Feminino\YA-A\Top → Creator\FemaleTop.package</small></div><span class="badge">PRONTO</span></div><div class="row restore-row"><span></span><div class="row-main"><strong>NewHair.package</strong><small>CAS\Cabelos\Feminino\NewHair.package → Não Categorizado\CAS\Cabelos\Feminino\NewHair.package</small></div><span class="badge">NOVO</span></div></div>
+  </div>
+</section>
+</main>
+</div>
+<div class="mocktag">MOCKUP HTML · nenhum arquivo é alterado</div>
+<script>
+const tabs=[...document.querySelectorAll(".tab")],pages=[...document.querySelectorAll(".page")],contexts=[...document.querySelectorAll(".context")];
+tabs.forEach(btn=>btn.addEventListener("click",()=>{const id=btn.dataset.page;tabs.forEach(x=>x.classList.toggle("active",x===btn));pages.forEach(x=>x.classList.toggle("active",x.id===id));contexts.forEach(x=>x.classList.toggle("active",x.dataset.context===id))}));
+const langs=["PT","EN","ES"];let lang=0;document.getElementById("langBtn").addEventListener("click",e=>{lang=(lang+1)%langs.length;e.currentTarget.textContent=langs[lang]+"⌄"});
+</script>
+</body>
+</html>
