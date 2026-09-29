@@ -62,9 +62,15 @@ When restoring:
 
 See [docs/RESTORE-MANIFEST.md](docs/RESTORE-MANIFEST.md).
 
+## First scan milestone
+
+The first read-only scanner is now implemented. It recursively reads `.package` files, parses DBPF indexes/resources, detects CASP and OBJD catalog resources, and produces localized suggested destinations without moving files.
+
+See [docs/FIRST-SCAN-MILESTONE.md](docs/FIRST-SCAN-MILESTONE.md).
+
 ## Status
 
-The repository is being bootstrapped around four layers:
+The repository is organized around four layers:
 
 ```text
 UI
@@ -75,4 +81,4 @@ UI
      └─ restore/manifest engine
 ```
 
-The first implementation milestone focuses on safe scanning, restore manifests and analyzer data models before enabling automatic moves.
+The current milestone keeps all filesystem changes disabled while CASP/OBJD classification is validated against real packages. Organization, duplicate analysis, conflict analysis and restore execution are the next layers.
