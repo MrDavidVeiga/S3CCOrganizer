@@ -1,0 +1,201 @@
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum AppLanguage {
+    En,
+    Pt,
+    Es,
+}
+
+impl AppLanguage {
+    pub fn not_categorized_folder(self) -> &'static str {
+        match self {
+            Self::En => "Not Categorized",
+            Self::Pt => "Não Categorizado",
+            Self::Es => "Sin categorizar",
+        }
+    }
+
+    pub fn cas(self) -> &'static str { "CAS" }
+
+    pub fn clothing(self) -> &'static str {
+        match self {
+            Self::En => "Clothing",
+            Self::Pt => "Roupas",
+            Self::Es => "Ropa",
+        }
+    }
+
+    pub fn hair(self) -> &'static str {
+        match self {
+            Self::En => "Hair",
+            Self::Pt => "Cabelos",
+            Self::Es => "Cabello",
+        }
+    }
+
+    pub fn accessories(self) -> &'static str {
+        match self {
+            Self::En => "Accessories",
+            Self::Pt => "Acessórios",
+            Self::Es => "Accesorios",
+        }
+    }
+
+    pub fn makeup(self) -> &'static str {
+        match self {
+            Self::En => "Makeup",
+            Self::Pt => "Maquiagem",
+            Self::Es => "Maquillaje",
+        }
+    }
+
+    pub fn genetics(self) -> &'static str {
+        match self {
+            Self::En => "Genetics",
+            Self::Pt => "Genética",
+            Self::Es => "Genética",
+        }
+    }
+
+    pub fn presets(self) -> &'static str {
+        match self {
+            Self::En => "Presets",
+            Self::Pt => "Predefinições",
+            Self::Es => "Preajustes",
+        }
+    }
+
+    pub fn male(self) -> &'static str {
+        match self {
+            Self::En => "Male",
+            Self::Pt => "Masculino",
+            Self::Es => "Masculino",
+        }
+    }
+
+    pub fn female(self) -> &'static str {
+        match self {
+            Self::En => "Female",
+            Self::Pt => "Feminino",
+            Self::Es => "Femenino",
+        }
+    }
+
+    pub fn unisex(self) -> &'static str {
+        match self {
+            Self::En => "Unisex",
+            Self::Pt => "Unissex",
+            Self::Es => "Unisex",
+        }
+    }
+
+    pub fn unknown(self) -> &'static str {
+        match self {
+            Self::En => "Unknown",
+            Self::Pt => "Desconhecido",
+            Self::Es => "Desconocido",
+        }
+    }
+
+    pub fn baby(self) -> &'static str {
+        match self {
+            Self::En => "Baby",
+            Self::Pt => "Bebê",
+            Self::Es => "Bebé",
+        }
+    }
+
+    pub fn toddler(self) -> &'static str {
+        match self {
+            Self::En => "Toddler",
+            Self::Pt => "Criança Pequena",
+            Self::Es => "Niño Pequeño",
+        }
+    }
+
+    pub fn child(self) -> &'static str {
+        match self {
+            Self::En => "Child",
+            Self::Pt => "Criança",
+            Self::Es => "Niño",
+        }
+    }
+
+    pub fn teen(self) -> &'static str {
+        match self {
+            Self::En => "Teen",
+            Self::Pt => "Adolescente",
+            Self::Es => "Adolescente",
+        }
+    }
+
+    pub fn young_adult_adult(self) -> &'static str {
+        match self {
+            Self::En => "YA-A",
+            Self::Pt => "Jovem Adulto-Adulto",
+            Self::Es => "Adulto Joven-Adulto",
+        }
+    }
+
+    pub fn elder(self) -> &'static str {
+        match self {
+            Self::En => "Elder",
+            Self::Pt => "Idoso",
+            Self::Es => "Anciano",
+        }
+    }
+
+    pub fn multiple_ages(self) -> &'static str {
+        match self {
+            Self::En => "Multiple Ages",
+            Self::Pt => "Múltiplas Idades",
+            Self::Es => "Varias Edades",
+        }
+    }
+
+    pub fn top(self) -> &'static str {
+        match self {
+            Self::En => "Top",
+            Self::Pt => "Parte de Cima",
+            Self::Es => "Parte Superior",
+        }
+    }
+
+    pub fn bottom(self) -> &'static str {
+        match self {
+            Self::En => "Bottom",
+            Self::Pt => "Parte de Baixo",
+            Self::Es => "Parte Inferior",
+        }
+    }
+
+    pub fn outfit(self) -> &'static str {
+        match self {
+            Self::En => "Outfit",
+            Self::Pt => "Conjunto",
+            Self::Es => "Conjunto",
+        }
+    }
+
+    pub fn shoes(self) -> &'static str {
+        match self {
+            Self::En => "Shoes",
+            Self::Pt => "Calçados",
+            Self::Es => "Calzado",
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn not_categorized_is_localized() {
+        assert_eq!(AppLanguage::En.not_categorized_folder(), "Not Categorized");
+        assert_eq!(AppLanguage::Pt.not_categorized_folder(), "Não Categorizado");
+        assert_eq!(AppLanguage::Es.not_categorized_folder(), "Sin categorizar");
+    }
+}
