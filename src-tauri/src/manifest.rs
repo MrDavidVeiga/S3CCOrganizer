@@ -1,3 +1,4 @@
+use crate::i18n::AppLanguage;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
@@ -5,23 +6,6 @@ use std::{
     io::{self, Read},
     path::{Path, PathBuf},
 };
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum ManifestLanguage {
-    En,
-    Pt,
-    Es,
-}
-
-impl ManifestLanguage {
-    pub fn not_categorized_folder(&self) -> &'static str {
-        match self {
-            Self::En => "Not Categorized",
-            Self::Pt => "Não Categorizado",
-            Self::Es => "Sin categorizar",
-        }
-    }
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RestoreEntry {
@@ -34,7 +18,9 @@ pub struct RestoreEntry {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RestoreManifest {
     pub version: u32,
-    pub language: ManifestLanguage,
+    /// Language used when the categorized layout was generated.
+    /// This is audit metadata only; restore identity never depends on translated labels.
+    pub organization_language: AppLanguage,
     pub root: PathBuf,
     pub entries: Vec<RestoreEntry>,
 }
@@ -46,8 +32,14 @@ impl RestoreManifest {
             .any(|entry| entry.sha256.eq_ignore_ascii_case(sha256) && entry.size == size)
     }
 
-    pub fn uncategorized_destination(&self, current_relative_path: &Path) -> PathBuf {
-        PathBuf::from(self.language.not_categorized_folder()).join(current_relative_path)
+    /// New files discovered during restore are placed under a folder localized
+    /// using the CURRENT interface language, not the language stored in the manifest.
+    pub fn uncategorized_destination(
+        &self,
+        current_language: AppLanguage,
+        current_relative_path: &Path,
+    ) -> PathBuf {
+        PathBuf::from(current_language.not_categorized_folder()).join(current_relative_path)
     }
 }
 
@@ -73,23 +65,20 @@ mod tests {
     use super::*;
 
     #[test]
-    fn localization_is_stable() {
-        assert_eq!(ManifestLanguage::En.not_categorized_folder(), "Not Categorized");
-        assert_eq!(ManifestLanguage::Pt.not_categorized_folder(), "Não Categorizado");
-        assert_eq!(ManifestLanguage::Es.not_categorized_folder(), "Sin categorizar");
-    }
-
-    #[test]
-    fn new_files_keep_current_relative_structure() {
+    fn new_files_follow_current_interface_language() {
         let manifest = RestoreManifest {
             version: 1,
-            language: ManifestLanguage::Pt,
+            organization_language: AppLanguage::En,
             root: PathBuf::from("Packages"),
             entries: vec![],
         };
+
         assert_eq!(
-            manifest.uncategorized_destination(Path::new("CAS/Hair/Female/new.package")),
-            PathBuf::from("Não Categorizado/CAS/Hair/Female/new.package")
+            manifest.uncategorized_destination(
+                AppLanguage::Pt,
+                Path::new("CAS/Cabelos/Feminino/new.package")
+            ),
+            PathBuf::from("Não Categorizado/CAS/Cabelos/Feminino/new.package")
         );
     }
 }
