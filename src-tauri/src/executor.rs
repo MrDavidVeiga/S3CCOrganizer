@@ -68,7 +68,7 @@ fn package_extension(path: &Path) -> bool {
 fn snapshot_entries(root: &Path, ready: &[&PlanItem]) -> Result<Vec<RestoreEntry>, String> {
     let mut planned = HashMap::<PathBuf, (&PlanItem, PathBuf)>::new();
 
-    for item in ready {
+    for &item in ready {
         let source = PathBuf::from(&item.source_path)
             .canonicalize()
             .map_err(|error| format!("Could not resolve planned source {}: {error}", item.source_path))?;
