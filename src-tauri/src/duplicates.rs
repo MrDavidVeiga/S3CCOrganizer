@@ -35,6 +35,7 @@ const TYPE_CATALOG_FIREPLACE: u32 = 0x04F3_CC01;
 const TYPE_CATALOG_WATER: u32 = 0x060B_390C;
 const TYPE_CATALOG_POOL: u32 = 0x0A36_F07A;
 const TYPE_CATALOG_FOUNDATION: u32 = 0x316C_78F2;
+const MAX_VARIANT_RELATIONS: usize = 10_000;
 
 #[derive(Debug, Clone)]
 struct ResourceFingerprint {
@@ -113,6 +114,7 @@ pub struct DuplicateStats {
     pub retexture_relations: usize,
     pub recategorized_relations: usize,
     pub related_variant_relations: usize,
+    pub variant_analysis_truncated: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -463,8 +465,9 @@ fn classify_variant_pair(
         left.substantive_without_catalog_signature.is_some()
             && left.substantive_without_catalog_signature
                 == right.substantive_without_catalog_signature;
-    let catalog_differs = left.catalog_signature != right.catalog_signature
-        && (left.catalog_signature.is_some() || right.catalog_signature.is_some());
+    let catalog_differs = left.catalog_signature.is_some()
+        && right.catalog_signature.is_some()
+        && left.catalog_signature != right.catalog_signature;
 
     let same_structure = left.structural_signature.is_some()
         && left.structural_signature == right.structural_signature;
@@ -534,7 +537,7 @@ fn classify_variant_pair(
 fn add_variant_candidates(
     packages: &[PackageFingerprint],
     relations: &mut Vec<VariantRelation>,
-) {
+) -> bool {
     let mut by_structure = BTreeMap::<String, Vec<usize>>::new();
 
     for (index, package) in packages.iter().enumerate() {
@@ -551,6 +554,10 @@ fn add_variant_candidates(
     for indices in by_structure.values().filter(|indices| indices.len() > 1) {
         for left_pos in 0..indices.len() {
             for right_pos in (left_pos + 1)..indices.len() {
+                if relations.len() >= MAX_VARIANT_RELATIONS {
+                    return true;
+                }
+
                 let left_index = indices[left_pos];
                 let right_index = indices[right_pos];
                 if !seen_pairs.insert((left_index.min(right_index), left_index.max(right_index))) {
@@ -565,6 +572,8 @@ fn add_variant_candidates(
             }
         }
     }
+
+    false
 }
 
 #[tauri::command]
@@ -687,7 +696,8 @@ pub fn analyze_duplicates(folder: String) -> Result<DuplicateAnalysis, String> {
     }
 
     let mut relations = Vec::new();
-    add_variant_candidates(&packages, &mut relations);
+    let variant_analysis_truncated = add_variant_candidates(&packages, &mut relations);
+    stats.variant_analysis_truncated = variant_analysis_truncated;
     relations.sort_by_key(|relation| {
         (
             relation.kind.clone(),
