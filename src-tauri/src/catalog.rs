@@ -1172,4 +1172,161 @@ mod tests {
             Some("Cats")
         );
     }
+
+
+    fn push_u32(data: &mut Vec<u8>, value: u32) {
+        data.extend_from_slice(&value.to_le_bytes());
+    }
+
+    fn push_u64(data: &mut Vec<u8>, value: u64) {
+        data.extend_from_slice(&value.to_le_bytes());
+    }
+
+    fn push_f32(data: &mut Vec<u8>, value: f32) {
+        data.extend_from_slice(&value.to_le_bytes());
+    }
+
+    fn minimal_casp(
+        clothing_type: u32,
+        type_flags: u32,
+        age_species_gender: u32,
+        clothing_category: u32,
+    ) -> Vec<u8> {
+        let mut data = Vec::new();
+        push_u32(&mut data, 0x12); // version
+        push_u32(&mut data, 0); // TGI offset
+        push_u32(&mut data, 0); // preset count
+        data.push(0); // empty UnicodeBE 7BITSTR
+        push_f32(&mut data, 0.0); // sort priority
+        data.push(0); // unknown byte
+        push_u32(&mut data, clothing_type);
+        push_u32(&mut data, type_flags);
+        push_u32(&mut data, age_species_gender);
+        push_u32(&mut data, clothing_category);
+        data
+    }
+
+    fn minimal_objd(
+        function_category: u32,
+        sub_category1: u64,
+        sub_category2: u64,
+        build_category: u32,
+    ) -> Vec<u8> {
+        let mut data = Vec::new();
+        push_u32(&mut data, 0x1C); // OBJD version
+        push_u32(&mut data, 0); // TGI offset
+        push_u32(&mut data, 0); // TGI size
+        push_u32(&mut data, 0); // material count
+        data.push(0); // instance name (version >= 0x16)
+
+        // Catalog Common, version 0x0F.
+        push_u32(&mut data, 0x0F);
+        push_u64(&mut data, 0); // name guid
+        push_u64(&mut data, 0); // desc guid
+        data.push(0); // internal name
+        data.push(0); // internal description
+        push_f32(&mut data, 0.0); // price
+        push_f32(&mut data, 1.0); // niceness
+        push_f32(&mut data, 0.0); // crap score
+        data.push(0); // product status
+        push_u64(&mut data, 0); // icon iid
+        data.push(0);
+        push_f32(&mut data, 0.0); // environment
+        push_u32(&mut data, 0); // fire type
+        data.push(0); // stealable
+        data.push(0); // repossessable
+        push_u32(&mut data, 0); // UI sort
+        data.push(0); // placeable on roof
+        data.push(0); // visible in worldbuilder
+        push_u32(&mut data, 0); // product name hash
+
+        push_u32(&mut data, 0); // OBJK index
+        push_u32(&mut data, 0); // ObjectTypeFlags
+        push_u32(&mut data, 0); // ObjectTypeFlags2 (version >= 0x1A)
+        push_u32(&mut data, 0); // wall placement
+        push_u32(&mut data, 0); // movement
+        push_u32(&mut data, 0); // wall cutout tiles
+        push_u32(&mut data, 0); // levels
+        data.push(0); // wallmask count
+        data.push(0); // script enabled
+        push_u32(&mut data, 0); // diagonal index
+        push_u32(&mut data, 0); // ambience hash
+        push_u32(&mut data, 0x2); // Living Room
+        push_u32(&mut data, function_category);
+        push_u64(&mut data, sub_category1);
+        push_u64(&mut data, sub_category2);
+        push_u64(&mut data, 0); // sub-room flags
+        push_u32(&mut data, build_category);
+        data
+    }
+
+    #[test]
+    fn casp_parser_reads_real_catalog_fields() {
+        // Female Human YA+Adult Top; Everyday + Formalwear.
+        let data = minimal_casp(
+            0x05,
+            0x08,
+            0x0000_2130,
+            0x0000_0002 | 0x0000_0004,
+        );
+        let classification = classify_casp(&data, AppLanguage::En).unwrap();
+
+        assert_eq!(classification.source, "CASP");
+        assert_eq!(classification.main_category, "Clothing");
+        assert_eq!(classification.sub_category.as_deref(), Some("Top"));
+        assert_eq!(classification.gender.as_deref(), Some("Female"));
+        assert_eq!(classification.age.as_deref(), Some("YA-A"));
+        assert_eq!(classification.species.as_deref(), Some("Human"));
+        assert_eq!(
+            classification.folder_parts,
+            vec!["CAS", "Clothing", "Female", "YA-A", "Top"]
+        );
+        assert_eq!(
+            classification.usage_categories,
+            vec!["Everyday", "Formalwear"]
+        );
+    }
+
+    #[test]
+    fn objd_parser_reads_buy_category_and_subcategory() {
+        let data = minimal_objd(
+            0x0000_0800, // Comfort
+            0x0000_0080_0000_0000, // Sofas & Loveseats
+            0,
+            0,
+        );
+        let classification = classify_objd(&data, AppLanguage::En).unwrap();
+
+        assert_eq!(classification.source, "OBJD");
+        assert_eq!(classification.kind, "buy");
+        assert_eq!(classification.main_category, "Comfort");
+        assert_eq!(
+            classification.sub_category.as_deref(),
+            Some("Sofas & Loveseats")
+        );
+        assert_eq!(
+            classification.folder_parts,
+            vec!["Buy", "Comfort", "Sofas & Loveseats"]
+        );
+        assert_eq!(classification.usage_categories, vec!["Living Room"]);
+    }
+
+    #[test]
+    fn objd_parser_uses_build_category_when_present() {
+        let data = minimal_objd(
+            0x0000_0080, // Decor is present but build placement is authoritative here.
+            0,
+            0,
+            0x0000_0004, // Window
+        );
+        let classification = classify_objd(&data, AppLanguage::Pt).unwrap();
+
+        assert_eq!(classification.kind, "build");
+        assert_eq!(classification.main_category, "Construção");
+        assert_eq!(classification.sub_category.as_deref(), Some("Janelas"));
+        assert_eq!(
+            classification.folder_parts,
+            vec!["Construção", "Janelas"]
+        );
+    }
 }
