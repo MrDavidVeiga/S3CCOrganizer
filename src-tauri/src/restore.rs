@@ -222,6 +222,68 @@ pub fn preview_restore(
 
         let destination = root.join(&entry.original_relative_path);
 
+        // Baseline files that were not moved by the organization operation are
+        // recorded with original == organized. They are part of the old structure,
+        // not "new files" discovered during restore.
+        if original_key == organized_key {
+            if let Some(index) = original_index {
+                let file = &current[index];
+                used.insert(index);
+
+                if identity_matches(file, &entry.sha256, entry.size) {
+                    stats.already_restored += 1;
+                    items.push(RestorePlanItem {
+                        kind: "tracked".to_string(),
+                        status: "already_restored".to_string(),
+                        source_path: Some(file.absolute.to_string_lossy().to_string()),
+                        source_relative_path: Some(file.relative.to_string_lossy().to_string()),
+                        destination_path: Some(file.absolute.to_string_lossy().to_string()),
+                        destination_relative_path: Some(file.relative.to_string_lossy().to_string()),
+                        sha256: entry.sha256.clone(),
+                        size: entry.size,
+                        warnings: Vec::new(),
+                    });
+                } else {
+                    stats.changed += 1;
+                    stats.blocked += 1;
+                    items.push(RestorePlanItem {
+                        kind: "tracked".to_string(),
+                        status: "changed".to_string(),
+                        source_path: Some(file.absolute.to_string_lossy().to_string()),
+                        source_relative_path: Some(file.relative.to_string_lossy().to_string()),
+                        destination_path: Some(file.absolute.to_string_lossy().to_string()),
+                        destination_relative_path: Some(file.relative.to_string_lossy().to_string()),
+                        sha256: entry.sha256.clone(),
+                        size: entry.size,
+                        warnings: vec![
+                            "A pre-existing package that was not moved has changed since organization."
+                                .to_string(),
+                        ],
+                    });
+                }
+            } else {
+                stats.missing += 1;
+                stats.blocked += 1;
+                items.push(RestorePlanItem {
+                    kind: "tracked".to_string(),
+                    status: "missing".to_string(),
+                    source_path: None,
+                    source_relative_path: None,
+                    destination_path: Some(destination.to_string_lossy().to_string()),
+                    destination_relative_path: Some(
+                        entry.original_relative_path.to_string_lossy().to_string(),
+                    ),
+                    sha256: entry.sha256.clone(),
+                    size: entry.size,
+                    warnings: vec![
+                        "A pre-existing package that was not moved is no longer present."
+                            .to_string(),
+                    ],
+                });
+            }
+            continue;
+        }
+
         if let Some(index) = organized_index {
             let file = &current[index];
             if identity_matches(file, &entry.sha256, entry.size) {
@@ -495,7 +557,7 @@ pub fn preview_restore(
         manifest_path: manifest_file.to_string_lossy().to_string(),
         manifest_status: manifest.status,
         root: root.to_string_lossy().to_string(),
-        can_execute: stats.blocked == 0,
+        can_execute: stats.blocked == 0 && (stats.ready_restore + stats.ready_new) > 0,
         stats,
         items,
     })
