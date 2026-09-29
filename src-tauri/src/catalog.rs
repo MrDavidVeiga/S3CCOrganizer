@@ -18,6 +18,8 @@ pub struct CatalogClassification {
     pub species: Option<String>,
     pub usage_categories: Vec<String>,
     pub folder_parts: Vec<String>,
+    pub candidate_folder_parts: Vec<Vec<String>>,
+    pub ambiguous: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -718,7 +720,9 @@ pub fn classify_casp(data: &[u8], language: AppLanguage) -> Option<CatalogClassi
         age: Some(age),
         species: Some(species),
         usage_categories: casp_usage_categories(core.clothing_category, language),
+        candidate_folder_parts: vec![folder_parts.clone()],
         folder_parts,
+        ambiguous: false,
     })
 }
 
@@ -872,7 +876,7 @@ fn parse_objd_flags(data: &[u8]) -> Option<ObjdCatalogFlags> {
     })
 }
 
-fn decode_build(flags: ObjdCatalogFlags) -> Option<&'static str> {
+fn decode_build_all(flags: ObjdCatalogFlags) -> Vec<&'static str> {
     [
         (0x0000_0002, "Doors"),
         (0x0000_0004, "Windows"),
@@ -896,11 +900,11 @@ fn decode_build(flags: ObjdCatalogFlags) -> Option<&'static str> {
         (0x4000_0000, "Modular Arches"),
     ]
     .into_iter()
-    .find(|(flag, _)| (flags.build_category_flags & *flag) != 0)
-    .map(|(_, label)| label)
+    .filter_map(|(flag, label)| ((flags.build_category_flags & flag) != 0).then_some(label))
+    .collect()
 }
 
-fn decode_buy_main(flags: u32) -> Option<&'static str> {
+fn decode_buy_main_all(flags: u32) -> Vec<&'static str> {
     [
         (0x0000_0002, "Appliances"),
         (0x0000_0004, "Electronics"),
@@ -919,11 +923,11 @@ fn decode_buy_main(flags: u32) -> Option<&'static str> {
         (0x4000_0000, "Debug"),
     ]
     .into_iter()
-    .find(|(flag, _)| (flags & *flag) != 0)
-    .map(|(_, label)| label)
+    .filter_map(|(flag, label)| ((flags & flag) != 0).then_some(label))
+    .collect()
 }
 
-fn decode_buy_sub(main: &str, sub1: u64, sub2: u64) -> Option<&'static str> {
+fn decode_buy_sub_all(main: &str, sub1: u64, sub2: u64) -> Vec<&'static str> {
     let candidates: &[(u64, &str)] = match main {
         "Appliances" => &[
             (0x0000_0000_0000_0002, "Miscellaneous"),
@@ -1006,53 +1010,119 @@ fn decode_buy_sub(main: &str, sub1: u64, sub2: u64) -> Option<&'static str> {
         _ => &[],
     };
 
-    if let Some((_, label)) = candidates.iter().find(|(flag, _)| (sub1 & *flag) != 0) {
-        return Some(*label);
-    }
+    let mut found = candidates
+        .iter()
+        .filter_map(|(flag, label)| ((sub1 & *flag) != 0).then_some(*label))
+        .collect::<Vec<_>>();
 
     match main {
-        "Show Stage" if (sub2 & 0x2) != 0 => Some("Lighting"),
-        "Show Stage" if (sub2 & 0x4) != 0 => Some("Decor"),
-        "Show Stage" if (sub2 & 0x8) != 0 => Some("Miscellaneous"),
-        "Resort" if (sub2 & 0x10) != 0 => Some("Miscellaneous"),
-        "Resort" if (sub2 & 0x20) != 0 => Some("Miscellaneous"),
-        "Resort" if (sub2 & 0x40) != 0 => Some("Vehicles"),
-        _ => None,
+        "Show Stage" => {
+            if (sub2 & 0x2) != 0 { found.push("Lighting"); }
+            if (sub2 & 0x4) != 0 { found.push("Decor"); }
+            if (sub2 & 0x8) != 0 { found.push("Miscellaneous"); }
+        }
+        "Resort" => {
+            if (sub2 & 0x10) != 0 { found.push("Underwater Objects"); }
+            if (sub2 & 0x20) != 0 { found.push("Miscellaneous"); }
+            if (sub2 & 0x40) != 0 { found.push("Boats"); }
+        }
+        _ => {}
     }
+
+    found
 }
 
 pub fn classify_objd(data: &[u8], language: AppLanguage) -> Option<CatalogClassification> {
     let flags = parse_objd_flags(data)?;
 
-    if let Some(build_sub) = decode_build(flags) {
-        let main_category = tr(language, "Build").to_string();
-        let sub_category = tr(language, build_sub).to_string();
+    let build_options = decode_build_all(flags);
+    if !build_options.is_empty() {
+        let root = tr(language, "Build").to_string();
+        let candidate_folder_parts = build_options
+            .iter()
+            .map(|sub| vec![root.clone(), tr(language, sub).to_string()])
+            .collect::<Vec<_>>();
+        let ambiguous = candidate_folder_parts.len() != 1;
+        let folder_parts = if ambiguous {
+            Vec::new()
+        } else {
+            candidate_folder_parts[0].clone()
+        };
+        let sub_category = if ambiguous {
+            None
+        } else {
+            Some(tr(language, build_options[0]).to_string())
+        };
+
         return Some(CatalogClassification {
             source: "OBJD".to_string(),
             kind: "build".to_string(),
-            main_category: main_category.clone(),
-            sub_category: Some(sub_category.clone()),
+            main_category: root,
+            sub_category,
             gender: None,
             age: None,
             species: None,
             usage_categories: Vec::new(),
-            folder_parts: vec![main_category, sub_category],
+            folder_parts,
+            candidate_folder_parts,
+            ambiguous,
         });
     }
 
-    let buy_main = decode_buy_main(flags.function_category_flags)?;
-    let main_category = tr(language, buy_main).to_string();
-    let sub_category = decode_buy_sub(
-        buy_main,
-        flags.sub_category1_flags,
-        flags.sub_category2_flags,
-    )
-    .map(|value| tr(language, value).to_string());
-
-    let mut folder_parts = vec![tr(language, "Buy").to_string(), main_category.clone()];
-    if let Some(sub) = &sub_category {
-        folder_parts.push(sub.clone());
+    let buy_options = decode_buy_main_all(flags.function_category_flags);
+    if buy_options.is_empty() {
+        return None;
     }
+
+    let root = tr(language, "Buy").to_string();
+    let mut candidate_folder_parts = Vec::new();
+
+    for main in &buy_options {
+        let main_label = tr(language, main).to_string();
+        let sub_options = decode_buy_sub_all(
+            main,
+            flags.sub_category1_flags,
+            flags.sub_category2_flags,
+        );
+
+        if sub_options.is_empty() {
+            candidate_folder_parts.push(vec![root.clone(), main_label]);
+        } else {
+            for sub in sub_options {
+                candidate_folder_parts.push(vec![
+                    root.clone(),
+                    main_label.clone(),
+                    tr(language, sub).to_string(),
+                ]);
+            }
+        }
+    }
+
+    candidate_folder_parts.sort();
+    candidate_folder_parts.dedup();
+
+    let ambiguous = candidate_folder_parts.len() != 1;
+    let folder_parts = if ambiguous {
+        Vec::new()
+    } else {
+        candidate_folder_parts[0].clone()
+    };
+
+    let main_category = if buy_options.len() == 1 {
+        tr(language, buy_options[0]).to_string()
+    } else {
+        buy_options
+            .iter()
+            .map(|value| tr(language, value))
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+
+    let sub_category = if !ambiguous && folder_parts.len() >= 3 {
+        Some(folder_parts[2].clone())
+    } else {
+        None
+    };
 
     Some(CatalogClassification {
         source: "OBJD".to_string(),
@@ -1064,6 +1134,8 @@ pub fn classify_objd(data: &[u8], language: AppLanguage) -> Option<CatalogClassi
         species: None,
         usage_categories: room_usage(flags.room_flags, language),
         folder_parts,
+        candidate_folder_parts,
+        ambiguous,
     })
 }
 
@@ -1119,19 +1191,19 @@ mod tests {
 
     #[test]
     fn buy_main_uses_function_category_flags() {
-        assert_eq!(decode_buy_main(0x0000_0800), Some("Comfort"));
-        assert_eq!(decode_buy_main(0x0000_1000), Some("Surfaces"));
+        assert_eq!(decode_buy_main_all(0x0000_0800), vec!["Comfort"]);
+        assert_eq!(decode_buy_main_all(0x0000_1000), vec!["Surfaces"]);
     }
 
     #[test]
     fn buy_subcategory_respects_parent_category() {
         assert_eq!(
-            decode_buy_sub("Comfort", 0x0000_0080_0000_0000, 0),
-            Some("Sofas & Loveseats")
+            decode_buy_sub_all("Comfort", 0x0000_0080_0000_0000, 0),
+            vec!["Sofas & Loveseats"]
         );
         assert_eq!(
-            decode_buy_sub("Surfaces", 0x0001_0000_0000_0000, 0),
-            Some("Dining Tables")
+            decode_buy_sub_all("Surfaces", 0x0001_0000_0000_0000, 0),
+            vec!["Dining Tables"]
         );
     }
 
@@ -1145,7 +1217,7 @@ mod tests {
             sub_category2_flags: 0,
             build_category_flags: 0x4,
         };
-        assert_eq!(decode_build(flags), Some("Windows"));
+        assert_eq!(decode_build_all(flags), vec!["Windows"]);
     }
 
     #[test]
@@ -1158,18 +1230,18 @@ mod tests {
             sub_category2_flags: 0,
             build_category_flags: 0,
         };
-        assert_eq!(decode_build(flags), None);
+        assert_eq!(decode_build_all(flags), Vec::<&'static str>::new());
     }
 
     #[test]
     fn documented_pet_subcategories_are_distinct() {
         assert_eq!(
-            decode_buy_sub("Pets", 0x0000_0002_0000_0000, 0),
-            Some("Dogs")
+            decode_buy_sub_all("Pets", 0x0000_0002_0000_0000, 0),
+            vec!["Dogs"]
         );
         assert_eq!(
-            decode_buy_sub("Pets", 0x4000_0000_0000_0000, 0),
-            Some("Cats")
+            decode_buy_sub_all("Pets", 0x4000_0000_0000_0000, 0),
+            vec!["Cats"]
         );
     }
 
@@ -1309,6 +1381,25 @@ mod tests {
             vec!["Buy", "Comfort", "Sofas & Loveseats"]
         );
         assert_eq!(classification.usage_categories, vec!["Living Room"]);
+        assert!(!classification.ambiguous);
+        assert_eq!(
+            classification.candidate_folder_parts,
+            vec![vec!["Buy", "Comfort", "Sofas & Loveseats"]]
+        );
+    }
+
+    #[test]
+    fn objd_with_multiple_buy_categories_requires_review() {
+        let data = minimal_objd(
+            0x0000_0800 | 0x0000_1000, // Comfort + Surfaces
+            0x0000_0080_0000_0000 | 0x0001_0000_0000_0000,
+            0,
+            0,
+        );
+        let classification = classify_objd(&data, AppLanguage::En).unwrap();
+        assert!(classification.ambiguous);
+        assert!(classification.folder_parts.is_empty());
+        assert_eq!(classification.candidate_folder_parts.len(), 2);
     }
 
     #[test]
