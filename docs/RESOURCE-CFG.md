@@ -13,7 +13,18 @@ Priority <signed integer>
 PackedFile <path pattern>
 ```
 
-Other lines are preserved conceptually as unsupported/ignored for this milestone.
+DirectoryFiles is ignored for package precedence and reported as informational.
+
+Advanced traversal/conditional directives currently not evaluated are:
+
+```text
+Scan
+Select
+End
+StopScan
+```
+
+When any of these directives is present, the parser marks Resource.cfg precedence as **not reliable for automatic winner inference** and surfaces a warning in the Conflicts UI.
 
 ## Matching
 
@@ -33,6 +44,10 @@ A package can match more than one rule. The highest matching Priority is retaine
 
 ## Safety
 
-The Organizer only says one package has higher configured priority when both packages matched rules and their numeric priorities differ.
+The Organizer only says one package has higher configured priority when:
 
-It does not guess a winner for equal priorities.
+- both packages matched supported PackedFile rules;
+- their numeric priorities differ;
+- the Resource.cfg does not use unsupported advanced traversal/conditional directives.
+
+Higher Priority values take precedence over lower values for supported rules. The tool does not guess a winner for equal priorities or when advanced directives make the simplified model incomplete.
