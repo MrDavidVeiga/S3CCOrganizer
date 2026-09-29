@@ -1,4 +1,5 @@
 pub mod analyzer;
+pub mod i18n;
 pub mod manifest;
 pub mod taxonomy;
 
