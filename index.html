@@ -46,6 +46,13 @@
             <span data-i18n="scanCcs">Scan CCs</span>
           </button>
 
+          <button id="plan-btn" class="primary primary-btn" type="button" disabled>
+            <i class="fa-solid fa-list-check" aria-hidden="true"></i>
+            <span data-i18n="previewPlan">Preview Plan</span>
+          </button>
+
+          <div id="selection-summary" class="selection-summary">0</div>
+
           <div class="sidebar-note">
             <i class="fa-solid fa-shield-halved" aria-hidden="true"></i>
             <span data-i18n="readOnlyStage">This stage only analyzes files. Nothing is moved.</span>
@@ -78,6 +85,8 @@
               <div class="results-toolbar">
                 <input id="search-input" class="text-input" type="search" autocomplete="off" spellcheck="false" />
                 <select id="status-filter" class="text-input"></select>
+                <button id="select-all-btn" class="secondary-btn" type="button" data-i18n="selectAllVisible">Select All</button>
+                <button id="select-none-btn" class="secondary-btn" type="button" data-i18n="selectNoneVisible">Select None</button>
               </div>
 
               <div class="results-layout">
@@ -108,6 +117,49 @@
           </section>
         </section>
       </main>
+    </div>
+
+    <div id="plan-modal" class="modal-backdrop hidden" aria-hidden="true">
+      <section class="planner-modal card" role="dialog" aria-modal="true" aria-labelledby="plan-modal-title">
+        <header class="planner-modal-header">
+          <div>
+            <h2 id="plan-modal-title" data-i18n="organizationPlan">Organization Plan</h2>
+            <p data-i18n="simulationOnly">Simulation only. No file will be moved.</p>
+          </div>
+          <button id="plan-close-btn" class="icon-btn" type="button" aria-label="Close">
+            <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+          </button>
+        </header>
+
+        <div class="planner-summary">
+          <article><b id="plan-stat-selected">0</b><span data-i18n="selected">Selected</span></article>
+          <article><b id="plan-stat-ready">0</b><span data-i18n="readyToMove">Ready</span></article>
+          <article><b id="plan-stat-collisions">0</b><span data-i18n="collisions">Collisions</span></article>
+          <article><b id="plan-stat-blocked">0</b><span data-i18n="blocked">Blocked</span></article>
+          <article><b id="plan-stat-folders">0</b><span data-i18n="foldersToCreate">Folders</span></article>
+        </div>
+
+        <div class="planner-body">
+          <div id="plan-items" class="plan-items"></div>
+
+          <aside class="planner-side">
+            <div class="planner-section">
+              <h3 data-i18n="foldersToCreate">Folders to create</h3>
+              <div id="plan-directories" class="planner-scroll-list"></div>
+            </div>
+
+            <details class="manifest-preview">
+              <summary data-i18n="manifestPreview">Restore manifest preview</summary>
+              <pre id="manifest-preview-text"></pre>
+            </details>
+          </aside>
+        </div>
+
+        <footer class="planner-footer">
+          <span><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> <span data-i18n="nothingMoved">Nothing has been moved.</span></span>
+          <button id="plan-close-footer-btn" class="secondary-btn" type="button" data-i18n="close">Close</button>
+        </footer>
+      </section>
     </div>
 
     <script type="module" src="./src/app.js"></script>
