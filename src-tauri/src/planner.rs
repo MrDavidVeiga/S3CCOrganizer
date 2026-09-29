@@ -194,18 +194,32 @@ pub fn build_organization_plan(
     }
 
     let scan = scan_packages(root.to_string_lossy().to_string(), language)?;
-    let scan_by_id = scan
-        .items
-        .iter()
-        .map(|item| (item.id.clone(), item))
-        .collect::<HashMap<_, _>>();
 
-    let selected = selected_paths.into_iter().collect::<HashSet<_>>();
+    let mut scan_by_canonical = HashMap::<PathBuf, &ScanPackageItem>::new();
+    for item in &scan.items {
+        if let Ok(path) = PathBuf::from(&item.path).canonicalize() {
+            scan_by_canonical.insert(path, item);
+        }
+    }
+
+    let mut selected = HashSet::<PathBuf>::new();
+    for raw in selected_paths {
+        let canonical = PathBuf::from(&raw)
+            .canonicalize()
+            .map_err(|error| format!("Could not resolve selected file {raw}: {error}"))?;
+
+        if !path_is_within_root(&root, &canonical) {
+            return Err(format!("Selected file escaped the selected root: {raw}"));
+        }
+
+        selected.insert(canonical);
+    }
+
     let unknown_selection = selected
         .iter()
-        .filter(|path| !scan_by_id.contains_key(*path))
+        .filter(|path| !scan_by_canonical.contains_key(*path))
         .take(3)
-        .cloned()
+        .map(|path| path.to_string_lossy().to_string())
         .collect::<Vec<_>>();
 
     if !unknown_selection.is_empty() {
@@ -224,7 +238,7 @@ pub fn build_organization_plan(
 
     let mut ordered = selected
         .iter()
-        .filter_map(|id| scan_by_id.get(id).copied())
+        .filter_map(|path| scan_by_canonical.get(path).copied())
         .collect::<Vec<_>>();
     ordered.sort_by_key(|item| item.relative_path.to_ascii_lowercase());
 
