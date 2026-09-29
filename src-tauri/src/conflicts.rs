@@ -317,7 +317,16 @@ fn load_order_info(
     left: &PackageInfo,
     right: &PackageInfo,
     resource_cfg_present: bool,
+    precedence_reliable: bool,
 ) -> (String, Option<String>, String) {
+    if resource_cfg_present && !precedence_reliable {
+        return (
+            "advanced_cfg_unresolved".to_string(),
+            None,
+            "resource_cfg_advanced_unresolved".to_string(),
+        );
+    }
+
     match (left.load_priority, right.load_priority) {
         (Some(left_priority), Some(right_priority)) if left_priority > right_priority => (
             "resolved_by_priority".to_string(),
@@ -567,7 +576,15 @@ pub fn analyze_conflicts(folder: String) -> Result<ConflictAnalysis, String> {
         let impact_kinds = accumulator.impact_kinds.iter().cloned().collect::<Vec<_>>();
 
         let (load_order_status, higher_priority_path, load_order_explanation_key) =
-            load_order_info(left, right, resource_cfg.is_some());
+            load_order_info(
+                left,
+                right,
+                resource_cfg.is_some(),
+                resource_cfg
+                    .as_ref()
+                    .map(|cfg| cfg.precedence_reliable)
+                    .unwrap_or(false),
+            );
 
         findings.push(ConflictFinding {
             id: pair_id(left, right),
@@ -602,6 +619,25 @@ pub fn analyze_conflicts(folder: String) -> Result<ConflictAnalysis, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+
+    #[test]
+    fn advanced_resource_cfg_does_not_claim_a_winner() {
+        let package = |name: &str, priority: i32| PackageInfo {
+            name: name.to_string(),
+            path: PathBuf::from(name),
+            relative_path: PathBuf::from(name),
+            readable: true,
+            load_priority: Some(priority),
+            load_rule: Some("Packages/*.package".to_string()),
+        };
+
+        let (status, winner, _) =
+            load_order_info(&package("a.package", 1000), &package("b.package", 500), true, false);
+
+        assert_eq!(status, "advanced_cfg_unresolved");
+        assert!(winner.is_none());
+    }
 
     #[test]
     fn same_payload_is_shared_not_conflict() {
