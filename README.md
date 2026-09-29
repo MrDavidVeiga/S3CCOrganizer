@@ -80,6 +80,12 @@ Transactional organization and Restore are now implemented behind mandatory pref
 
 See [docs/ORGANIZATION-EXECUTION.md](docs/ORGANIZATION-EXECUTION.md) and [docs/RESTORE-MANIFEST.md](docs/RESTORE-MANIFEST.md).
 
+## Duplicates analyzer
+
+The read-only Duplicates engine is implemented. It separates byte-identical packages, normalized-content duplicates, retextures, recategorized variants and related variants using decompressed resource fingerprints.
+
+See [docs/DUPLICATES-ANALYZER.md](docs/DUPLICATES-ANALYZER.md).
+
 ## Status
 
 The repository is organized around four layers:
