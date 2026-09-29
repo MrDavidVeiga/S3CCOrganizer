@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Veiga's S3CC Organizer</title>
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="tabs">
+          <button class="active">Organizer</button>
+          <button>Duplicates</button>
+          <button>Conflicts</button>
+        </div>
+        <div class="language">Language <button>EN ▾</button></div>
+      </header>
+      <main class="layout">
+        <aside class="sidebar card">
+          <h1>Veiga's S3CC Organizer</h1>
+          <button class="primary"><i class="fa-solid fa-folder-open"></i> Choose Mods Folder</button>
+          <p>No folder selected.</p>
+          <button class="primary"><i class="fa-solid fa-magnifying-glass"></i> Scan CCs</button>
+        </aside>
+        <section class="content card">
+          <div class="hero">
+            <h2>Analyze before organizing</h2>
+            <p>Packages will be classified from their actual resources. No file is deleted automatically.</p>
+          </div>
+          <div class="stats">
+            <article><b>0</b><span>Packages</span></article>
+            <article><b>0</b><span>Duplicates</span></article>
+            <article><b>0</b><span>Conflicts</span></article>
+            <article><b>0</b><span>Needs Review</span></article>
+          </div>
+          <div class="empty">Choose a Mods folder to begin.</div>
+        </section>
+      </main>
+    </div>
+    <script type="module" src="./src/app.js"></script>
+  </body>
+</html>
