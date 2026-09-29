@@ -32,6 +32,7 @@ pub struct ScanPackageItem {
     pub usage_categories: Vec<String>,
     pub destination_parts: Vec<String>,
     pub destination_path: Option<String>,
+    pub candidate_destinations: Vec<String>,
     pub classifications: Vec<CatalogClassification>,
     pub warnings: Vec<String>,
 }
@@ -107,6 +108,9 @@ fn localized_warning(language: AppLanguage, key: &str) -> &'static str {
         (AppLanguage::En, "none") => "No supported CASP/OBJD classification was found.",
         (AppLanguage::Pt, "none") => "Nenhuma classificação CASP/OBJD compatível foi encontrada.",
         (AppLanguage::Es, "none") => "No se encontró una clasificación CASP/OBJD compatible.",
+        (AppLanguage::En, "ambiguous") => "The catalog flags indicate more than one possible destination.",
+        (AppLanguage::Pt, "ambiguous") => "Os flags de catálogo indicam mais de um destino possível.",
+        (AppLanguage::Es, "ambiguous") => "Los flags del catálogo indican más de un destino posible.",
         _ => "Unknown",
     }
 }
@@ -147,6 +151,7 @@ fn scan_one(root: &Path, path: &Path, language: AppLanguage) -> ScanPackageItem 
                 usage_categories: Vec::new(),
                 destination_parts: Vec::new(),
                 destination_path: None,
+                candidate_destinations: Vec::new(),
                 classifications: Vec::new(),
                 warnings: vec![error.to_string()],
             };
@@ -182,14 +187,38 @@ fn scan_one(root: &Path, path: &Path, language: AppLanguage) -> ScanPackageItem 
     }
 
     let mut destinations: HashMap<String, CatalogClassification> = HashMap::new();
+    let mut candidate_destinations = BTreeSet::new();
+    let mut has_ambiguous = false;
+
     for classification in &classifications {
-        let key = classification.folder_parts.join("\\");
-        destinations
-            .entry(key)
-            .or_insert_with(|| classification.clone());
+        for parts in &classification.candidate_folder_parts {
+            if !parts.is_empty() {
+                candidate_destinations.insert(parts.join("\\"));
+            }
+        }
+
+        if classification.ambiguous {
+            has_ambiguous = true;
+            continue;
+        }
+
+        if !classification.folder_parts.is_empty() {
+            let key = classification.folder_parts.join("\\");
+            destinations
+                .entry(key)
+                .or_insert_with(|| classification.clone());
+        }
     }
 
-    let (status, primary, destination_parts, destination_path) = if destinations.len() == 1 {
+    let (status, primary, destination_parts, destination_path) = if has_ambiguous {
+        warnings.push(localized_warning(language, "ambiguous").to_string());
+        (
+            "needs_review".to_string(),
+            None,
+            Vec::new(),
+            None,
+        )
+    } else if destinations.len() == 1 {
         let (path, classification) = destinations.into_iter().next().unwrap();
         (
             "classified".to_string(),
@@ -274,6 +303,7 @@ fn scan_one(root: &Path, path: &Path, language: AppLanguage) -> ScanPackageItem 
         usage_categories: usage_categories.into_iter().collect(),
         destination_parts,
         destination_path,
+        candidate_destinations: candidate_destinations.into_iter().collect(),
         classifications,
         warnings,
     }
