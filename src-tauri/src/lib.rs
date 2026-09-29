@@ -2,9 +2,11 @@ pub mod analyzer;
 pub mod catalog;
 pub mod compression;
 pub mod dbpf;
+pub mod executor;
 pub mod i18n;
 pub mod manifest;
 pub mod planner;
+pub mod restore;
 pub mod scanner;
 pub mod taxonomy;
 
@@ -12,7 +14,13 @@ pub mod taxonomy;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![scanner::scan_packages, planner::build_organization_plan])
+        .invoke_handler(tauri::generate_handler![
+            scanner::scan_packages,
+            planner::build_organization_plan,
+            executor::execute_organization,
+            restore::preview_restore,
+            restore::execute_restore
+        ])
         .run(tauri::generate_context!())
         .expect("error while running S3CC Organizer");
 }
