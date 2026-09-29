@@ -173,6 +173,16 @@ const I18N = {
     impact: "Impact",
     noConflictFindings: "No findings match the current search and filter.",
     conflictAnalysisTruncated: "Conflict pair list was limited for performance.",
+    resourceCfg: "Resource.cfg",
+    loadPriority: "Load priority",
+    matchingRule: "Matching rule",
+    loadOrder: "Load order",
+    higherPriorityWins: "Higher Resource.cfg priority takes precedence for this pair.",
+    samePriorityUnknown: "Both packages have the same Resource.cfg priority. The winner is not inferred.",
+    partialPriorityUnknown: "Only one package matched a PackedFile rule. The winner is not inferred.",
+    unmatchedPriorityUnknown: "Neither package matched a PackedFile rule. The winner is not inferred.",
+    missingResourceCfg: "No Resource.cfg was found at the selected root or its parent.",
+    likelyHigherPriority: "Higher priority",
     conflictsNext: "Resource-level conflict analysis is implemented in read-only mode.",
   },
   pt: {
@@ -345,6 +355,16 @@ const I18N = {
     impact: "Impacto",
     noConflictFindings: "Nenhum resultado corresponde à pesquisa e ao filtro atuais.",
     conflictAnalysisTruncated: "A lista de pares de conflito foi limitada por desempenho.",
+    resourceCfg: "Resource.cfg",
+    loadPriority: "Prioridade de carregamento",
+    matchingRule: "Regra correspondente",
+    loadOrder: "Ordem de carregamento",
+    higherPriorityWins: "A prioridade mais alta do Resource.cfg tem precedência neste par.",
+    samePriorityUnknown: "Os dois packages possuem a mesma prioridade no Resource.cfg. A ferramenta não infere qual vence.",
+    partialPriorityUnknown: "Apenas um package correspondeu a uma regra PackedFile. A ferramenta não infere qual vence.",
+    unmatchedPriorityUnknown: "Nenhum dos dois packages correspondeu a uma regra PackedFile. A ferramenta não infere qual vence.",
+    missingResourceCfg: "Nenhum Resource.cfg foi encontrado na pasta selecionada nem na pasta pai.",
+    likelyHigherPriority: "Prioridade mais alta",
     conflictsNext: "A análise de conflitos por resource está implementada em modo somente leitura.",
   },
   es: {
@@ -517,6 +537,16 @@ const I18N = {
     impact: "Impacto",
     noConflictFindings: "Ningún resultado coincide con la búsqueda y el filtro actuales.",
     conflictAnalysisTruncated: "La lista de pares de conflicto fue limitada por rendimiento.",
+    resourceCfg: "Resource.cfg",
+    loadPriority: "Prioridad de carga",
+    matchingRule: "Regla correspondiente",
+    loadOrder: "Orden de carga",
+    higherPriorityWins: "La prioridad más alta de Resource.cfg tiene precedencia en este par.",
+    samePriorityUnknown: "Ambos packages tienen la misma prioridad en Resource.cfg. La herramienta no infiere cuál gana.",
+    partialPriorityUnknown: "Solo un package coincidió con una regla PackedFile. La herramienta no infiere cuál gana.",
+    unmatchedPriorityUnknown: "Ninguno de los dos packages coincidió con una regla PackedFile. La herramienta no infiere cuál gana.",
+    missingResourceCfg: "No se encontró Resource.cfg en la carpeta seleccionada ni en su carpeta superior.",
+    likelyHigherPriority: "Prioridad más alta",
     conflictsNext: "El análisis de conflictos por resource está implementado en modo de solo lectura.",
   },
 };
@@ -1033,6 +1063,16 @@ function conflictKindLabel(kind) {
   }[kind] || kind;
 }
 
+function loadOrderExplanation(finding) {
+  return {
+    resolved_by_priority: t("higherPriorityWins"),
+    same_priority: t("samePriorityUnknown"),
+    partially_matched: t("partialPriorityUnknown"),
+    unmatched: t("unmatchedPriorityUnknown"),
+    resource_cfg_missing: t("missingResourceCfg"),
+  }[finding?.loadOrderStatus] || t("samePriorityUnknown");
+}
+
 function conflictExplanation(kind) {
   return {
     shared_identical: t("conflictSamePayloadExplanation"),
@@ -1122,7 +1162,16 @@ function renderConflictsPreview() {
     name.textContent = member?.name || "—";
     const path = document.createElement("code");
     path.textContent = member?.relativePath || "";
-    card.append(mark, name, path);
+
+    const priority = document.createElement("small");
+    priority.textContent =
+      `${t("loadPriority")}: ${member?.loadPriority ?? "—"}`;
+
+    const rule = document.createElement("small");
+    rule.textContent =
+      `${t("matchingRule")}: ${member?.loadRule || "—"}`;
+
+    card.append(mark, name, path, priority, rule);
     pair.appendChild(card);
   }
 
@@ -1143,6 +1192,28 @@ function renderConflictsPreview() {
   }
 
   el.conflictsPreview.append(header, reason, pair, metrics);
+
+  const loadOrder = document.createElement("div");
+  loadOrder.className = "conflict-load-order";
+  const loadTitle = document.createElement("strong");
+  loadTitle.textContent = t("loadOrder");
+  const loadText = document.createElement("p");
+  loadText.textContent = loadOrderExplanation(finding);
+  loadOrder.append(loadTitle, loadText);
+
+  if (finding.higherPriorityPath) {
+    const winner = document.createElement("code");
+    winner.textContent = `${t("likelyHigherPriority")}: ${finding.higherPriorityPath}`;
+    loadOrder.appendChild(winner);
+  }
+
+  if (state.conflictsAnalysis?.resourceCfg?.path) {
+    const cfg = document.createElement("code");
+    cfg.textContent = `${t("resourceCfg")}: ${state.conflictsAnalysis.resourceCfg.path}`;
+    loadOrder.appendChild(cfg);
+  }
+
+  el.conflictsPreview.appendChild(loadOrder);
 
   const evidenceTitle = document.createElement("h4");
   evidenceTitle.textContent = t("evidence");
