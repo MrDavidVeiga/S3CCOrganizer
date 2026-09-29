@@ -8,9 +8,11 @@ use crate::{
 use chrono::{Local, SecondsFormat};
 use serde::Serialize;
 use std::{
+    collections::HashMap,
     fs,
     path::{Path, PathBuf},
 };
+use walkdir::WalkDir;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -56,33 +58,96 @@ fn ready_items(plan_items: &[PlanItem]) -> Vec<&PlanItem> {
         .collect()
 }
 
-fn manifest_from_plan(
-    root: &Path,
-    language: AppLanguage,
-    items: &[&PlanItem],
-    created_directories: &[String],
-) -> Result<RestoreManifest, String> {
-    let mut entries = Vec::with_capacity(items.len());
+fn package_extension(path: &Path) -> bool {
+    path.extension()
+        .and_then(|value| value.to_str())
+        .map(|value| value.eq_ignore_ascii_case("package"))
+        .unwrap_or(false)
+}
 
-    for item in items {
-        let sha256 = item
-            .sha256
-            .clone()
-            .ok_or_else(|| format!("Planner item {} is missing SHA-256.", item.name))?;
-        let organized = item
+fn snapshot_entries(root: &Path, ready: &[&PlanItem]) -> Result<Vec<RestoreEntry>, String> {
+    let mut planned_destinations = HashMap::<PathBuf, PathBuf>::new();
+
+    for item in ready {
+        let source = PathBuf::from(&item.source_path)
+            .canonicalize()
+            .map_err(|error| format!("Could not resolve planned source {}: {error}", item.source_path))?;
+        let destination = item
             .destination_relative_path
             .as_ref()
+            .map(PathBuf::from)
             .ok_or_else(|| format!("Planner item {} is missing destination.", item.name))?;
+        planned_destinations.insert(source, destination);
+    }
+
+    let mut entries = Vec::new();
+
+    for entry in WalkDir::new(root).follow_links(false).into_iter() {
+        let entry = entry.map_err(|error| format!("Could not snapshot package tree: {error}"))?;
+        if !entry.file_type().is_file() || !package_extension(entry.path()) {
+            continue;
+        }
+
+        let absolute = entry
+            .path()
+            .canonicalize()
+            .map_err(|error| format!("Could not resolve {}: {error}", entry.path().display()))?;
+        let original_relative = absolute
+            .strip_prefix(root)
+            .map_err(|_| format!("Snapshot file escaped root: {}", absolute.display()))?
+            .to_path_buf();
+
+        let (sha256, size) = sha256_file(&absolute)
+            .map_err(|error| format!("Could not hash snapshot file {}: {error}", absolute.display()))?;
+
+        if let Some(item) = ready.iter().find(|item| {
+            PathBuf::from(&item.source_path)
+                .canonicalize()
+                .map(|path| path == absolute)
+                .unwrap_or(false)
+        }) {
+            let expected_hash = item
+                .sha256
+                .as_ref()
+                .ok_or_else(|| format!("Planner item {} is missing SHA-256.", item.name))?;
+            if item.size != size || !expected_hash.eq_ignore_ascii_case(&sha256) {
+                return Err(format!(
+                    "File changed between Planner and manifest snapshot: {}",
+                    absolute.display()
+                ));
+            }
+        }
+
+        let organized_relative = planned_destinations
+            .get(&absolute)
+            .cloned()
+            .unwrap_or_else(|| original_relative.clone());
 
         entries.push(RestoreEntry {
             sha256,
-            size: item.size,
-            original_relative_path: PathBuf::from(&item.source_relative_path),
-            organized_relative_path: PathBuf::from(organized),
+            size,
+            original_relative_path: original_relative,
+            organized_relative_path: organized_relative,
         });
     }
 
-    Ok(RestoreManifest {
+    entries.sort_by_key(|entry| {
+        entry
+            .original_relative_path
+            .to_string_lossy()
+            .to_ascii_lowercase()
+    });
+
+    Ok(entries)
+}
+
+fn manifest_from_snapshot(
+    root: &Path,
+    language: AppLanguage,
+    entries: Vec<RestoreEntry>,
+    created_directories: &[String],
+) -> RestoreManifest {
+    RestoreManifest {
         version: 1,
         created_at: Local::now().to_rfc3339_opts(SecondsFormat::Secs, true),
         organization_language: language,
@@ -90,7 +155,7 @@ fn manifest_from_plan(
         status: "PENDING".to_string(),
         created_directories: created_directories.iter().map(PathBuf::from).collect(),
         entries,
-    })
+    }
 }
 
 fn verify_identity(path: &Path, expected_hash: &str, expected_size: u64) -> Result<(), String> {
@@ -158,12 +223,13 @@ pub fn execute_organization(
     }
 
     let manifest_path = make_manifest_path(&root)?;
-    let mut manifest = manifest_from_plan(
+    let snapshot = snapshot_entries(&root, &ready)?;
+    let mut manifest = manifest_from_snapshot(
         &root,
         language,
-        &ready,
+        snapshot,
         &plan.directories_to_create,
-    )?;
+    );
     write_manifest_atomic(&manifest_path, &manifest)?;
 
     let mut moved_pairs: Vec<(PathBuf, PathBuf, String, u64)> = Vec::new();
