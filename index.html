@@ -10,31 +10,40 @@
     <div class="app-shell">
       <header class="topbar">
         <div class="tabs">
-          <button class="active">Organizer</button>
-          <button>Duplicates</button>
-          <button>Conflicts</button>
+          <button class="active" data-i18n="organizer">Organizer</button>
+          <button data-i18n="duplicates">Duplicates</button>
+          <button data-i18n="conflicts">Conflicts</button>
         </div>
-        <div class="language">Language <button>EN ▾</button></div>
+        <div class="language">
+          <span data-i18n="language">Language</span>
+          <button id="language-button" type="button">EN ▾</button>
+        </div>
       </header>
       <main class="layout">
         <aside class="sidebar card">
           <h1>Veiga's S3CC Organizer</h1>
-          <button class="primary"><i class="fa-solid fa-folder-open"></i> Choose Mods Folder</button>
-          <p>No folder selected.</p>
-          <button class="primary"><i class="fa-solid fa-magnifying-glass"></i> Scan CCs</button>
+          <button class="primary">
+            <i class="fa-solid fa-folder-open"></i>
+            <span data-i18n="chooseModsFolder">Choose Mods Folder</span>
+          </button>
+          <p data-i18n="noFolder">No folder selected.</p>
+          <button class="primary">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <span data-i18n="scanCcs">Scan CCs</span>
+          </button>
         </aside>
         <section class="content card">
           <div class="hero">
-            <h2>Analyze before organizing</h2>
-            <p>Packages will be classified from their actual resources. No file is deleted automatically.</p>
+            <h2 data-i18n="analyzeBefore">Analyze before organizing</h2>
+            <p data-i18n="safetyMessage">Packages will be classified from their actual resources. No file is deleted automatically.</p>
           </div>
           <div class="stats">
-            <article><b>0</b><span>Packages</span></article>
-            <article><b>0</b><span>Duplicates</span></article>
-            <article><b>0</b><span>Conflicts</span></article>
-            <article><b>0</b><span>Needs Review</span></article>
+            <article><b>0</b><span data-i18n="packages">Packages</span></article>
+            <article><b>0</b><span data-i18n="duplicates">Duplicates</span></article>
+            <article><b>0</b><span data-i18n="conflicts">Conflicts</span></article>
+            <article><b>0</b><span data-i18n="needsReview">Needs Review</span></article>
           </div>
-          <div class="empty">Choose a Mods folder to begin.</div>
+          <div class="empty" data-i18n="chooseToBegin">Choose a Mods folder to begin.</div>
         </section>
       </main>
     </div>
