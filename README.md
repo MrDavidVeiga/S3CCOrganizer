@@ -92,6 +92,12 @@ The read-only conflict engine is implemented. It indexes shared TGIs, compares d
 
 See [docs/CONFLICTS-ANALYZER.md](docs/CONFLICTS-ANALYZER.md) and [docs/RESOURCE-CFG.md](docs/RESOURCE-CFG.md).
 
+## Package family classifier
+
+The scanner now recognizes safe non-CASP/OBJD families by authoritative resource types: skin tones, hair tones, sliders/morphs, patterns, script mods, tuning and localization. Ambiguous resource families remain Needs Review.
+
+See [docs/PACKAGE-FAMILY-CLASSIFIER.md](docs/PACKAGE-FAMILY-CLASSIFIER.md).
+
 ## Status
 
 The repository is organized around four layers:
