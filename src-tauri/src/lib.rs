@@ -9,6 +9,7 @@ pub mod i18n;
 pub mod manifest;
 pub mod planner;
 pub mod restore;
+pub mod resource_cfg;
 pub mod scanner;
 pub mod taxonomy;
 
