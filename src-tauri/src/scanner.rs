@@ -2,6 +2,11 @@ use crate::{
     catalog::{classify_resource, CatalogClassification, TYPE_CASP, TYPE_OBJD},
     dbpf::Package,
     i18n::AppLanguage,
+    package_family::{
+        classify_package_family, PackageFamilyClassification, PackageFamilyResult, TYPE_BBLN,
+        TYPE_BGEO, TYPE_BONE_DELTA, TYPE_FACE, TYPE_FBLN, TYPE_HAIR_TONE, TYPE_S3SA,
+        TYPE_SKIN_TONE,
+    },
 };
 use serde::Serialize;
 use std::{
@@ -71,6 +76,14 @@ fn resource_type_label(type_id: u32) -> String {
         TYPE_OBJD => "OBJD".to_string(),
         0x0333_406C => "XML".to_string(),
         0x03B3_3DDF => "ITUN".to_string(),
+        TYPE_S3SA => "S3SA".to_string(),
+        TYPE_SKIN_TONE => "SkinTone".to_string(),
+        TYPE_HAIR_TONE => "HairTone".to_string(),
+        TYPE_BONE_DELTA => "BoneDelta".to_string(),
+        TYPE_FACE => "FACE".to_string(),
+        TYPE_BBLN => "BBLN".to_string(),
+        TYPE_BGEO => "BGEO".to_string(),
+        TYPE_FBLN => "FBLN".to_string(),
         0x73E9_3EEB => "Manifest".to_string(),
         0x2205_57DA => "STBL".to_string(),
         0x00B2_D882 => "IMG".to_string(),
@@ -111,6 +124,9 @@ fn localized_warning(language: AppLanguage, key: &str) -> &'static str {
         (AppLanguage::En, "ambiguous") => "The catalog flags indicate more than one possible destination.",
         (AppLanguage::Pt, "ambiguous") => "Os flags de catálogo indicam mais de um destino possível.",
         (AppLanguage::Es, "ambiguous") => "Los flags del catálogo indican más de un destino posible.",
+        (AppLanguage::En, "family_ambiguous") => "The package contains multiple authoritative resource families and needs review.",
+        (AppLanguage::Pt, "family_ambiguous") => "O package contém várias famílias de resources autoritativas e precisa de revisão.",
+        (AppLanguage::Es, "family_ambiguous") => "El package contiene varias familias de resources autoritativas y necesita revisión.",
         _ => "Unknown",
     }
 }
@@ -159,12 +175,14 @@ fn scan_one(root: &Path, path: &Path, language: AppLanguage) -> ScanPackageItem 
     };
 
     let mut type_set = BTreeSet::new();
+    let mut type_ids = BTreeSet::new();
     let mut detected_from = BTreeSet::new();
     let mut classifications = Vec::new();
     let mut warnings = Vec::new();
     let mut catalog_resource_count = 0usize;
 
     for entry in &package.entries {
+        type_ids.insert(entry.type_id);
         type_set.insert(resource_type_label(entry.type_id));
         if !matches!(entry.type_id, TYPE_CASP | TYPE_OBJD) {
             continue;
@@ -210,7 +228,7 @@ fn scan_one(root: &Path, path: &Path, language: AppLanguage) -> ScanPackageItem 
         }
     }
 
-    let (status, primary, destination_parts, destination_path) = if has_ambiguous {
+    let (mut status, primary, mut destination_parts, mut destination_path) = if has_ambiguous {
         warnings.push(localized_warning(language, "ambiguous").to_string());
         (
             "needs_review".to_string(),
@@ -242,7 +260,6 @@ fn scan_one(root: &Path, path: &Path, language: AppLanguage) -> ScanPackageItem 
             None,
         )
     } else {
-        warnings.push(localized_warning(language, "none").to_string());
         (
             "unknown".to_string(),
             None,
@@ -250,6 +267,37 @@ fn scan_one(root: &Path, path: &Path, language: AppLanguage) -> ScanPackageItem 
             None,
         )
     };
+
+    let mut family_primary: Option<PackageFamilyClassification> = None;
+
+    if status == "unknown" && catalog_resource_count == 0 {
+        match classify_package_family(&type_ids, language) {
+            PackageFamilyResult::Classified(classification) => {
+                for source in &classification.detected_from {
+                    detected_from.insert(source.clone());
+                }
+                destination_parts = classification.folder_parts.clone();
+                destination_path = Some(destination_parts.join("\\"));
+                status = "classified".to_string();
+                family_primary = Some(classification);
+            }
+            PackageFamilyResult::Ambiguous(candidates) => {
+                for classification in candidates {
+                    for source in &classification.detected_from {
+                        detected_from.insert(source.clone());
+                    }
+                    if !classification.folder_parts.is_empty() {
+                        candidate_destinations.insert(classification.folder_parts.join("\\"));
+                    }
+                }
+                warnings.push(localized_warning(language, "family_ambiguous").to_string());
+                status = "needs_review".to_string();
+            }
+            PackageFamilyResult::None => {
+                warnings.push(localized_warning(language, "none").to_string());
+            }
+        }
+    }
 
     let mut usage_categories = BTreeSet::new();
     for classification in &classifications {
@@ -265,6 +313,14 @@ fn scan_one(root: &Path, path: &Path, language: AppLanguage) -> ScanPackageItem 
             primary.gender,
             primary.age,
             primary.species,
+        )
+    } else if let Some(family) = family_primary {
+        (
+            Some(family.main_category),
+            family.sub_category,
+            None,
+            None,
+            None,
         )
     } else if status == "mixed" {
         (
