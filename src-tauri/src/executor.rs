@@ -60,6 +60,7 @@ fn manifest_from_plan(
     root: &Path,
     language: AppLanguage,
     items: &[&PlanItem],
+    created_directories: &[String],
 ) -> Result<RestoreManifest, String> {
     let mut entries = Vec::with_capacity(items.len());
 
@@ -87,6 +88,7 @@ fn manifest_from_plan(
         organization_language: language,
         root: root.to_path_buf(),
         status: "PENDING".to_string(),
+        created_directories: created_directories.iter().map(PathBuf::from).collect(),
         entries,
     })
 }
@@ -156,7 +158,12 @@ pub fn execute_organization(
     }
 
     let manifest_path = make_manifest_path(&root)?;
-    let mut manifest = manifest_from_plan(&root, language, &ready)?;
+    let mut manifest = manifest_from_plan(
+        &root,
+        language,
+        &ready,
+        &plan.directories_to_create,
+    )?;
     write_manifest_atomic(&manifest_path, &manifest)?;
 
     let mut moved_pairs: Vec<(PathBuf, PathBuf, String, u64)> = Vec::new();
