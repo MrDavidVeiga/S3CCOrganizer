@@ -10,7 +10,7 @@ The TXT is intended to be understandable by users, while the parser treats its f
 S3CC ORGANIZER RESTORE MANIFEST
 version=1
 created_at=2026-09-29T13:40:00-03:00
-language=pt
+organization_language=pt
 root=C:\Users\Player\Documents\Electronic Arts\The Sims 3\Mods\Packages
 
 [file]
