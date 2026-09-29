@@ -1,74 +1,130 @@
-# Restore manifest
+# Restore manifest and Restore engine
 
-The Organizer creates a **human-readable TXT manifest** before it moves any file.
+The Organizer writes a **human-readable TXT manifest before moving any package**.
 
-The TXT is intended to be understandable by users, while the parser treats its field names as stable keys.
+The TXT is both the user-readable snapshot and the canonical input for Restore.
 
 ## Example
 
 ```text
 S3CC ORGANIZER RESTORE MANIFEST
 version=1
-created_at=2026-09-29T13:40:00-03:00
+created_at=2026-09-29T17:00:00-03:00
 organization_language=pt
 root=C:\Users\Player\Documents\Electronic Arts\The Sims 3\Mods\Packages
+status=COMPLETE
+files=3
+created_directories=2
+created_dir=CAS
+created_dir=CAS\Roupas
 
 [file]
 sha256=0123456789ABCDEF...
 size=1048576
-original=Hair\Creator\Hair.package
-organized=CAS\Hair\Female\YA-A\Hair.package
+original=Creator\Hair.package
+organized=CAS\Cabelos\Feminino\Jovem Adulto-Adulto\Hair.package
+[/file]
+
+[file]
+sha256=FEDCBA9876543210...
+size=32768
+original=Gameplay\MyMod.package
+organized=Gameplay\MyMod.package
 [/file]
 ```
 
-## Restore semantics
+## Complete baseline snapshot
 
-A restore operation scans the current organized root before changing anything.
+The manifest contains every `.package` that existed under the selected root at the moment the organization began.
 
-### Files tracked by the manifest
+This is required even when only some packages are organized.
 
-A tracked file is restored to `original` only after identity checks.
+- moved file -> `original` and `organized` differ;
+- pre-existing untouched file -> `original == organized`.
 
-Primary identity:
-1. SHA-256
-2. file size
+This allows Restore to distinguish a truly new file from a file that was already there before organization.
 
-The current relative path is not considered sufficient identity by itself.
+## Restore preflight
 
-### Files added after categorization
+Restore never starts from paths alone.
 
-Any current `.package` that is not represented by the restore manifest is considered **new after categorization**.
+For tracked files it checks:
 
-Those files are never deleted. They are moved to a localized top-level directory:
+1. expected organized path;
+2. SHA-256;
+3. file size;
+4. expected original destination;
+5. alternate location by identity when appropriate.
 
-- `Not Categorized` (en)
-- `Não Categorizado` (pt)
-- `Sin categorizar` (es)
+Possible states include:
 
-Their current relative structure is preserved below that directory when possible.
+```text
+ready_restore
+already_restored
+changed
+missing
+ambiguous
+collision_same_content
+collision_different_content
+```
+
+Any changed, missing, ambiguous or colliding tracked item blocks automatic Restore.
+
+## Files added after organization
+
+After all baseline entries are matched to current files, any remaining current `.package` is considered new after organization.
+
+It is never deleted.
+
+Its proposed restore destination is:
+
+- English: `Not Categorized\<current relative path>`
+- Português: `Não Categorizado\<current relative path>`
+- Español: `Sin categorizar\<current relative path>`
+
+The **current interface language at restore time** determines this folder name.
 
 Example:
 
 ```text
-CAS\Hair\Female\NewHair.package
+Current:
+CAS\Cabelos\Feminino\NewHair.package
+
+Restore in Portuguese:
+Não Categorizado\CAS\Cabelos\Feminino\NewHair.package
 ```
 
-becomes:
+If that destination already exists, Restore is blocked. No overwrite occurs.
 
-```text
-Não Categorizado\CAS\Hair\Female\NewHair.package
-```
+## Restore execution
 
-### Destination collisions
+Restore itself is transactional:
 
-The restore engine must not overwrite silently.
+1. build a fresh Restore preview;
+2. refuse execution when any blocked item exists;
+3. verify each source identity immediately before moving;
+4. verify each destination immediately after moving;
+5. if one action fails, reverse all already completed restore moves;
+6. on success, mark the manifest `RESTORED`.
 
-If a destination already contains a different file, restoration records a collision and leaves both files safe. The UI must show the user which files require review.
+Files newly relocated to Not Categorized participate in the same rollback transaction.
 
-### Empty directories
+## Directory cleanup
 
-Directories created by the Organizer may be removed after a successful restore only when empty. User directories are never recursively deleted just because they were not part of the categorized layout.
+The organization manifest records directories created by the Organizer.
 
-## Why TXT?
+After a successful Restore, only those recorded directories are candidates for cleanup, and only if empty.
 
-The user explicitly requested a TXT snapshot so the previous folder structure can be inspected outside the application. The first version therefore uses TXT as the canonical persisted restore format rather than a hidden database.
+User directories are never recursively deleted.
+
+## Unsafe manifest protection
+
+Restore rejects:
+
+- absolute entry paths;
+- parent traversal such as `..`;
+- malformed manifests;
+- unsupported manifest versions;
+- unsafe transaction states such as `PENDING` or `ROLLBACK_INCOMPLETE`.
+
+The parser accepts the early `language=` field for backward compatibility, but new manifests use `organization_language=`.
