@@ -21,6 +21,25 @@ The application is implemented in **Rust + Tauri 2 + Vite**, following the same 
 5. Create a restore point before moving files.
 6. Restoring a previous layout must preserve files that were added later.
 
+## Language-aware taxonomy
+
+Internal classification uses stable language-independent enums. **User-facing category labels and generated folder names follow the current interface language.**
+
+For the same internal classification:
+
+```text
+English:
+CAS/Clothing/Male/YA-A/Top/
+
+Português:
+CAS/Roupas/Masculino/Jovem Adulto-Adulto/Parte de Cima/
+
+Español:
+CAS/Ropa/Masculino/Adulto Joven-Adulto/Parte Superior/
+```
+
+Changing the interface language never changes resource identity or the meaning of an existing restore manifest. New organization operations use the current interface language.
+
 ## Reversible folder organization
 
 Before organization, the app records the previous layout in a human-readable `.txt` restore manifest. Each tracked file stores:
@@ -38,19 +57,10 @@ When restoring:
   - English: `Not Categorized`
   - Português: `Não Categorizado`
   - Español: `Sin categorizar`
+- the "not categorized" folder follows the interface language active at restore time;
 - destination collisions are handled conservatively and surfaced to the user.
 
 See [docs/RESTORE-MANIFEST.md](docs/RESTORE-MANIFEST.md).
-
-## Initial classification model
-
-Example CAS destination:
-
-```text
-CAS/Clothing/Male/YA-A/Top/
-```
-
-The visible folder taxonomy is deliberately separated from the game's internal flags. A resource parser normalizes TS3 metadata into user-facing categories.
 
 ## Status
 
