@@ -18,6 +18,7 @@ pub struct ResourceCfgInfo {
     pub path: String,
     pub rules: Vec<ResourceCfgRule>,
     pub warnings: Vec<String>,
+    pub precedence_reliable: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -111,6 +112,7 @@ pub fn parse_resource_cfg(path: &Path) -> Result<ResourceCfgInfo, String> {
     let mut priority = 0i32;
     let mut rules = Vec::new();
     let mut warnings = Vec::new();
+    let mut precedence_reliable = true;
 
     for (index, raw) in text.lines().enumerate() {
         let line_number = index + 1;
@@ -123,6 +125,24 @@ pub fn parse_resource_cfg(path: &Path) -> Result<ResourceCfgInfo, String> {
         let Some(command) = parts.next() else {
             continue;
         };
+
+        if matches!(
+            command.to_ascii_lowercase().as_str(),
+            "scan" | "select" | "end" | "stopscan"
+        ) {
+            precedence_reliable = false;
+            warnings.push(format!(
+                "Line {line_number}: '{command}' affects advanced Resource.cfg traversal/conditions and is not evaluated for precedence."
+            ));
+            continue;
+        }
+
+        if command.eq_ignore_ascii_case("DirectoryFiles") {
+            warnings.push(format!(
+                "Line {line_number}: DirectoryFiles is recognized as non-package loading metadata and is ignored by the package precedence analyzer."
+            ));
+            continue;
+        }
 
         if command.eq_ignore_ascii_case("Priority") {
             let Some(value) = parts.next() else {
@@ -155,6 +175,7 @@ pub fn parse_resource_cfg(path: &Path) -> Result<ResourceCfgInfo, String> {
         path: path.to_string_lossy().to_string(),
         rules,
         warnings,
+        precedence_reliable,
     })
 }
 
@@ -194,6 +215,24 @@ mod tests {
             "Packages/*/*/*.package",
             "Packages/Hair/Female/a.package"
         ));
+    }
+
+
+    #[test]
+    fn advanced_control_flow_marks_precedence_as_unreliable() {
+        let dir = std::env::temp_dir();
+        let path = dir.join("s3cc-organizer-resource-test.cfg");
+        std::fs::write(
+            &path,
+            "Priority 500\nPackedFile Packages/*.package\nScan Overrides\n",
+        )
+        .unwrap();
+
+        let parsed = parse_resource_cfg(&path).unwrap();
+        let _ = std::fs::remove_file(&path);
+
+        assert!(!parsed.precedence_reliable);
+        assert!(parsed.warnings.iter().any(|warning| warning.contains("Scan")));
     }
 
     #[test]
