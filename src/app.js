@@ -151,6 +151,9 @@ const el = {
   tabs: [...document.querySelectorAll(".tabs button")],
   pages: [...document.querySelectorAll(".tool-page")],
   languageButton: document.querySelector("#language-button"),
+  languageCode: document.querySelector("#language-code"),
+  languageMenu: document.querySelector("#language-menu"),
+  languageMenuItems: [...document.querySelectorAll(".lang-menu-item")],
   chooseFolderBtn: document.querySelector("#choose-folder-btn"),
   scanBtn: document.querySelector("#scan-btn"),
   folderPath: document.querySelector("#folder-path"),
@@ -178,7 +181,11 @@ function renderLanguage() {
     const key = element.dataset.i18n;
     element.textContent = t(key);
   }
-  el.languageButton.textContent = `${state.language.toUpperCase()} ▾`;
+  if (el.languageCode) el.languageCode.textContent = state.language.toUpperCase();
+  el.languageButton?.setAttribute(
+    "aria-expanded",
+    String(!el.languageMenu?.classList.contains("hidden"))
+  );
   el.searchInput.placeholder = t("search");
   renderStatusFilter();
 }
@@ -453,13 +460,40 @@ for (const button of el.tabs) {
   });
 }
 
-el.languageButton.addEventListener("click", async () => {
-  const current = LANGUAGE_ORDER.indexOf(state.language);
-  state.language = LANGUAGE_ORDER[(current + 1) % LANGUAGE_ORDER.length];
-  localStorage.setItem("s3cc-organizer-language", state.language);
-  render();
-  if (state.folder && state.stats) {
-    await scanFolder();
+el.languageButton.addEventListener("click", (event) => {
+  event.stopPropagation();
+  el.languageMenu?.classList.toggle("hidden");
+  renderLanguage();
+});
+
+for (const button of el.languageMenuItems) {
+  button.addEventListener("click", async (event) => {
+    event.stopPropagation();
+    const nextLanguage = button.dataset.lang;
+    if (!LANGUAGE_ORDER.includes(nextLanguage)) return;
+
+    el.languageMenu?.classList.add("hidden");
+    if (nextLanguage === state.language) {
+      renderLanguage();
+      return;
+    }
+
+    state.language = nextLanguage;
+    localStorage.setItem("s3cc-organizer-language", state.language);
+    render();
+
+    // Re-run classification so user-facing categories and destination folders
+    // immediately match the current interface language.
+    if (state.folder && state.stats) {
+      await scanFolder();
+    }
+  });
+}
+
+document.addEventListener("click", (event) => {
+  if (!event.target.closest("#lang-dropdown")) {
+    el.languageMenu?.classList.add("hidden");
+    renderLanguage();
   }
 });
 
