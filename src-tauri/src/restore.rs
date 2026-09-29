@@ -93,7 +93,28 @@ fn safe_relative(path: &Path) -> bool {
         return false;
     }
 
-    path.components().all(|component| matches!(component, Component::Normal(_)))
+    let text = path.to_string_lossy();
+    if text.starts_with('/') || text.starts_with('\\') {
+        return false;
+    }
+
+    let bytes = text.as_bytes();
+    if bytes.len() >= 2 && bytes[1] == b':' && bytes[0].is_ascii_alphabetic() {
+        return false;
+    }
+
+    let mut saw_component = false;
+    for component in text.split(['/', '\\']) {
+        if component.is_empty() || component == "." || component == ".." {
+            return false;
+        }
+        if component.chars().any(|ch| ch == '\0') {
+            return false;
+        }
+        saw_component = true;
+    }
+
+    saw_component
 }
 
 fn path_is_within_root(root: &Path, candidate: &Path) -> bool {
@@ -782,8 +803,11 @@ mod tests {
     #[test]
     fn relative_manifest_paths_cannot_escape_root() {
         assert!(safe_relative(Path::new(r"CAS\Hair\x.package")));
+        assert!(safe_relative(Path::new("CAS/Hair/x.package")));
         assert!(!safe_relative(Path::new(r"..\x.package")));
+        assert!(!safe_relative(Path::new("../x.package")));
         assert!(!safe_relative(Path::new(r"\x.package")));
+        assert!(!safe_relative(Path::new(r"C:\x.package")));
     }
 
     #[test]
