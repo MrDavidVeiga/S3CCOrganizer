@@ -98,10 +98,42 @@
             </div>
           </section>
 
-          <section id="page-duplicates" class="tool-page hidden placeholder-page">
-            <i class="fa-solid fa-clone"></i>
-            <h2 data-i18n="duplicates">Duplicates</h2>
-            <p data-i18n="duplicatesNext">Exact, content and related-variant detection will be connected after the catalog scanner is validated.</p>
+          <section id="page-duplicates" class="tool-page hidden duplicates-page">
+            <div class="hero">
+              <div>
+                <h2 data-i18n="duplicates">Duplicates</h2>
+                <p data-i18n="duplicatesIntro">Find true duplicates and distinguish them from related CC variants without deleting anything.</p>
+              </div>
+              <div id="duplicates-state" class="scan-state"></div>
+            </div>
+
+            <div class="duplicates-toolbar">
+              <button id="analyze-duplicates-btn" class="primary-btn duplicates-primary" type="button" disabled>
+                <i class="fa-solid fa-clone" aria-hidden="true"></i>
+                <span data-i18n="analyzeDuplicates">Analyze Duplicates</span>
+              </button>
+              <input id="duplicates-search" class="text-input" type="search" autocomplete="off" spellcheck="false" />
+              <select id="duplicates-filter" class="text-input"></select>
+            </div>
+
+            <div class="duplicates-summary">
+              <article><b id="dup-stat-packages">0</b><span data-i18n="packages">Packages</span></article>
+              <article><b id="dup-stat-exact">0</b><span data-i18n="exactGroups">Exact Groups</span></article>
+              <article><b id="dup-stat-content">0</b><span data-i18n="contentGroups">Content Groups</span></article>
+              <article><b id="dup-stat-retexture">0</b><span data-i18n="retextures">Retextures</span></article>
+              <article><b id="dup-stat-related">0</b><span data-i18n="relatedVariants">Related Variants</span></article>
+            </div>
+
+            <div id="duplicates-empty" class="empty">
+              <span data-i18n="analyzeDuplicatesToBegin">Analyze the selected Mods folder to find duplicate relationships.</span>
+            </div>
+
+            <div id="duplicates-results" class="duplicates-results hidden">
+              <div id="duplicates-list" class="duplicates-list" aria-live="polite"></div>
+              <aside id="duplicates-preview" class="duplicates-preview">
+                <div class="preview-empty" data-i18n="selectDuplicateFinding">Select a finding to see why it was detected.</div>
+              </aside>
+            </div>
           </section>
 
           <section id="page-conflicts" class="tool-page hidden placeholder-page">
