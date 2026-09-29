@@ -183,6 +183,7 @@ const I18N = {
     partialPriorityUnknown: "Only one package matched a PackedFile rule. The winner is not inferred.",
     unmatchedPriorityUnknown: "Neither package matched a PackedFile rule. The winner is not inferred.",
     missingResourceCfg: "No Resource.cfg was found at the selected root or its parent.",
+    advancedCfgUnknown: "This Resource.cfg uses advanced traversal or conditional directives. The Organizer will not infer a winner from Priority alone.",
     likelyHigherPriority: "Higher priority",
     conflictsNext: "Resource-level conflict analysis is implemented in read-only mode.",
   },
@@ -549,6 +550,7 @@ const I18N = {
     partialPriorityUnknown: "Solo un package coincidió con una regla PackedFile. La herramienta no infiere cuál gana.",
     unmatchedPriorityUnknown: "Ninguno de los dos packages coincidió con una regla PackedFile. La herramienta no infiere cuál gana.",
     missingResourceCfg: "No se encontró Resource.cfg en la carpeta seleccionada ni en su carpeta superior.",
+    advancedCfgUnknown: "Este Resource.cfg usa directivas avanzadas de recorrido o condición. El Organizer no inferirá un ganador solo por Priority.",
     likelyHigherPriority: "Prioridad más alta",
     conflictsNext: "El análisis de conflictos por resource está implementado en modo de solo lectura.",
   },
@@ -1073,6 +1075,7 @@ function loadOrderExplanation(finding) {
     partially_matched: t("partialPriorityUnknown"),
     unmatched: t("unmatchedPriorityUnknown"),
     resource_cfg_missing: t("missingResourceCfg"),
+    advanced_cfg_unresolved: t("advancedCfgUnknown"),
   }[finding?.loadOrderStatus] || t("samePriorityUnknown");
 }
 
