@@ -134,7 +134,46 @@ const I18N = {
     variantAnalysisTruncated: "Variant relation list was limited for performance.",
     noDuplicateFindings: "No findings match the current search and filter.",
     duplicatesNext: "Duplicate analysis is implemented in read-only mode. No file is deleted or moved.",
-    conflictsNext: "Resource-level conflict analysis will distinguish shared identical resources from real overrides.",
+    conflictsIntro: "Compare shared TGIs by decompressed payload and classify the impact instead of treating every overlap as a conflict.",
+    analyzeConflicts: "Analyze Conflicts",
+    analyzingConflicts: "Analyzing shared resources…",
+    conflictsReady: "Conflict analysis complete",
+    conflictsFailed: "Conflict analysis failed",
+    conflictSearch: "Search conflict findings…",
+    allConflictTypes: "All findings",
+    sharedIdentical: "Shared Identical",
+    visualOverride: "Visual Override",
+    catalogOverride: "Catalog Override",
+    gameplayOverride: "Gameplay Override",
+    scriptConflict: "Script Conflict",
+    textOverride: "Text Override",
+    potentialConflict: "Potential Conflict",
+    mixedOverride: "Mixed Override",
+    packagePairs: "Package Pairs",
+    realOverrides: "Overrides",
+    scriptConflicts: "Script",
+    potentialConflicts: "Potential",
+    analyzeConflictsToBegin: "Analyze the selected Mods folder to inspect shared resources.",
+    selectConflictFinding: "Select a finding to inspect its resource evidence.",
+    conflictReason: "Why it was classified",
+    conflictSamePayloadExplanation: "These packages share one or more TGIs with byte-identical decompressed payloads. This is shared content, not a conflict.",
+    conflictVisualExplanation: "The same visual resource TGI exists in both packages but its decompressed payload differs. This is a visual override relationship.",
+    conflictCatalogExplanation: "The same catalog resource TGI exists in both packages but its payload differs. Catalog behavior or categorization may be overridden.",
+    conflictGameplayExplanation: "The same gameplay tuning TGI exists in both packages but its payload differs. Load order may change gameplay behavior.",
+    conflictScriptExplanation: "The same script assembly TGI exists in both packages with a different payload. This is a high-risk script collision.",
+    conflictTextExplanation: "The same STBL TGI exists with different text payloads. This is a text/localization override.",
+    conflictPotentialExplanation: "The same TGI exists with a different payload, but its resource family is not yet classified deeply enough for a stronger conclusion.",
+    conflictMixedExplanation: "This package pair contains multiple classes of differing shared resources.",
+    sharedCount: "Shared TGIs",
+    samePayloadCount: "Identical payloads",
+    differentPayloadCount: "Different payloads",
+    resourceClass: "Resource class",
+    payloadA: "Payload A",
+    payloadB: "Payload B",
+    impact: "Impact",
+    noConflictFindings: "No findings match the current search and filter.",
+    conflictAnalysisTruncated: "Conflict pair list was limited for performance.",
+    conflictsNext: "Resource-level conflict analysis is implemented in read-only mode.",
   },
   pt: {
     organizer: "Organizador",
@@ -267,7 +306,46 @@ const I18N = {
     variantAnalysisTruncated: "A lista de relações entre variantes foi limitada por desempenho.",
     noDuplicateFindings: "Nenhum resultado corresponde à pesquisa e ao filtro atuais.",
     duplicatesNext: "A análise de duplicados está implementada em modo somente leitura. Nenhum arquivo é apagado ou movido.",
-    conflictsNext: "A análise de conflitos por resource distinguirá resources idênticos compartilhados de overrides reais.",
+    conflictsIntro: "Compare TGIs compartilhados pelo payload descomprimido e classifique o impacto em vez de tratar toda sobreposição como conflito.",
+    analyzeConflicts: "Analisar Conflitos",
+    analyzingConflicts: "Analisando resources compartilhados…",
+    conflictsReady: "Análise de conflitos concluída",
+    conflictsFailed: "Falha na análise de conflitos",
+    conflictSearch: "Pesquisar resultados de conflitos…",
+    allConflictTypes: "Todos os resultados",
+    sharedIdentical: "Compartilhado Idêntico",
+    visualOverride: "Override Visual",
+    catalogOverride: "Override de Catálogo",
+    gameplayOverride: "Override de Gameplay",
+    scriptConflict: "Conflito de Script",
+    textOverride: "Override de Texto",
+    potentialConflict: "Conflito Potencial",
+    mixedOverride: "Override Misto",
+    packagePairs: "Pares de Packages",
+    realOverrides: "Overrides",
+    scriptConflicts: "Script",
+    potentialConflicts: "Potenciais",
+    analyzeConflictsToBegin: "Analise a pasta de Mods selecionada para inspecionar resources compartilhados.",
+    selectConflictFinding: "Selecione um resultado para inspecionar as evidências por resource.",
+    conflictReason: "Por que foi classificado",
+    conflictSamePayloadExplanation: "Esses packages compartilham um ou mais TGIs com payload descomprimido idêntico. Isso é conteúdo compartilhado, não conflito.",
+    conflictVisualExplanation: "O mesmo TGI de resource visual existe nos dois packages, mas o payload descomprimido difere. É uma relação de override visual.",
+    conflictCatalogExplanation: "O mesmo TGI de catálogo existe nos dois packages, mas o payload difere. O comportamento ou a categorização de catálogo pode ser sobrescrito.",
+    conflictGameplayExplanation: "O mesmo TGI de tuning/gameplay existe nos dois packages, mas o payload difere. A ordem de carregamento pode alterar o comportamento no jogo.",
+    conflictScriptExplanation: "O mesmo TGI de assembly/script existe nos dois packages com payload diferente. É uma colisão de script de alto risco.",
+    conflictTextExplanation: "O mesmo TGI STBL existe com textos diferentes. É um override de texto/localização.",
+    conflictPotentialExplanation: "O mesmo TGI existe com payload diferente, mas a família do resource ainda não está classificada em profundidade suficiente para uma conclusão mais forte.",
+    conflictMixedExplanation: "Este par de packages contém várias classes de resources compartilhados com conteúdo diferente.",
+    sharedCount: "TGIs compartilhados",
+    samePayloadCount: "Payloads idênticos",
+    differentPayloadCount: "Payloads diferentes",
+    resourceClass: "Classe do resource",
+    payloadA: "Payload A",
+    payloadB: "Payload B",
+    impact: "Impacto",
+    noConflictFindings: "Nenhum resultado corresponde à pesquisa e ao filtro atuais.",
+    conflictAnalysisTruncated: "A lista de pares de conflito foi limitada por desempenho.",
+    conflictsNext: "A análise de conflitos por resource está implementada em modo somente leitura.",
   },
   es: {
     organizer: "Organizador",
@@ -400,7 +478,46 @@ const I18N = {
     variantAnalysisTruncated: "La lista de relaciones entre variantes fue limitada por rendimiento.",
     noDuplicateFindings: "Ningún resultado coincide con la búsqueda y el filtro actuales.",
     duplicatesNext: "El análisis de duplicados está implementado en modo de solo lectura. Ningún archivo se elimina ni se mueve.",
-    conflictsNext: "El análisis de conflictos por resource distinguirá resources idénticos compartidos de overrides reales.",
+    conflictsIntro: "Compara TGIs compartidos por el payload descomprimido y clasifica el impacto en lugar de tratar cada coincidencia como conflicto.",
+    analyzeConflicts: "Analizar Conflictos",
+    analyzingConflicts: "Analizando resources compartidos…",
+    conflictsReady: "Análisis de conflictos completado",
+    conflictsFailed: "Error en el análisis de conflictos",
+    conflictSearch: "Buscar resultados de conflictos…",
+    allConflictTypes: "Todos los resultados",
+    sharedIdentical: "Compartido Idéntico",
+    visualOverride: "Override Visual",
+    catalogOverride: "Override de Catálogo",
+    gameplayOverride: "Override de Gameplay",
+    scriptConflict: "Conflicto de Script",
+    textOverride: "Override de Texto",
+    potentialConflict: "Conflicto Potencial",
+    mixedOverride: "Override Mixto",
+    packagePairs: "Pares de Packages",
+    realOverrides: "Overrides",
+    scriptConflicts: "Script",
+    potentialConflicts: "Potenciales",
+    analyzeConflictsToBegin: "Analiza la carpeta de Mods seleccionada para inspeccionar resources compartidos.",
+    selectConflictFinding: "Selecciona un resultado para inspeccionar sus evidencias por resource.",
+    conflictReason: "Por qué fue clasificado",
+    conflictSamePayloadExplanation: "Estos packages comparten uno o más TGIs con payload descomprimido idéntico. Es contenido compartido, no un conflicto.",
+    conflictVisualExplanation: "El mismo TGI de resource visual existe en ambos packages, pero el payload descomprimido es diferente. Es una relación de override visual.",
+    conflictCatalogExplanation: "El mismo TGI de catálogo existe en ambos packages, pero el payload es diferente. El comportamiento o la categorización del catálogo puede quedar sobrescrito.",
+    conflictGameplayExplanation: "El mismo TGI de tuning/gameplay existe en ambos packages, pero el payload es diferente. El orden de carga puede cambiar el comportamiento del juego.",
+    conflictScriptExplanation: "El mismo TGI de assembly/script existe en ambos packages con un payload diferente. Es una colisión de script de alto riesgo.",
+    conflictTextExplanation: "El mismo TGI STBL existe con textos diferentes. Es un override de texto/localización.",
+    conflictPotentialExplanation: "El mismo TGI existe con un payload diferente, pero la familia del resource todavía no está clasificada con suficiente profundidad para una conclusión más fuerte.",
+    conflictMixedExplanation: "Este par de packages contiene varias clases de resources compartidos con contenido diferente.",
+    sharedCount: "TGIs compartidos",
+    samePayloadCount: "Payloads idénticos",
+    differentPayloadCount: "Payloads diferentes",
+    resourceClass: "Clase del resource",
+    payloadA: "Payload A",
+    payloadB: "Payload B",
+    impact: "Impacto",
+    noConflictFindings: "Ningún resultado coincide con la búsqueda y el filtro actuales.",
+    conflictAnalysisTruncated: "La lista de pares de conflicto fue limitada por rendimiento.",
+    conflictsNext: "El análisis de conflictos por resource está implementado en modo de solo lectura.",
   },
 };
 
@@ -434,6 +551,12 @@ const state = {
   duplicatesSearch: "",
   duplicatesFilter: "all",
   duplicateSelectedId: "",
+  conflictsAnalysis: null,
+  conflictsBusy: false,
+  conflictsError: "",
+  conflictsSearch: "",
+  conflictsFilter: "all",
+  conflictSelectedId: "",
   pendingAction: "",
 };
 
@@ -508,6 +631,19 @@ const el = {
   dupStatContent: document.querySelector("#dup-stat-content"),
   dupStatRetexture: document.querySelector("#dup-stat-retexture"),
   dupStatRelated: document.querySelector("#dup-stat-related"),
+  analyzeConflictsBtn: document.querySelector("#analyze-conflicts-btn"),
+  conflictsState: document.querySelector("#conflicts-state"),
+  conflictsSearch: document.querySelector("#conflicts-search"),
+  conflictsFilter: document.querySelector("#conflicts-filter"),
+  conflictsEmpty: document.querySelector("#conflicts-empty"),
+  conflictsResults: document.querySelector("#conflicts-results"),
+  conflictsList: document.querySelector("#conflicts-list"),
+  conflictsPreview: document.querySelector("#conflicts-preview"),
+  confStatPairs: document.querySelector("#conf-stat-pairs"),
+  confStatReal: document.querySelector("#conf-stat-real"),
+  confStatScript: document.querySelector("#conf-stat-script"),
+  confStatPotential: document.querySelector("#conf-stat-potential"),
+  confStatShared: document.querySelector("#conf-stat-shared"),
 };
 
 function t(key) {
@@ -567,6 +703,7 @@ function renderLanguage() {
   if (el.duplicatesSearch) el.duplicatesSearch.placeholder = t("duplicateSearch");
   renderStatusFilter();
   renderDuplicateFilter();
+  renderConflictFilter();
   renderSelectionSummary();
 }
 
@@ -858,6 +995,298 @@ function renderDuplicates() {
     state.duplicateSelectedId = findings[0]?.id || "";
   }
   renderDuplicatesPreview();
+}
+
+function renderConflictFilter() {
+  if (!el.conflictsFilter) return;
+  const options = [
+    ["all", t("allConflictTypes")],
+    ["script_conflict", t("scriptConflict")],
+    ["gameplay_override", t("gameplayOverride")],
+    ["catalog_override", t("catalogOverride")],
+    ["visual_override", t("visualOverride")],
+    ["text_override", t("textOverride")],
+    ["potential_conflict", t("potentialConflict")],
+    ["mixed_override", t("mixedOverride")],
+    ["shared_identical", t("sharedIdentical")],
+  ];
+  el.conflictsFilter.innerHTML = "";
+  for (const [value, label] of options) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    option.selected = state.conflictsFilter === value;
+    el.conflictsFilter.appendChild(option);
+  }
+}
+
+function conflictKindLabel(kind) {
+  return {
+    shared_identical: t("sharedIdentical"),
+    visual_override: t("visualOverride"),
+    catalog_override: t("catalogOverride"),
+    gameplay_override: t("gameplayOverride"),
+    script_conflict: t("scriptConflict"),
+    text_override: t("textOverride"),
+    potential_conflict: t("potentialConflict"),
+    mixed_override: t("mixedOverride"),
+  }[kind] || kind;
+}
+
+function conflictExplanation(kind) {
+  return {
+    shared_identical: t("conflictSamePayloadExplanation"),
+    visual_override: t("conflictVisualExplanation"),
+    catalog_override: t("conflictCatalogExplanation"),
+    gameplay_override: t("conflictGameplayExplanation"),
+    script_conflict: t("conflictScriptExplanation"),
+    text_override: t("conflictTextExplanation"),
+    potential_conflict: t("conflictPotentialExplanation"),
+    mixed_override: t("conflictMixedExplanation"),
+  }[kind] || "";
+}
+
+function visibleConflictFindings() {
+  const findings = state.conflictsAnalysis?.findings || [];
+  const query = state.conflictsSearch.trim().toLocaleLowerCase();
+  return findings.filter((item) => {
+    if (state.conflictsFilter !== "all") {
+      const matchesPrimary = item.kind === state.conflictsFilter;
+      const matchesImpact = (item.impactKinds || []).includes(state.conflictsFilter);
+      if (!matchesPrimary && !matchesImpact) return false;
+    }
+    if (!query) return true;
+
+    const haystack = [
+      item.left?.name,
+      item.left?.relativePath,
+      item.right?.name,
+      item.right?.relativePath,
+      item.kind,
+      ...(item.impactKinds || []),
+      ...(item.evidence || []).flatMap((evidence) => [
+        evidence.resourceLabel,
+        evidence.resourceTypeHex,
+        evidence.groupHex,
+        evidence.instanceHex,
+        evidence.resourceClass,
+      ]),
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLocaleLowerCase();
+
+    return haystack.includes(query);
+  });
+}
+
+function renderConflictsPreview() {
+  if (!el.conflictsPreview) return;
+  const finding = (state.conflictsAnalysis?.findings || []).find(
+    (item) => item.id === state.conflictSelectedId
+  );
+
+  el.conflictsPreview.innerHTML = "";
+  if (!finding) {
+    const empty = document.createElement("div");
+    empty.className = "preview-empty";
+    empty.textContent = t("selectConflictFinding");
+    el.conflictsPreview.appendChild(empty);
+    return;
+  }
+
+  const header = document.createElement("div");
+  header.className = "preview-header";
+  const title = document.createElement("h3");
+  title.textContent = conflictKindLabel(finding.kind);
+  const badge = document.createElement("span");
+  badge.className = `conflict-kind conflict-kind-${finding.severity}`;
+  badge.textContent = finding.severity?.toUpperCase() || "";
+  header.append(title, badge);
+
+  const reason = document.createElement("div");
+  reason.className = "conflict-reason";
+  const reasonTitle = document.createElement("strong");
+  reasonTitle.textContent = t("conflictReason");
+  const reasonText = document.createElement("p");
+  reasonText.textContent = conflictExplanation(finding.kind);
+  reason.append(reasonTitle, reasonText);
+
+  const pair = document.createElement("div");
+  pair.className = "conflict-pair";
+  for (const [label, member] of [["A", finding.left], ["B", finding.right]]) {
+    const card = document.createElement("article");
+    const mark = document.createElement("b");
+    mark.textContent = label;
+    const name = document.createElement("strong");
+    name.textContent = member?.name || "—";
+    const path = document.createElement("code");
+    path.textContent = member?.relativePath || "";
+    card.append(mark, name, path);
+    pair.appendChild(card);
+  }
+
+  const metrics = document.createElement("div");
+  metrics.className = "conflict-metrics";
+  for (const [label, value] of [
+    [t("sharedCount"), finding.sharedResourceCount],
+    [t("samePayloadCount"), finding.identicalPayloadCount],
+    [t("differentPayloadCount"), finding.differentPayloadCount],
+  ]) {
+    const row = document.createElement("div");
+    const span = document.createElement("span");
+    span.textContent = label;
+    const strong = document.createElement("strong");
+    strong.textContent = String(value ?? 0);
+    row.append(span, strong);
+    metrics.appendChild(row);
+  }
+
+  el.conflictsPreview.append(header, reason, pair, metrics);
+
+  const evidenceTitle = document.createElement("h4");
+  evidenceTitle.textContent = t("evidence");
+  el.conflictsPreview.appendChild(evidenceTitle);
+
+  const evidenceList = document.createElement("div");
+  evidenceList.className = "conflict-evidence-list";
+
+  for (const evidence of finding.evidence || []) {
+    const card = document.createElement("article");
+    card.className = `conflict-evidence ${evidence.samePayload ? "same" : "different"}`;
+
+    const top = document.createElement("div");
+    top.className = "conflict-evidence-top";
+    const label = document.createElement("strong");
+    label.textContent = evidence.resourceLabel;
+    const impact = document.createElement("span");
+    impact.textContent = conflictKindLabel(evidence.impactKind);
+    top.append(label, impact);
+
+    const tgi = document.createElement("code");
+    tgi.textContent =
+      `${evidence.resourceTypeHex} · ${evidence.groupHex} · ${evidence.instanceHex}`;
+
+    const details = document.createElement("div");
+    details.className = "conflict-evidence-details";
+    for (const [metaLabel, value] of [
+      [t("resourceClass"), evidence.resourceClass],
+      [t("payloadA"), evidence.leftPayloadSha256],
+      [t("payloadB"), evidence.rightPayloadSha256],
+    ]) {
+      const row = document.createElement("div");
+      const span = document.createElement("span");
+      span.textContent = metaLabel;
+      const strong = document.createElement("strong");
+      strong.textContent =
+        typeof value === "string" && value.length > 24 ? `${value.slice(0, 24)}…` : value;
+      row.append(span, strong);
+      details.appendChild(row);
+    }
+
+    card.append(top, tgi, details);
+    evidenceList.appendChild(card);
+  }
+
+  el.conflictsPreview.appendChild(evidenceList);
+}
+
+function renderConflicts() {
+  if (!el.analyzeConflictsBtn) return;
+  el.analyzeConflictsBtn.disabled = !state.folder || state.conflictsBusy;
+
+  const analysis = state.conflictsAnalysis;
+  const stats = analysis?.stats || {};
+  const realOverrides =
+    (stats.visualOverrides ?? 0) +
+    (stats.catalogOverrides ?? 0) +
+    (stats.gameplayOverrides ?? 0) +
+    (stats.scriptConflicts ?? 0) +
+    (stats.textOverrides ?? 0) +
+    (stats.mixedOverrides ?? 0);
+
+  el.confStatPairs.textContent = stats.packagePairs ?? 0;
+  el.confStatReal.textContent = realOverrides;
+  el.confStatScript.textContent = stats.scriptConflicts ?? 0;
+  el.confStatPotential.textContent = stats.potentialConflicts ?? 0;
+  el.confStatShared.textContent = stats.sharedIdentical ?? 0;
+
+  if (state.conflictsBusy) {
+    el.conflictsState.textContent = t("analyzingConflicts");
+    el.conflictsState.className = "scan-state busy";
+  } else if (state.conflictsError) {
+    el.conflictsState.textContent = `${t("conflictsFailed")}: ${state.conflictsError}`;
+    el.conflictsState.className = "scan-state error";
+  } else if (analysis) {
+    const parts = [t("conflictsReady")];
+    if (stats.unreadablePackages) {
+      parts.push(`${t("unreadablePackages")}: ${stats.unreadablePackages}`);
+    }
+    if (stats.analysisTruncated) {
+      parts.push(t("conflictAnalysisTruncated"));
+    }
+    el.conflictsState.textContent = parts.join(" · ");
+    el.conflictsState.className = "scan-state success";
+  } else {
+    el.conflictsState.textContent = "";
+    el.conflictsState.className = "scan-state";
+  }
+
+  const hasAnalysis = !!analysis;
+  el.conflictsEmpty.classList.toggle("hidden", hasAnalysis);
+  el.conflictsResults.classList.toggle("hidden", !hasAnalysis);
+
+  if (!hasAnalysis) {
+    renderConflictsPreview();
+    return;
+  }
+
+  const findings = visibleConflictFindings();
+  el.conflictsList.innerHTML = "";
+
+  if (!findings.length) {
+    const empty = document.createElement("div");
+    empty.className = "list-empty";
+    empty.textContent = t("noConflictFindings");
+    el.conflictsList.appendChild(empty);
+  } else {
+    for (const finding of findings) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className =
+        "conflict-row" + (finding.id === state.conflictSelectedId ? " active" : "");
+
+      const main = document.createElement("div");
+      main.className = "conflict-row-main";
+      const kind = document.createElement("strong");
+      kind.textContent = conflictKindLabel(finding.kind);
+      const names = document.createElement("span");
+      names.textContent =
+        `${finding.left?.name || "—"} ↔ ${finding.right?.name || "—"}`;
+      main.append(kind, names);
+
+      const side = document.createElement("div");
+      side.className = "conflict-row-side";
+      const count = document.createElement("span");
+      count.textContent = String(finding.differentPayloadCount ?? 0);
+      const dot = document.createElement("span");
+      dot.className = `conflict-severity conflict-severity-${finding.severity}`;
+      side.append(count, dot);
+
+      button.append(main, side);
+      button.addEventListener("click", () => {
+        state.conflictSelectedId = finding.id;
+        renderConflicts();
+      });
+      el.conflictsList.appendChild(button);
+    }
+  }
+
+  if (!findings.some((item) => item.id === state.conflictSelectedId)) {
+    state.conflictSelectedId = findings[0]?.id || "";
+  }
+
+  renderConflictsPreview();
 }
 
 function renderTabs() {
@@ -1286,6 +1715,7 @@ function render() {
   renderStats();
   renderRestore();
   renderDuplicates();
+  renderConflicts();
 
   el.folderPath.textContent = state.folder || t("noFolder");
   el.folderPath.title = state.folder;
@@ -1343,6 +1773,11 @@ async function chooseFolder() {
   state.duplicatesSearch = "";
   state.duplicatesFilter = "all";
   state.duplicateSelectedId = "";
+  state.conflictsAnalysis = null;
+  state.conflictsError = "";
+  state.conflictsSearch = "";
+  state.conflictsFilter = "all";
+  state.conflictSelectedId = "";
   closePlanModal();
   render();
 }
@@ -1559,6 +1994,28 @@ async function analyzeDuplicates() {
   }
 }
 
+async function analyzeConflicts() {
+  if (!state.folder || state.conflictsBusy) return;
+
+  state.conflictsBusy = true;
+  state.conflictsError = "";
+  state.conflictsAnalysis = null;
+  state.conflictSelectedId = "";
+  render();
+
+  try {
+    state.conflictsAnalysis = await invoke("analyze_conflicts", {
+      folder: state.folder,
+    });
+    state.conflictSelectedId = state.conflictsAnalysis?.findings?.[0]?.id || "";
+  } catch (error) {
+    state.conflictsError = String(error);
+  } finally {
+    state.conflictsBusy = false;
+    render();
+  }
+}
+
 function selectAllVisible() {
   for (const item of visibleItems()) {
     if (eligibleForPlan(item)) state.selectedForPlan.add(item.id);
@@ -1638,6 +2095,15 @@ el.planModal.addEventListener("click", (event) => {
 });
 
 el.analyzeDuplicatesBtn.addEventListener("click", analyzeDuplicates);
+el.analyzeConflictsBtn.addEventListener("click", analyzeConflicts);
+el.conflictsSearch.addEventListener("input", (event) => {
+  state.conflictsSearch = event.currentTarget.value;
+  renderConflicts();
+});
+el.conflictsFilter.addEventListener("change", (event) => {
+  state.conflictsFilter = event.currentTarget.value;
+  renderConflicts();
+});
 el.duplicatesSearch.addEventListener("input", (event) => {
   state.duplicatesSearch = event.currentTarget.value;
   renderDuplicates();
