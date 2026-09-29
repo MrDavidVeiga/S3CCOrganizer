@@ -74,6 +74,12 @@ The read-only Organizer Planner is implemented. It previews selected file moves,
 
 See [docs/ORGANIZER-PLANNER.md](docs/ORGANIZER-PLANNER.md).
 
+## Organization execution and Restore
+
+Transactional organization and Restore are now implemented behind mandatory preflight checks. Organization writes a complete baseline TXT manifest before moves; Restore verifies SHA-256 identities, handles later-added packages through the localized Not Categorized folder, and performs rollback on execution failure.
+
+See [docs/ORGANIZATION-EXECUTION.md](docs/ORGANIZATION-EXECUTION.md) and [docs/RESTORE-MANIFEST.md](docs/RESTORE-MANIFEST.md).
+
 ## Status
 
 The repository is organized around four layers:
