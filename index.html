@@ -9,44 +9,97 @@
   <body>
     <div class="app-shell">
       <header class="topbar">
-        <div class="tabs">
-          <button class="active" data-i18n="organizer">Organizer</button>
-          <button data-i18n="duplicates">Duplicates</button>
-          <button data-i18n="conflicts">Conflicts</button>
+        <div class="tabs" role="tablist">
+          <button class="active" data-tab="organizer" data-i18n="organizer" type="button">Organizer</button>
+          <button data-tab="duplicates" data-i18n="duplicates" type="button">Duplicates</button>
+          <button data-tab="conflicts" data-i18n="conflicts" type="button">Conflicts</button>
+          <button data-tab="restore" data-i18n="restore" type="button">Restore</button>
         </div>
         <div class="language">
           <span data-i18n="language">Language</span>
           <button id="language-button" type="button">EN ▾</button>
         </div>
       </header>
+
       <main class="layout">
         <aside class="sidebar card">
           <h1>Veiga's S3CC Organizer</h1>
-          <button class="primary">
-            <i class="fa-solid fa-folder-open"></i>
+
+          <button id="choose-folder-btn" class="primary" type="button">
+            <i class="fa-solid fa-folder-open" aria-hidden="true"></i>
             <span data-i18n="chooseModsFolder">Choose Mods Folder</span>
           </button>
-          <p data-i18n="noFolder">No folder selected.</p>
-          <button class="primary">
-            <i class="fa-solid fa-magnifying-glass"></i>
+          <div id="folder-path" class="path-label" data-i18n="noFolder">No folder selected.</div>
+
+          <button id="scan-btn" class="primary" type="button" disabled>
+            <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
             <span data-i18n="scanCcs">Scan CCs</span>
           </button>
+
+          <div class="sidebar-note">
+            <i class="fa-solid fa-shield-halved" aria-hidden="true"></i>
+            <span data-i18n="readOnlyStage">This stage only analyzes files. Nothing is moved.</span>
+          </div>
         </aside>
+
         <section class="content card">
-          <div class="hero">
-            <h2 data-i18n="analyzeBefore">Analyze before organizing</h2>
-            <p data-i18n="safetyMessage">Packages will be classified from their actual resources. No file is deleted automatically.</p>
-          </div>
-          <div class="stats">
-            <article><b>0</b><span data-i18n="packages">Packages</span></article>
-            <article><b>0</b><span data-i18n="duplicates">Duplicates</span></article>
-            <article><b>0</b><span data-i18n="conflicts">Conflicts</span></article>
-            <article><b>0</b><span data-i18n="needsReview">Needs Review</span></article>
-          </div>
-          <div class="empty" data-i18n="chooseToBegin">Choose a Mods folder to begin.</div>
+          <section id="page-organizer" class="tool-page">
+            <div class="hero">
+              <div>
+                <h2 data-i18n="analyzeBefore">Analyze before organizing</h2>
+                <p data-i18n="safetyMessage">Packages are classified from their actual resources. Nothing is moved during this scan.</p>
+              </div>
+              <div id="scan-state" class="scan-state"></div>
+            </div>
+
+            <div class="stats">
+              <article><b id="stat-packages">0</b><span data-i18n="packages">Packages</span></article>
+              <article><b id="stat-classified">0</b><span data-i18n="classified">Classified</span></article>
+              <article><b id="stat-mixed">0</b><span data-i18n="mixed">Mixed</span></article>
+              <article><b id="stat-review">0</b><span data-i18n="needsReview">Needs Review</span></article>
+              <article><b id="stat-invalid">0</b><span data-i18n="invalid">Invalid</span></article>
+            </div>
+
+            <div id="empty-state" class="empty">
+              <span data-i18n="chooseToBegin">Choose a Mods folder to begin.</span>
+            </div>
+
+            <div id="results-state" class="results-state hidden">
+              <div class="results-toolbar">
+                <input id="search-input" class="text-input" type="search" autocomplete="off" spellcheck="false" />
+                <select id="status-filter" class="text-input"></select>
+              </div>
+
+              <div class="results-layout">
+                <div id="package-list" class="package-list" aria-live="polite"></div>
+                <aside id="preview-card" class="preview-card">
+                  <div class="preview-empty" data-i18n="selectPackage">Select a package to see its classification.</div>
+                </aside>
+              </div>
+            </div>
+          </section>
+
+          <section id="page-duplicates" class="tool-page hidden placeholder-page">
+            <i class="fa-solid fa-clone"></i>
+            <h2 data-i18n="duplicates">Duplicates</h2>
+            <p data-i18n="duplicatesNext">Exact, content and related-variant detection will be connected after the catalog scanner is validated.</p>
+          </section>
+
+          <section id="page-conflicts" class="tool-page hidden placeholder-page">
+            <i class="fa-solid fa-code-compare"></i>
+            <h2 data-i18n="conflicts">Conflicts</h2>
+            <p data-i18n="conflictsNext">Resource-level conflict analysis will distinguish shared identical resources from real overrides.</p>
+          </section>
+
+          <section id="page-restore" class="tool-page hidden placeholder-page">
+            <i class="fa-solid fa-clock-rotate-left"></i>
+            <h2 data-i18n="restore">Restore</h2>
+            <p data-i18n="restoreNext">Restore manifests will be enabled only after the organizer move engine is validated.</p>
+          </section>
         </section>
       </main>
     </div>
+
     <script type="module" src="./src/app.js"></script>
   </body>
 </html>
