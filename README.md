@@ -105,10 +105,25 @@ The repository is organized around four layers:
 ```text
 UI
  └─ Tauri commands
-     ├─ package scanner
+     ├─ package scanner + family classifier
      ├─ resource/classification engine
      ├─ duplicate + conflict analyzers
-     └─ restore/manifest engine
+     └─ planner + organization + restore/manifest engine
 ```
 
-The current milestone keeps all filesystem changes disabled while CASP/OBJD classification is validated against real packages. Organization, duplicate analysis, conflict analysis and restore execution are the next layers.
+Implemented in code:
+
+- CASP/OBJD scanning and localized organization destinations;
+- additional package-family classification for skins, hair tones, sliders/morphs, patterns, scripts, tuning and localization;
+- read-only Duplicates analysis;
+- read-only Conflicts analysis with conservative Resource.cfg priority evidence;
+- organization Planner;
+- transactional organization execution with full baseline manifest;
+- transactional Restore with rollback and preservation of later-added packages.
+
+Still pending before release:
+
+- successful Rust/Tauri build in an available execution environment;
+- runtime validation against the supplied real .package samples;
+- correction of any parser/classifier differences found during those real-package tests;
+- portable/release workflows after runtime validation.
