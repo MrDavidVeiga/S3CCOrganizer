@@ -136,10 +136,42 @@
             </div>
           </section>
 
-          <section id="page-conflicts" class="tool-page hidden placeholder-page">
-            <i class="fa-solid fa-code-compare"></i>
-            <h2 data-i18n="conflicts">Conflicts</h2>
-            <p data-i18n="conflictsNext">Resource-level conflict analysis will distinguish shared identical resources from real overrides.</p>
+          <section id="page-conflicts" class="tool-page hidden conflicts-page">
+            <div class="hero">
+              <div>
+                <h2 data-i18n="conflicts">Conflicts</h2>
+                <p data-i18n="conflictsIntro">Compare shared TGIs by decompressed payload and classify the impact instead of treating every overlap as a conflict.</p>
+              </div>
+              <div id="conflicts-state" class="scan-state"></div>
+            </div>
+
+            <div class="conflicts-toolbar">
+              <button id="analyze-conflicts-btn" class="primary-btn conflicts-primary" type="button" disabled>
+                <i class="fa-solid fa-code-compare" aria-hidden="true"></i>
+                <span data-i18n="analyzeConflicts">Analyze Conflicts</span>
+              </button>
+              <input id="conflicts-search" class="text-input" type="search" autocomplete="off" spellcheck="false" />
+              <select id="conflicts-filter" class="text-input"></select>
+            </div>
+
+            <div class="conflicts-summary">
+              <article><b id="conf-stat-pairs">0</b><span data-i18n="packagePairs">Package Pairs</span></article>
+              <article><b id="conf-stat-real">0</b><span data-i18n="realOverrides">Overrides</span></article>
+              <article><b id="conf-stat-script">0</b><span data-i18n="scriptConflicts">Script</span></article>
+              <article><b id="conf-stat-potential">0</b><span data-i18n="potentialConflicts">Potential</span></article>
+              <article><b id="conf-stat-shared">0</b><span data-i18n="sharedIdentical">Shared</span></article>
+            </div>
+
+            <div id="conflicts-empty" class="empty">
+              <span data-i18n="analyzeConflictsToBegin">Analyze the selected Mods folder to inspect shared resources.</span>
+            </div>
+
+            <div id="conflicts-results" class="conflicts-results hidden">
+              <div id="conflicts-list" class="conflicts-list" aria-live="polite"></div>
+              <aside id="conflicts-preview" class="conflicts-preview">
+                <div class="preview-empty" data-i18n="selectConflictFinding">Select a finding to inspect its resource evidence.</div>
+              </aside>
+            </div>
           </section>
 
           <section id="page-restore" class="tool-page hidden restore-page">
