@@ -10,6 +10,48 @@ use std::{
 const MAGIC_DBPF: u32 = 0x4650_4244;
 const INDEX_VERSION: u32 = 3;
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct IndexRecord {
+    type_id: u32,
+    group: u32,
+    instance_hi: u32,
+    instance_lo: u32,
+    chunk_offset: u32,
+    file_size_raw: u32,
+    mem_size: u32,
+    compression_and_unknown: u32,
+}
+
+impl IndexRecord {
+    fn field(&self, index: usize) -> u32 {
+        match index {
+            0 => self.type_id,
+            1 => self.group,
+            2 => self.instance_hi,
+            3 => self.instance_lo,
+            4 => self.chunk_offset,
+            5 => self.file_size_raw,
+            6 => self.mem_size,
+            7 => self.compression_and_unknown,
+            _ => unreachable!(),
+        }
+    }
+
+    fn set_field(&mut self, index: usize, value: u32) {
+        match index {
+            0 => self.type_id = value,
+            1 => self.group = value,
+            2 => self.instance_hi = value,
+            3 => self.instance_lo = value,
+            4 => self.chunk_offset = value,
+            5 => self.file_size_raw = value,
+            6 => self.mem_size = value,
+            7 => self.compression_and_unknown = value,
+            _ => unreachable!(),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ResourceEntry {
     pub type_id: u32,
@@ -20,6 +62,7 @@ pub struct ResourceEntry {
     pub mem_size: u32,
     pub compressed: u16,
     pub unknown2: u16,
+    pub file_size_high_bit: bool,
 }
 
 impl ResourceEntry {
@@ -69,11 +112,11 @@ impl Package {
         if magic != MAGIC_DBPF {
             bail!("file magic does not match DBPF");
         }
+        if major != 2 {
+            bail!("unsupported DBPF major version {major}");
+        }
         if index_version != INDEX_VERSION {
             bail!("unsupported DBPF index version {index_version}");
-        }
-        if index_count > 0 && index_position == 0 {
-            bail!("DBPF has entries but no index position");
         }
 
         if index_count == 0 {
@@ -84,18 +127,29 @@ impl Package {
                 entries: Vec::new(),
             });
         }
+        if index_position == 0 {
+            bail!("DBPF has entries but no index position");
+        }
+
+        let index_end = (index_position as u64)
+            .checked_add(index_length as u64)
+            .ok_or_else(|| anyhow::anyhow!("DBPF index range overflow"))?;
+        if index_end > meta.len() {
+            bail!("DBPF index points outside the file");
+        }
 
         file.seek(SeekFrom::Start(index_position as u64))?;
-        let bit_flag = file.read_u32::<LittleEndian>()?;
+        let index_type = file.read_u32::<LittleEndian>()?;
 
-        let common_count = [1u32, 2, 4, 8]
-            .into_iter()
-            .filter(|bit| (bit_flag & bit) != 0)
+        // Sims 3 DBPF index v3 has eight DWORD fields. A SET bit means that
+        // field is stored once in the index header and omitted from each entry.
+        let common_field_count = (0..8)
+            .filter(|bit| (index_type & (1u32 << bit)) != 0)
             .count();
 
         let expected = 4u64
-            + (common_count as u64 * 4)
-            + ((32 - common_count as u32 * 4) as u64 * index_count as u64);
+            + (common_field_count as u64 * 4)
+            + ((8usize - common_field_count) as u64 * 4 * index_count as u64);
         if index_length as u64 != expected {
             bail!(
                 "corrupted DBPF index length {} (expected {})",
@@ -104,51 +158,49 @@ impl Package {
             );
         }
 
-        let mut common = Vec::with_capacity(common_count);
-        for _ in 0..common_count {
-            common.push(file.read_u32::<LittleEndian>()?);
+        let mut template = IndexRecord::default();
+        for field_index in 0..8 {
+            if (index_type & (1u32 << field_index)) != 0 {
+                template.set_field(field_index, file.read_u32::<LittleEndian>()?);
+            }
         }
 
         let mut entries = Vec::with_capacity(index_count as usize);
         for _ in 0..index_count {
-            let mut common_index = 0usize;
-            let mut next_common = || {
-                let value = common[common_index];
-                common_index += 1;
-                value
-            };
+            let mut record = template;
+            for field_index in 0..8 {
+                if (index_type & (1u32 << field_index)) == 0 {
+                    record.set_field(field_index, file.read_u32::<LittleEndian>()?);
+                } else {
+                    // Explicitly read through the template accessor in debug builds,
+                    // which also keeps the index layout mapping covered.
+                    let _ = template.field(field_index);
+                }
+            }
 
-            let type_id = if (bit_flag & 1) != 0 {
-                next_common()
-            } else {
-                file.read_u32::<LittleEndian>()?
-            };
-            let group = if (bit_flag & 2) != 0 {
-                next_common()
-            } else {
-                file.read_u32::<LittleEndian>()?
-            };
-            let instance_hi = if (bit_flag & 4) != 0 {
-                next_common()
-            } else {
-                file.read_u32::<LittleEndian>()?
-            };
-            let instance_lo = file.read_u32::<LittleEndian>()?;
-            let chunk_offset = file.read_u32::<LittleEndian>()?;
-            let file_size_raw = file.read_u32::<LittleEndian>()?;
-            let mem_size = file.read_u32::<LittleEndian>()?;
-            let compressed = file.read_u16::<LittleEndian>()?;
-            let unknown2 = file.read_u16::<LittleEndian>()?;
+            let chunk_end = (record.chunk_offset as u64)
+                .checked_add((record.file_size_raw & 0x7FFF_FFFF) as u64)
+                .ok_or_else(|| anyhow::anyhow!("resource range overflow"))?;
+            if chunk_end > meta.len() {
+                bail!(
+                    "resource 0x{:08X}-0x{:08X}-0x{:08X}{:08X} points outside the file",
+                    record.type_id,
+                    record.group,
+                    record.instance_hi,
+                    record.instance_lo
+                );
+            }
 
             entries.push(ResourceEntry {
-                type_id,
-                group,
-                instance: ((instance_hi as u64) << 32) | instance_lo as u64,
-                chunk_offset,
-                file_size: file_size_raw & 0x7FFF_FFFF,
-                mem_size,
-                compressed,
-                unknown2,
+                type_id: record.type_id,
+                group: record.group,
+                instance: ((record.instance_hi as u64) << 32) | record.instance_lo as u64,
+                chunk_offset: record.chunk_offset,
+                file_size: record.file_size_raw & 0x7FFF_FFFF,
+                mem_size: record.mem_size,
+                compressed: (record.compression_and_unknown & 0xFFFF) as u16,
+                unknown2: (record.compression_and_unknown >> 16) as u16,
+                file_size_high_bit: (record.file_size_raw & 0x8000_0000) != 0,
             });
         }
 
@@ -170,15 +222,44 @@ impl Package {
 
     pub fn data(&self, entry: &ResourceEntry) -> Result<Vec<u8>> {
         let raw = self.raw_data(entry)?;
-        if entry.file_size != entry.mem_size || entry.compressed == 0xFFFF {
-            compression::uncompress_stream(
+        match entry.compressed {
+            0x0000 => {
+                if entry.file_size != entry.mem_size {
+                    bail!(
+                        "resource {} is marked uncompressed but disk size {} != memory size {}",
+                        entry.key_string(),
+                        entry.file_size,
+                        entry.mem_size
+                    );
+                }
+                Ok(raw)
+            }
+            0xFFFF => compression::uncompress_stream(
                 &raw,
                 entry.file_size as usize,
                 entry.mem_size as usize,
             )
-            .with_context(|| format!("decompress {}", entry.key_string()))
-        } else {
-            Ok(raw)
+            .with_context(|| format!("decompress {}", entry.key_string())),
+            other => bail!(
+                "resource {} uses unsupported compression flag 0x{other:04X}",
+                entry.key_string()
+            ),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn index_record_field_mapping_covers_all_eight_fields() {
+        let mut record = IndexRecord::default();
+        for index in 0..8 {
+            record.set_field(index, (index as u32) + 10);
+        }
+        for index in 0..8 {
+            assert_eq!(record.field(index), (index as u32) + 10);
         }
     }
 }
