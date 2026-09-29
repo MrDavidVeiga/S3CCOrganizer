@@ -1,6 +1,7 @@
 use crate::{
     catalog::{TYPE_CASP, TYPE_OBJD},
     dbpf::Package,
+    resource_cfg::{find_resource_cfg, package_priority, parse_resource_cfg, ResourceCfgInfo},
 };
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -56,6 +57,8 @@ struct PackageInfo {
     path: PathBuf,
     relative_path: PathBuf,
     readable: bool,
+    load_priority: Option<i32>,
+    load_rule: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -64,6 +67,8 @@ pub struct ConflictPackage {
     pub name: String,
     pub path: String,
     pub relative_path: String,
+    pub load_priority: Option<i32>,
+    pub load_rule: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -100,6 +105,9 @@ pub struct ConflictFinding {
     pub evidence: Vec<ConflictEvidence>,
     pub evidence_truncated: bool,
     pub explanation_key: String,
+    pub load_order_status: String,
+    pub higher_priority_path: Option<String>,
+    pub load_order_explanation_key: String,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -124,6 +132,7 @@ pub struct ConflictStats {
 #[serde(rename_all = "camelCase")]
 pub struct ConflictAnalysis {
     pub root: String,
+    pub resource_cfg: Option<ResourceCfgInfo>,
     pub findings: Vec<ConflictFinding>,
     pub stats: ConflictStats,
     pub errors: Vec<String>,
@@ -299,6 +308,47 @@ fn package_ref(package: &PackageInfo) -> ConflictPackage {
         name: package.name.clone(),
         path: package.path.to_string_lossy().to_string(),
         relative_path: package.relative_path.to_string_lossy().to_string(),
+        load_priority: package.load_priority,
+        load_rule: package.load_rule.clone(),
+    }
+}
+
+fn load_order_info(
+    left: &PackageInfo,
+    right: &PackageInfo,
+    resource_cfg_present: bool,
+) -> (String, Option<String>, String) {
+    match (left.load_priority, right.load_priority) {
+        (Some(left_priority), Some(right_priority)) if left_priority > right_priority => (
+            "resolved_by_priority".to_string(),
+            Some(left.relative_path.to_string_lossy().to_string()),
+            "higher_resource_cfg_priority".to_string(),
+        ),
+        (Some(left_priority), Some(right_priority)) if right_priority > left_priority => (
+            "resolved_by_priority".to_string(),
+            Some(right.relative_path.to_string_lossy().to_string()),
+            "higher_resource_cfg_priority".to_string(),
+        ),
+        (Some(_), Some(_)) => (
+            "same_priority".to_string(),
+            None,
+            "same_resource_cfg_priority".to_string(),
+        ),
+        (Some(_), None) | (None, Some(_)) => (
+            "partially_matched".to_string(),
+            None,
+            "resource_cfg_only_one_match".to_string(),
+        ),
+        (None, None) if resource_cfg_present => (
+            "unmatched".to_string(),
+            None,
+            "resource_cfg_no_matching_rule".to_string(),
+        ),
+        (None, None) => (
+            "resource_cfg_missing".to_string(),
+            None,
+            "resource_cfg_missing".to_string(),
+        ),
     }
 }
 
@@ -326,6 +376,13 @@ pub fn analyze_conflicts(folder: String) -> Result<ConflictAnalysis, String> {
         return Err(format!("Folder does not exist: {}", root.display()));
     }
 
+    let resource_cfg = find_resource_cfg(&root)
+        .map(|path| parse_resource_cfg(&path))
+        .transpose()?;
+    let resource_cfg_directory = resource_cfg
+        .as_ref()
+        .and_then(|cfg| PathBuf::from(&cfg.path).parent().map(Path::to_path_buf));
+
     let mut paths = WalkDir::new(&root)
         .follow_links(false)
         .into_iter()
@@ -352,6 +409,13 @@ pub fn analyze_conflicts(folder: String) -> Result<ConflictAnalysis, String> {
             .to_string();
 
         let package_index = packages.len();
+        let priority = match (&resource_cfg, &resource_cfg_directory) {
+            (Some(cfg), Some(directory)) => package_priority(cfg, directory, &path),
+            _ => None,
+        };
+        let load_priority = priority.as_ref().map(|value| value.priority);
+        let load_rule = priority.map(|value| value.rule);
+
         let package = match Package::load(&path) {
             Ok(package) => package,
             Err(error) => {
@@ -360,6 +424,8 @@ pub fn analyze_conflicts(folder: String) -> Result<ConflictAnalysis, String> {
                     path: path.clone(),
                     relative_path,
                     readable: false,
+                    load_priority,
+                    load_rule,
                 });
                 errors.push(format!("{}: {error}", path.display()));
                 continue;
@@ -371,6 +437,8 @@ pub fn analyze_conflicts(folder: String) -> Result<ConflictAnalysis, String> {
             path: path.clone(),
             relative_path,
             readable: true,
+            load_priority,
+            load_rule,
         });
 
         for entry in &package.entries {
@@ -498,6 +566,9 @@ pub fn analyze_conflicts(folder: String) -> Result<ConflictAnalysis, String> {
         let right = &packages[right_index];
         let impact_kinds = accumulator.impact_kinds.iter().cloned().collect::<Vec<_>>();
 
+        let (load_order_status, higher_priority_path, load_order_explanation_key) =
+            load_order_info(left, right, resource_cfg.is_some());
+
         findings.push(ConflictFinding {
             id: pair_id(left, right),
             severity: severity_for(&kind).to_string(),
@@ -511,6 +582,9 @@ pub fn analyze_conflicts(folder: String) -> Result<ConflictAnalysis, String> {
             different_payload_count: accumulator.different_payload_count,
             evidence: accumulator.evidence,
             evidence_truncated: accumulator.evidence_truncated,
+            load_order_status,
+            higher_priority_path,
+            load_order_explanation_key,
         });
     }
 
@@ -518,6 +592,7 @@ pub fn analyze_conflicts(folder: String) -> Result<ConflictAnalysis, String> {
 
     Ok(ConflictAnalysis {
         root: root.to_string_lossy().to_string(),
+        resource_cfg,
         findings,
         stats,
         errors,
