@@ -68,6 +68,12 @@ The first read-only scanner is now implemented. It recursively reads `.package` 
 
 See [docs/FIRST-SCAN-MILESTONE.md](docs/FIRST-SCAN-MILESTONE.md).
 
+## Organizer Planner milestone
+
+The read-only Organizer Planner is implemented. It previews selected file moves, checks SHA-256 collisions, calculates folders to create and generates the restore-manifest text without touching the filesystem.
+
+See [docs/ORGANIZER-PLANNER.md](docs/ORGANIZER-PLANNER.md).
+
 ## Status
 
 The repository is organized around four layers:
