@@ -2,6 +2,7 @@ pub mod analyzer;
 pub mod catalog;
 pub mod compression;
 pub mod dbpf;
+pub mod duplicates;
 pub mod executor;
 pub mod i18n;
 pub mod manifest;
@@ -16,6 +17,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             scanner::scan_packages,
+            duplicates::analyze_duplicates,
             planner::build_organization_plan,
             executor::execute_organization,
             restore::preview_restore,
