@@ -2214,7 +2214,7 @@ function renderConflicts() {
     for (const finding of findings) {
       const button = document.createElement("button");
       button.type = "button";
-      const sessionMark = state.conflictMarks[finding.id];
+      const sessionMark = effectiveConflictMark(finding);
       button.className =
         "conflict-row" +
         (finding.id === state.conflictSelectedId ? " active" : "") +
@@ -2999,6 +2999,7 @@ function render() {
   renderAllOperationProgress();
   renderCachePanel();
   renderDiagnostics();
+  renderAuditPanel();
   applySidebarWidth();
 
   el.folderPath.textContent = state.folder || t("noFolder");
@@ -3071,6 +3072,7 @@ async function chooseFolder() {
   state.conflictsNotice = "";
   state.conflictSelectedId = "";
   state.conflictMarks = {};
+  applyPersistentDecisionRecords([]);
   state.quarantineSelected.clear();
   state.quarantinePlan = null;
   state.technicalDetails = {};
@@ -3079,7 +3081,11 @@ async function chooseFolder() {
   state.restoreHistory = [];
   closePlanModal();
   render();
-  await Promise.all([loadRestoreHistory(), refreshCacheInfo()]);
+  await Promise.all([
+    loadRestoreHistory(),
+    refreshCacheInfo(),
+    refreshConflictDecisions(),
+  ]);
 }
 
 async function scanFolder(preserveSelection = false, preserveNotice = false) {
