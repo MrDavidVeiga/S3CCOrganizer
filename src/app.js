@@ -1797,7 +1797,11 @@ function renderConflicts() {
       const main = document.createElement("div");
       main.className = "conflict-row-main";
       const kind = document.createElement("strong");
-      kind.textContent = conflictKindLabel(finding.kind);
+      kind.textContent = sessionMark === "intentional"
+        ? t("intentionalOverride")
+        : sessionMark === "ignored"
+          ? t("ignoredSession")
+          : conflictKindLabel(finding.kind);
       const names = document.createElement("span");
       names.textContent =
         `${finding.left?.name || "—"} ↔ ${finding.right?.name || "—"}`;
