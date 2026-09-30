@@ -195,6 +195,10 @@ const I18N = {
     packageMetadata: "Package Metadata",
     tags: "Tags",
     testStatus: "Test status",
+    untested: "Untested",
+    working: "Working",
+    problemStatus: "Problem",
+    removedStatus: "Removed",
     favorite: "Favorite",
     saveMetadata: "Save Metadata",
     keepTogetherGroups: "Keep Together Groups",
@@ -553,6 +557,10 @@ const I18N = {
     packageMetadata: "Metadados do Package",
     tags: "Tags",
     testStatus: "Status de teste",
+    untested: "Não testado",
+    working: "Funcionando",
+    problemStatus: "Com problema",
+    removedStatus: "Removido",
     favorite: "Favorito",
     saveMetadata: "Salvar Metadados",
     keepTogetherGroups: "Grupos Manter Juntos",
@@ -910,6 +918,10 @@ const I18N = {
     packageMetadata: "Metadatos del Package",
     tags: "Tags",
     testStatus: "Estado de prueba",
+    untested: "Sin probar",
+    working: "Funciona",
+    problemStatus: "Con problema",
+    removedStatus: "Eliminado",
     favorite: "Favorito",
     saveMetadata: "Guardar Metadatos",
     keepTogetherGroups: "Grupos Mantener Juntos",
@@ -1973,7 +1985,28 @@ function renderLanguage() {
   renderStatusFilter();
   renderDuplicateFilter();
   renderConflictFilter();
+  renderTestStatusFilter();
   renderSelectionSummary();
+}
+
+function renderTestStatusFilter() {
+  if (!el.toolsTestStatus) return;
+  const current = el.toolsTestStatus.value;
+  const options = [
+    ["", "—"],
+    ["untested", t("untested")],
+    ["working", t("working")],
+    ["problem", t("problemStatus")],
+    ["removed", t("removedStatus")],
+  ];
+  el.toolsTestStatus.innerHTML = "";
+  for (const [value, label] of options) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    option.selected = value === current;
+    el.toolsTestStatus.appendChild(option);
+  }
 }
 
 function renderStatusFilter() {
@@ -3854,10 +3887,19 @@ function renderTechnicalTools() {
 function renderHistoryTools() {
   el.toolsOperationHistory.innerHTML = "";
   for (const item of state.operationHistory || []) {
-    el.toolsOperationHistory.appendChild(toolListItem(
+    const row = toolListItem(
       `${item.kind}: ${item.title}`,
       `${item.timestamp} · ${item.source || ""}${item.destination ? " → " + item.destination : ""} · ${item.status}`
-    ));
+    );
+    if (item.destination) {
+      const openButton = document.createElement("button");
+      openButton.type = "button";
+      openButton.className = "secondary-btn compact-btn";
+      openButton.textContent = t("openStructureLocation");
+      openButton.addEventListener("click", () => revealSafe(item.destination));
+      row.appendChild(openButton);
+    }
+    el.toolsOperationHistory.appendChild(row);
   }
 }
 
@@ -5256,6 +5298,7 @@ for (const button of el.toolsSubtabs) {
   button.addEventListener("click", () => {
     state.toolsTab = button.dataset.toolsTab || "profiles";
     renderTools();
+    if (state.toolsTab === "metadata") void loadMetadataSelection();
   });
 }
 el.toolsReadOnly.addEventListener("change", toggleReadOnly);
