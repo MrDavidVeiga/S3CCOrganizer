@@ -72,6 +72,11 @@ button,input,select{font:inherit}.app{height:100%;max-width:1720px;margin:auto;p
     1.247 packages · 18,4 MB<br>
     <span style="font-size:.62rem">Desempenho: Scan 2,8 s · Hash 1,1 s</span>
   </div>
+  <div style="padding:9px;border:1px solid rgba(255,255,255,.08);border-radius:11px;background:rgba(0,0,0,.14);font-size:.67rem;color:var(--muted);margin-bottom:8px">
+    <strong style="color:var(--text)">Relatório de Auditoria</strong><br>
+    Classificações · Duplicados · Conflitos · Decisões<br>
+    <button class="ghost" style="width:100%;margin-top:7px">Exportar Relatório</button>
+  </div>
 
   <div class="context active" data-context="organizer">
     <button class="primary">▣ &nbsp; Escolher Pasta de Mods</button>
@@ -149,7 +154,8 @@ button,input,select{font:inherit}.app{height:100%;max-width:1720px;margin:auto;p
     <div class="stats"><div class="stat"><b>1.247</b><span>Packages</span></div><div class="stat"><b>8</b><span>Conflitos Reais</span></div><div class="stat"><b>14</b><span>Possíveis</span></div><div class="stat"><b>21</b><span>Overrides</span></div><div class="stat"><b>386</b><span>Compartilhados</span></div></div>
     <div class="pills"><button class="pill active">Todos</button><button class="pill">Conflito Real</button><button class="pill">Override Visual</button><button class="pill">Catálogo</button><button class="pill">Gameplay</button><button class="pill">Compartilhado</button></div>
     <div class="workspace"><div class="list"><div class="row active"><span></span><div class="row-main"><strong>Mod_A.package ↔ Mod_B.package</strong><small>ITUN · mesmo TGI, payload diferente</small></div><span class="dot red"></span></div><div class="row"><span></span><div class="row-main"><strong>Pattern_A.package ↔ Object.package</strong><small>Resource compartilhado idêntico · sem conflito</small></div><span class="dot"></span></div><div class="row"><span></span><div class="row-main"><strong>DefaultSkin.package ↔ SkinFix.package</strong><small>Override intencional · load order relevante</small></div><span class="dot yellow"></span></div></div><aside class="preview"><h3>Por que foi marcado?</h3><div class="meta"><div><span>Resource</span><strong>ITUN</strong></div><div><span>TGI</span><strong>0x03B33DDF · 0x00000000 · 0x…</strong></div><div><span>Payload A</span><strong>8E1F…</strong></div><div><span>Payload B</span><strong>C2A7…</strong></div><div><span>Interpretação</span><strong>Gameplay Override</strong></div></div><div class="warning">Mesmo TGI sozinho não é suficiente. Aqui o conteúdo também difere.</div>
-<div style="display:flex;gap:7px;margin-top:9px"><button class="ghost">Marcar como Intencional</button><button class="ghost">Ignorar Nesta Sessão</button></div></aside></div>
+<div class="reason" style="margin-top:8px;border-color:rgba(127,173,45,.4);color:#d8eccb">Override Intencional Salvo · decisão vinculada aos SHA-256 dos packages</div>
+<div style="display:flex;gap:7px;margin-top:9px"><button class="ghost">Limpar Marcação</button><button class="ghost">Ignorar Nesta Sessão</button></div></aside></div>
   </div>
 
   <div class="page" id="restore">
