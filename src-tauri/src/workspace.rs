@@ -102,6 +102,13 @@ fn canonical_root(folder: &str) -> Result<PathBuf, String> {
     Ok(root)
 }
 
+fn is_package(path: &Path) -> bool {
+    path.extension()
+        .and_then(|value| value.to_str())
+        .map(|value| value.eq_ignore_ascii_case("package"))
+        .unwrap_or(false)
+}
+
 fn store_path(root: &Path) -> PathBuf {
     root.parent()
         .unwrap_or(root)
@@ -290,8 +297,8 @@ pub fn set_package_metadata(
     let path = PathBuf::from(package_path.trim())
         .canonicalize()
         .map_err(|error| format!("Could not resolve package: {error}"))?;
-    if !path.starts_with(&root) || !path.is_file() {
-        return Err("Package is outside the selected root.".to_string());
+    if !path.starts_with(&root) || !path.is_file() || !is_package(&path) {
+        return Err("Package is outside the selected root or is not a .package file.".to_string());
     }
     let (sha256, _) = sha256_file(&path)
         .map_err(|error| format!("Could not hash package: {error}"))?;
@@ -336,8 +343,8 @@ pub fn save_package_group(
         let path = PathBuf::from(&raw)
             .canonicalize()
             .map_err(|error| format!("Could not resolve group package: {error}"))?;
-        if !path.starts_with(&root) || !path.is_file() {
-            return Err(format!("Group package is outside the selected root: {raw}"));
+        if !path.starts_with(&root) || !path.is_file() || !is_package(&path) {
+            return Err(format!("Group member is outside the selected root or is not a .package file: {raw}"));
         }
         let (hash, _) = sha256_file(&path)
             .map_err(|error| format!("Could not hash group package: {error}"))?;
