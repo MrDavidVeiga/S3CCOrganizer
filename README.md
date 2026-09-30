@@ -109,7 +109,7 @@ See [docs/ANALYSIS-UX-CACHE.md](docs/ANALYSIS-UX-CACHE.md).
 
 ## Pre-build hardening
 
-The application now persists UI preferences, supports a resizable sidebar, exposes safe file-manager navigation, shows cache/performance diagnostics, displays technical classification evidence in the Planner, blocks Restore across different Mods roots, supports session-only Conflict review marks, and provides a preview-only duplicate quarantine plan outside Packages.
+The application now persists UI preferences, supports a resizable sidebar, exposes safe file-manager navigation, shows cache/performance diagnostics, displays technical classification evidence in the Planner, blocks Restore across different Mods roots, supports persistent Intentional Override decisions plus session-only ignore marks, and provides a preview-only duplicate quarantine plan outside Packages.
 
 See [docs/PREBUILD-HARDENING.md](docs/PREBUILD-HARDENING.md).
 
@@ -135,7 +135,8 @@ UI
      ├─ package scanner + family classifier
      ├─ resource/classification engine
      ├─ duplicate + conflict analyzers
-     └─ planner + organization + restore/manifest engine
+     ├─ planner + organization + restore/manifest engine
+     └─ manual Structure + review/audit persistence
 ```
 
 Implemented in code:
@@ -147,7 +148,9 @@ Implemented in code:
 - organization Planner;
 - transactional organization execution with full baseline manifest;
 - transactional Restore with rollback and preservation of later-added packages;
-- manual Structure management for nested folder creation, file/folder moves and folder renaming.
+- manual Structure management for nested folder creation, file/folder moves and folder renaming;
+- persistent Intentional Override decisions keyed by package SHA-256 pairs;
+- Markdown + JSON audit reports including manual Structure history.
 
 Still pending before release:
 
