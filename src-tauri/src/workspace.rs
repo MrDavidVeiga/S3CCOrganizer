@@ -489,7 +489,6 @@ mod tests {
     }
 
     #[test]
-    #[test]
     fn manual_destination_rejects_traversal_and_windows_reserved_names() {
         assert!(validate_manual_destination(r"CAS\Sliders\Body").is_ok());
         assert!(validate_manual_destination(r"CAS\..\Elsewhere").is_err());
@@ -497,6 +496,7 @@ mod tests {
         assert!(validate_manual_destination(r"C:\Mods").is_err());
     }
 
+    #[test]
     fn custom_rule_can_match_catalog_fields() {
         let profile = OrganizationProfile {
             rules: vec![CustomRule {
