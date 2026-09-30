@@ -8,6 +8,7 @@ pub mod duplicates;
 pub mod executor;
 pub mod i18n;
 pub mod manifest;
+pub mod navigation;
 pub mod operation;
 pub mod package_family;
 pub mod package_details;
@@ -30,6 +31,8 @@ pub fn run() {
             operation::cancel_operation,
             cache::get_cache_info,
             cache::clear_cache,
+            navigation::open_directory,
+            navigation::reveal_path,
             package_details::get_package_technical_details,
             restore_history::list_restore_history,
             planner::build_organization_plan,
