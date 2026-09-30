@@ -116,6 +116,12 @@ Intentional Conflict overrides can now be saved locally using content-stable pac
 
 See [docs/PERSISTENT-REVIEWS-AUDIT-REPORTS.md](docs/PERSISTENT-REVIEWS-AUDIT-REPORTS.md).
 
+## Manual Structure manager
+
+The Structure tab can create nested folders, move files or folders between folders, and rename folders inside the selected Mods root. All operations reject path traversal and destination overwrite, and successful actions are recorded in the manual-operations audit log.
+
+See [docs/MANUAL-STRUCTURE-MANAGER.md](docs/MANUAL-STRUCTURE-MANAGER.md).
+
 ## Status
 
 The repository is organized around four layers:
