@@ -2583,3 +2583,34 @@ button:disabled {
 @media (max-width: 1050px) {
   .tools-grid.two { grid-template-columns: 1fr; }
 }
+
+
+/* Manual review + actionable quarantine */
+.manual-review-box {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid rgba(181,138,67,.35);
+  border-radius: 12px;
+  background: rgba(181,138,67,.08);
+}
+
+.manual-review-box > strong {
+  font-size: .78rem;
+}
+
+.manual-review-box > small {
+  color: var(--muted);
+  font-size: .68rem;
+  line-height: 1.45;
+}
+
+.manual-review-box .text-input {
+  width: 100%;
+}
+
+.quarantine-preview > .primary-btn {
+  margin-top: 10px;
+  width: 100%;
+}
