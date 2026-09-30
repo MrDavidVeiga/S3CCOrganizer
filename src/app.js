@@ -1049,6 +1049,10 @@ function renderDiagnostics() {
   if (conf) {
     const elapsed = state.operations.conflicts?.elapsedMs || 0;
     appendDiagnostic(`${t("conflicts")} · ${t("totalTime")}`, formatMs(conf.totalMs || elapsed));
+    appendDiagnostic(`${t("conflicts")} · ${t("hashingTime")}`, formatMs(conf.hashingMs));
+    appendDiagnostic(`${t("conflicts")} · ${t("dbpfReadTime")}`, formatMs(conf.dbpfLoadMs));
+    appendDiagnostic(`${t("conflicts")} · ${t("resourceDecodeTime")}`, formatMs(conf.resourceDecodeMs));
+    appendDiagnostic(`${t("conflicts")} · ${t("comparisonTime")}`, formatMs(conf.comparisonMs));
   }
   if (state.cacheInfo) {
     appendDiagnostic(t("cacheEntries"), String(state.cacheInfo.entries ?? 0));
