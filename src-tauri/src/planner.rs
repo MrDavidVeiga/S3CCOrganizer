@@ -2,11 +2,16 @@ use crate::{
     i18n::AppLanguage,
     manifest::sha256_file,
     scanner::{scan_packages_core, ScanPackageItem},
+    workspace::{
+        active_profile, is_protected, load_workspace_for_root, matching_rule,
+        split_destination,
+    },
 };
 use chrono::{Local, SecondsFormat};
 use serde::Serialize;
 use std::{
     collections::{BTreeSet, HashMap, HashSet},
+    fs,
     path::{Component, Path, PathBuf},
 };
 
@@ -195,6 +200,8 @@ pub fn build_organization_plan(
         return Err(format!("Root is not a directory: {}", root.display()));
     }
 
+    let workspace = load_workspace_for_root(&root);
+    let profile = active_profile(&workspace);
     let scan = scan_packages_core(root.to_string_lossy().to_string(), language, None)?;
 
     let mut scan_by_canonical = HashMap::<PathBuf, &ScanPackageItem>::new();
@@ -231,6 +238,34 @@ pub fn build_organization_plan(
         ));
     }
 
+    let mut selected_hashes = HashMap::<PathBuf, String>::new();
+    let mut selected_hash_set = HashSet::<String>::new();
+    for path in &selected {
+        let (hash, _) = sha256_file(path)
+            .map_err(|error| format!("Could not hash selected package {}: {error}", path.display()))?;
+        selected_hashes.insert(path.clone(), hash.clone());
+        selected_hash_set.insert(hash);
+    }
+
+    let mut partial_group_hashes = HashSet::<String>::new();
+    for group in workspace.groups.iter().filter(|group| group.keep_together) {
+        let intersects = group
+            .member_sha256
+            .iter()
+            .any(|hash| selected_hash_set.contains(hash));
+        let complete = group
+            .member_sha256
+            .iter()
+            .all(|hash| selected_hash_set.contains(hash));
+        if intersects && !complete {
+            for hash in &group.member_sha256 {
+                if selected_hash_set.contains(hash) {
+                    partial_group_hashes.insert(hash.clone());
+                }
+            }
+        }
+    }
+
     let mut stats = PlanStats {
         selected: selected.len(),
         ..PlanStats::default()
@@ -245,6 +280,33 @@ pub fn build_organization_plan(
     ordered.sort_by_key(|item| item.relative_path.to_ascii_lowercase());
 
     for item in ordered {
+        if is_protected(&item.relative_path, &profile) {
+            stats.blocked += 1;
+            items.push(make_blocked(
+                item,
+                "The active profile protects this folder from automatic organization.".to_string(),
+            ));
+            continue;
+        }
+
+        let source = PathBuf::from(&item.path);
+        let source_canonical = source
+            .canonicalize()
+            .map_err(|error| format!("Could not resolve source {}: {error}", source.display()))?;
+        let source_hash = selected_hashes
+            .get(&source_canonical)
+            .cloned()
+            .ok_or_else(|| format!("Missing selected package hash: {}", source.display()))?;
+
+        if partial_group_hashes.contains(&source_hash) {
+            stats.blocked += 1;
+            items.push(make_blocked(
+                item,
+                "This package belongs to a Keep Together group. Select every member of the group before organizing it.".to_string(),
+            ));
+            continue;
+        }
+
         if item.status != "classified" {
             stats.blocked += 1;
             items.push(make_blocked(
@@ -254,16 +316,49 @@ pub fn build_organization_plan(
             continue;
         }
 
-        if let Err(reason) = validate_destination_parts(&item.destination_parts) {
+        let mut destination_parts = item.destination_parts.clone();
+        let mut classification_reason = item.classification_reason.clone();
+
+        if let Some(rule) = matching_rule(
+            &profile,
+            &item.name,
+            &item.relative_path,
+            item.category.as_deref(),
+            item.sub_category.as_deref(),
+            &item.detected_from,
+        ) {
+            destination_parts = split_destination(&rule.destination);
+            classification_reason = Some(format!(
+                "{} | Custom rule '{}' => {}",
+                classification_reason.unwrap_or_default(),
+                rule.name,
+                destination_parts.join("\\")
+            ));
+        } else if profile.collapse_to_category {
+            if let Some(category) = &item.category {
+                destination_parts = vec![category.clone()];
+                classification_reason = Some(format!(
+                    "{} | Profile '{}' collapsed destination to category '{}'.",
+                    classification_reason.unwrap_or_default(),
+                    profile.name,
+                    category
+                ));
+            }
+        }
+
+        let prefix = split_destination(&profile.destination_prefix);
+        if !prefix.is_empty() {
+            let mut prefixed = prefix;
+            prefixed.extend(destination_parts);
+            destination_parts = prefixed;
+        }
+
+        if let Err(reason) = validate_destination_parts(&destination_parts) {
             stats.blocked += 1;
             items.push(make_blocked(item, reason));
             continue;
         }
 
-        let source = PathBuf::from(&item.path);
-        let source_canonical = source
-            .canonicalize()
-            .map_err(|error| format!("Could not resolve source {}: {error}", source.display()))?;
         if !path_is_within_root(&root, &source_canonical) {
             return Err(format!(
                 "Source escaped the selected root: {}",
@@ -275,7 +370,7 @@ pub fn build_organization_plan(
             .file_name()
             .ok_or_else(|| format!("Source has no filename: {}", source.display()))?;
         let mut destination_relative = PathBuf::new();
-        for part in &item.destination_parts {
+        for part in &destination_parts {
             destination_relative.push(part);
         }
         destination_relative.push(file_name);
@@ -295,7 +390,7 @@ pub fn build_organization_plan(
                 destination_path: Some(destination.to_string_lossy().to_string()),
                 destination_relative_path: Some(destination_relative_text),
                 classification_status: item.status.clone(),
-                classification_reason: item.classification_reason.clone(),
+                classification_reason: classification_reason.clone(),
                 plan_status: "already_organized".to_string(),
                 sha256: Some(hash),
                 size,
@@ -304,8 +399,9 @@ pub fn build_organization_plan(
             continue;
         }
 
-        let (source_hash, source_size) = sha256_file(&source)
-            .map_err(|error| format!("Could not hash {}: {error}", source.display()))?;
+        let source_size = fs::metadata(&source)
+            .map_err(|error| format!("Could not stat {}: {error}", source.display()))?
+            .len();
 
         if destination.exists() {
             let (target_hash, target_size) = sha256_file(&destination)
@@ -326,7 +422,7 @@ pub fn build_organization_plan(
                 destination_path: Some(destination.to_string_lossy().to_string()),
                 destination_relative_path: Some(destination_relative_text),
                 classification_status: item.status.clone(),
-                classification_reason: item.classification_reason.clone(),
+                classification_reason: classification_reason.clone(),
                 plan_status: if same {
                     "collision_same_content".to_string()
                 } else {
@@ -343,7 +439,7 @@ pub fn build_organization_plan(
             continue;
         }
 
-        add_missing_directories(&root, &item.destination_parts, &mut directories);
+        add_missing_directories(&root, &destination_parts, &mut directories);
         stats.ready += 1;
         items.push(PlanItem {
             id: item.id.clone(),
@@ -353,13 +449,55 @@ pub fn build_organization_plan(
             destination_path: Some(destination.to_string_lossy().to_string()),
             destination_relative_path: Some(destination_relative_text),
             classification_status: item.status.clone(),
-            classification_reason: item.classification_reason.clone(),
+            classification_reason: classification_reason.clone(),
             plan_status: "ready".to_string(),
             sha256: Some(source_hash),
             size: source_size,
             warnings: Vec::new(),
         });
     }
+
+    for group in workspace.groups.iter().filter(|group| group.keep_together) {
+        if !group
+            .member_sha256
+            .iter()
+            .all(|hash| selected_hash_set.contains(hash))
+        {
+            continue;
+        }
+
+        let destinations = items
+            .iter()
+            .filter(|item| {
+                item.sha256
+                    .as_ref()
+                    .map(|hash| group.member_sha256.contains(hash))
+                    .unwrap_or(false)
+            })
+            .filter_map(|item| item.destination_relative_path.as_ref())
+            .filter_map(|path| Path::new(path).parent().map(relative_key))
+            .collect::<HashSet<_>>();
+
+        if destinations.len() > 1 {
+            for item in items.iter_mut().filter(|item| {
+                item.sha256
+                    .as_ref()
+                    .map(|hash| group.member_sha256.contains(hash))
+                    .unwrap_or(false)
+            }) {
+                if item.plan_status == "ready" {
+                    item.plan_status = "blocked".to_string();
+                    item.warnings.push(format!(
+                        "Keep Together group '{}' would be split across multiple destination folders.",
+                        group.name
+                    ));
+                }
+            }
+        }
+    }
+
+    stats.ready = items.iter().filter(|item| item.plan_status == "ready").count();
+    stats.blocked = items.iter().filter(|item| item.plan_status == "blocked").count();
 
     let ready_items = items
         .iter()
