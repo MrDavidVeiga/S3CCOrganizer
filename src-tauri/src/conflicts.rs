@@ -167,6 +167,10 @@ fn is_package(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
+fn is_package_local_metadata(type_id: u32) -> bool {
+    matches!(type_id, TYPE_NMAP | TYPE_MANIFEST)
+}
+
 fn resource_label(type_id: u32) -> String {
     match type_id {
         TYPE_IMG => "_IMG".into(),
@@ -519,6 +523,14 @@ pub fn analyze_conflicts_core(
 
         if readable {
             for resource in &cached.resources {
+                // NMAP and Organizer merge manifests are package-local metadata.
+                // They can intentionally reuse the same TGI across unrelated packages
+                // (NMAP commonly uses instance 0), so indexing them as cross-package
+                // conflicts creates large numbers of false positives.
+                if is_package_local_metadata(resource.type_id) {
+                    continue;
+                }
+
                 resource_index
                     .entry((resource.type_id, resource.group, resource.instance))
                     .or_default()
@@ -773,6 +785,14 @@ mod tests {
 
         assert_eq!(status, "advanced_cfg_unresolved");
         assert!(winner.is_none());
+    }
+
+    #[test]
+    fn package_local_metadata_is_not_cross_package_conflict_evidence() {
+        assert!(is_package_local_metadata(TYPE_NMAP));
+        assert!(is_package_local_metadata(TYPE_MANIFEST));
+        assert!(!is_package_local_metadata(TYPE_STBL));
+        assert!(!is_package_local_metadata(TYPE_GEOM));
     }
 
     #[test]
