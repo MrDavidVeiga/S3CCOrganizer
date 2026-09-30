@@ -309,7 +309,10 @@
                   </div>
                   <label><span data-i18n="destinationPrefix">Destination prefix</span><input id="tools-profile-prefix" class="text-input" type="text" /></label>
                   <label class="tool-check"><input id="tools-profile-collapse" type="checkbox" /><span data-i18n="collapseCategory">Collapse to main category</span></label>
-                  <button id="tools-save-profile" class="primary-btn" type="button" data-i18n="saveProfile">Save Profile</button>
+                  <div class="tool-actions">
+                    <button id="tools-save-profile" class="primary-btn" type="button" data-i18n="saveProfile">Save Profile</button>
+                    <button id="tools-delete-profile" class="secondary-btn" type="button" data-i18n="deleteProfile">Delete Profile</button>
+                  </div>
                 </section>
                 <section class="tools-card">
                   <h3 data-i18n="protectedFolders">Protected Folders</h3>
@@ -411,7 +414,10 @@
             </div>
 
             <div id="tools-history" class="tools-panel hidden">
-              <div class="tool-actions"><button id="tools-refresh-history" class="secondary-btn" type="button" data-i18n="refreshHistory">Refresh</button></div>
+              <div class="tool-actions">
+                <button id="tools-refresh-history" class="secondary-btn" type="button" data-i18n="refreshHistory">Refresh</button>
+                <button id="tools-history-undo" class="secondary-btn" type="button" data-i18n="undoLast">Undo Last</button>
+              </div>
               <div id="tools-operation-history" class="tools-list"></div>
             </div>
           </section>
