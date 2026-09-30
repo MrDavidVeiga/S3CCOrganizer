@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::HashSet,
     fs::{self, File, OpenOptions},
-    io::Write,
+    io::{self, Write},
     path::{Component, Path, PathBuf},
     sync::{Mutex, OnceLock},
 };
@@ -293,6 +293,83 @@ fn verified(path: &Path, item: &QuarantinePlanItem) -> Result<(), String> {
     Ok(())
 }
 
+
+fn transfer_no_replace(source: &Path, destination: &Path, hash: &str, size: u64) -> Result<(), String> {
+    if destination.exists() {
+        return Err(format!("Destination already exists: {}", destination.display()));
+    }
+    let (source_hash, source_size) = sha256_file(source)
+        .map_err(|error| format!("Could not verify transfer source: {error}"))?;
+    if !source_hash.eq_ignore_ascii_case(hash) || source_size != size {
+        return Err(format!("Transfer source changed: {}", source.display()));
+    }
+    let parent = destination.parent().ok_or("Transfer destination has no parent.")?;
+    fs::create_dir_all(parent)
+        .map_err(|error| format!("Could not create destination folder: {error}"))?;
+
+    // Hard-link creation is atomic and fails rather than replacing an existing
+    // destination. Quarantine is normally on the same volume as Mods.
+    match fs::hard_link(source, destination) {
+        Ok(()) => {
+            let destination_ok = sha256_file(destination)
+                .map(|(actual, n)| actual.eq_ignore_ascii_case(hash) && n == size)
+                .unwrap_or(false);
+            if !destination_ok {
+                let _ = fs::remove_file(destination);
+                return Err("Hard-linked destination failed identity verification.".into());
+            }
+            if let Err(error) = fs::remove_file(source) {
+                // Both paths still point at preserved content; remove only the
+                // link this transaction just created.
+                let _ = fs::remove_file(destination);
+                return Err(format!("Could not unlink transfer source: {error}"));
+            }
+            return Ok(());
+        }
+        Err(link_error) => {
+            // Filesystems without hard links use create_new + verified copy.
+            // create_new is the no-overwrite guarantee.
+            let mut input = File::open(source)
+                .map_err(|error| format!("Could not open transfer source: {error}"))?;
+            let mut output = OpenOptions::new().write(true).create_new(true).open(destination)
+                .map_err(|error| format!("Destination appeared during transfer: {error}"))?;
+            let copied = match io::copy(&mut input, &mut output) {
+                Ok(copied) => copied,
+                Err(error) => {
+                    drop(output);
+                    let _ = fs::remove_file(destination);
+                    return Err(format!("Could not copy transfer data: {error}"));
+                }
+            };
+            if let Err(error) = output.sync_all() {
+                drop(output);
+                let _ = fs::remove_file(destination);
+                return Err(format!("Could not flush transfer destination: {error}"));
+            }
+            drop(output);
+            if copied != size {
+                let _ = fs::remove_file(destination);
+                return Err(format!("Copied byte count changed ({copied} != {size})."));
+            }
+            let destination_ok = sha256_file(destination)
+                .map(|(actual, n)| actual.eq_ignore_ascii_case(hash) && n == size)
+                .unwrap_or(false);
+            if !destination_ok {
+                let _ = fs::remove_file(destination);
+                return Err("Copied destination failed identity verification.".into());
+            }
+            if let Err(error) = fs::remove_file(source) {
+                // Preserve the original; discard only our newly-created copy.
+                let _ = fs::remove_file(destination);
+                return Err(format!(
+                    "Transfer copy succeeded but source removal failed ({error}); hard-link fallback reason: {link_error}"
+                ));
+            }
+            Ok(())
+        }
+    }
+}
+
 /// Verify before moving anything back. A changed quarantined file must NOT
 /// silently replace its original location during rollback.
 fn rollback_to_sources(moved: &[MoveRecord]) -> bool {
@@ -301,7 +378,8 @@ fn rollback_to_sources(moved: &[MoveRecord]) -> bool {
         let valid = sha256_file(destination)
             .map(|(actual, n)| actual.eq_ignore_ascii_case(hash) && n == *size)
             .unwrap_or(false);
-        if !valid || source.exists() || fs::rename(destination, source).is_err() {
+        if !valid || source.exists()
+            || transfer_no_replace(destination, source, hash, *size).is_err() {
             ok = false;
             continue;
         }
@@ -322,7 +400,8 @@ fn rollback_to_quarantine(moved: &[MoveRecord]) -> bool {
         let valid = sha256_file(source)
             .map(|(actual, n)| actual.eq_ignore_ascii_case(hash) && n == *size)
             .unwrap_or(false);
-        if !valid || destination.exists() || fs::rename(source, destination).is_err() {
+        if !valid || destination.exists()
+            || transfer_no_replace(source, destination, hash, *size).is_err() {
             ok = false;
             continue;
         }
@@ -517,14 +596,14 @@ pub fn execute_quarantine(
         if let Err(error) = checked_join(&qroot, &relative) {
             return Err(abort_quarantine(&manifest_path, &mut journal, &moved, error));
         }
-        if let Err(error) = fs::rename(&source, &destination) {
+        if let Err(error) = transfer_no_replace(&source, &destination, &item.sha256, item.size) {
+            if destination.exists() {
+                moved.push((source.clone(), destination.clone(), item.sha256.clone(), item.size));
+            }
             return Err(abort_quarantine(&manifest_path, &mut journal, &moved,
-                format!("Could not move package: {error}")));
+                format!("Could not move package without overwrite: {error}")));
         }
         moved.push((source, destination.clone(), item.sha256.clone(), item.size));
-        if let Err(error) = verified(&destination, item) {
-            return Err(abort_quarantine(&manifest_path, &mut journal, &moved, error));
-        }
     }
     journal.status = "COMPLETE".into();
     if let Err(error) = write_manifest_atomic(&manifest_path, &journal) {
@@ -589,14 +668,14 @@ pub fn restore_quarantine(folder: String, manifest_path: String) -> Result<Quara
         if let Err(error) = checked_join(&root, &relative) {
             return Err(abort_restore(&path, &mut journal, &restored, error));
         }
-        if let Err(error) = fs::rename(&quarantined, &source) {
+        if let Err(error) = transfer_no_replace(&quarantined, &source, &item.sha256, item.size) {
+            if source.exists() {
+                restored.push((source.clone(), quarantined.clone(), item.sha256.clone(), item.size));
+            }
             return Err(abort_restore(&path, &mut journal, &restored,
-                format!("Could not restore file: {error}")));
+                format!("Could not restore file without overwrite: {error}")));
         }
         restored.push((source.clone(), quarantined, item.sha256.clone(), item.size));
-        if let Err(error) = verified(&source, item) {
-            return Err(abort_restore(&path, &mut journal, &restored, error));
-        }
     }
     journal.status = "RESTORED".into();
     if let Err(error) = write_manifest_atomic(&path, &journal) {
@@ -655,10 +734,9 @@ pub fn recover_quarantine(folder: String, manifest_path: String) -> Result<Quara
             return Err(format!("Recovery stopped due to a path change; manifest: {}", path.display()));
         }
         verified(quarantined, item)?;
-        fs::rename(quarantined, source)
+        transfer_no_replace(quarantined, source, &item.sha256, item.size)
             .map_err(|error| format!("Recovery stopped; retry from manifest {}: {error}", path.display()))?;
         moved.push((source.clone(), quarantined.clone(), item.sha256.clone(), item.size));
-        verified(source, item)?;
     }
     journal.status = if prior.starts_with("RESTORE") { "RESTORED" } else { "ROLLED_BACK" }.into();
     write_manifest_atomic(&path, &journal)?;
@@ -812,6 +890,19 @@ mod tests {
         fs::write(&source, b"later-user-file").unwrap();
         assert!(restore_quarantine(root_text, result.manifest_path).is_err());
         assert_eq!(fs::read(&source).unwrap(), b"later-user-file");
+        cleanup(&mods);
+    }
+
+    #[test]
+    fn no_replace_transfer_refuses_existing_destination() {
+        let mods = isolated_mods_root();
+        let source = test_package(&mods, "source.package", b"source");
+        let destination = mods.join("CAS").join("destination.package");
+        fs::write(&destination, b"keep-me").unwrap();
+        let (hash, size) = sha256_file(&source).unwrap();
+        assert!(transfer_no_replace(&source, &destination, &hash, size).is_err());
+        assert_eq!(fs::read(&source).unwrap(), b"source");
+        assert_eq!(fs::read(&destination).unwrap(), b"keep-me");
         cleanup(&mods);
     }
 
