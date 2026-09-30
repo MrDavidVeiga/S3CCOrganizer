@@ -3732,6 +3732,302 @@ function renderHistoryTools() {
   }
 }
 
+async function refreshSnapshots() {
+  if (!state.folder) return;
+  try { state.snapshots = await invoke("list_snapshots", { folder: state.folder }); }
+  catch (error) { state.toolsError = String(error); }
+  renderTools();
+}
+
+async function refreshOperationHistory() {
+  if (!state.folder) return;
+  try { state.operationHistory = await invoke("get_operation_history", { folder: state.folder }); }
+  catch (error) { state.toolsError = String(error); }
+  renderTools();
+}
+
+async function refreshToolsContext() {
+  if (!state.folder) return;
+  await Promise.all([
+    loadWorkspaceTools(),
+    refreshSnapshots(),
+    refreshOperationHistory(),
+  ]);
+}
+
+async function toggleReadOnly() {
+  if (!state.folder) return;
+  state.toolsBusy = true;
+  try {
+    state.workspaceStore = await invoke("set_read_only", {
+      folder: state.folder,
+      readOnly: el.toolsReadOnly.checked,
+    });
+    state.toolsNotice = el.toolsReadOnly.checked ? t("readOnlyEnabled") : t("readOnlyDisabled");
+  } catch (error) { state.toolsError = String(error); }
+  finally { state.toolsBusy = false; render(); }
+}
+
+async function addWorkspaceProfile() {
+  if (!state.workspaceStore) return;
+  const name = el.toolsProfileName.value.trim();
+  if (!name) return;
+  const id = `profile-${Date.now()}`;
+  state.workspaceStore.profiles.push({
+    id, name, destinationPrefix: "", collapseToCategory: false,
+    rules: [], protectedFolders: [],
+  });
+  state.workspaceStore.activeProfileId = id;
+  el.toolsProfileName.value = "";
+  await persistWorkspaceStore();
+}
+
+async function saveActiveProfile() {
+  const profile = activeWorkspaceProfile();
+  if (!profile) return;
+  profile.destinationPrefix = el.toolsProfilePrefix.value.trim();
+  profile.collapseToCategory = el.toolsProfileCollapse.checked;
+  await persistWorkspaceStore();
+}
+
+async function addProtectedFolder() {
+  const profile = activeWorkspaceProfile();
+  const value = el.toolsProtectedInput.value.trim().replaceAll("/", "\\").replace(/^\\+|\\+$/g, "");
+  if (!profile || !value) return;
+  if (!(profile.protectedFolders || []).some((folder) => folder.toLowerCase() === value.toLowerCase())) {
+    profile.protectedFolders.push(value);
+  }
+  el.toolsProtectedInput.value = "";
+  await persistWorkspaceStore();
+}
+
+async function addCustomRule() {
+  const profile = activeWorkspaceProfile();
+  if (!profile) return;
+  const destination = el.ruleDestination.value.trim();
+  if (!destination) return;
+  profile.rules.push({
+    id: `rule-${Date.now()}`,
+    name: el.ruleName.value.trim() || `Rule ${profile.rules.length + 1}`,
+    enabled: true,
+    category: el.ruleCategory.value.trim() || null,
+    subCategory: el.ruleSubcategory.value.trim() || null,
+    detectedFrom: el.ruleDetected.value.trim() || null,
+    nameContains: el.ruleNameContains.value.trim() || null,
+    pathContains: el.rulePathContains.value.trim() || null,
+    destination,
+  });
+  for (const input of [el.ruleName, el.ruleCategory, el.ruleSubcategory, el.ruleDetected, el.ruleNameContains, el.rulePathContains, el.ruleDestination]) input.value = "";
+  await persistWorkspaceStore();
+}
+
+async function analyzeHealth() {
+  if (!state.folder || state.toolsBusy) return;
+  state.toolsBusy = true; state.toolsError = "";
+  renderTools();
+  try {
+    state.healthReport = await invoke("analyze_mods_health", { folder: state.folder });
+  } catch (error) { state.toolsError = String(error); }
+  finally { state.toolsBusy = false; renderTools(); }
+}
+
+async function createSnapshotTool() {
+  if (!state.folder || state.toolsBusy) return;
+  state.toolsBusy = true; renderTools();
+  try {
+    await invoke("create_snapshot", { folder: state.folder });
+    state.toolsNotice = t("snapshotCreated");
+    await refreshSnapshots();
+    await refreshOperationHistory();
+  } catch (error) { state.toolsError = String(error); }
+  finally { state.toolsBusy = false; renderTools(); }
+}
+
+async function chooseCompareRoot() {
+  const selected = await open({ directory: true, multiple: false, title: t("compareFolders") });
+  if (typeof selected === "string") {
+    state.compareRoot = selected;
+    renderTools();
+  }
+}
+
+async function compareRootsTool() {
+  if (!state.folder || !state.compareRoot || state.toolsBusy) return;
+  state.toolsBusy = true; renderTools();
+  try {
+    state.snapshotDiff = await invoke("compare_mods_roots", {
+      leftFolder: state.folder,
+      rightFolder: state.compareRoot,
+    });
+  } catch (error) { state.toolsError = String(error); }
+  finally { state.toolsBusy = false; renderTools(); }
+}
+
+async function chooseInboxFolder() {
+  const selected = await open({ directory: true, multiple: false, title: t("chooseInbox") });
+  if (typeof selected === "string") {
+    state.inboxFolder = selected;
+    state.inboxScan = null; state.inboxSelected.clear(); state.inboxPlan = null;
+    renderTools();
+  }
+}
+
+async function scanInboxTool() {
+  if (!state.inboxFolder || state.toolsBusy) return;
+  state.toolsBusy = true; renderTools();
+  try {
+    state.inboxScan = await invoke("scan_inbox", {
+      sourceFolder: state.inboxFolder,
+      language: state.language,
+    });
+    state.inboxSelected.clear(); state.inboxPlan = null;
+  } catch (error) { state.toolsError = String(error); }
+  finally { state.toolsBusy = false; renderTools(); }
+}
+
+async function previewInboxImport() {
+  if (!state.folder || !state.inboxFolder || !state.inboxSelected.size) return;
+  state.toolsBusy = true; renderTools();
+  try {
+    state.inboxPlan = await invoke("build_inbox_import_plan", {
+      folder: state.folder,
+      sourceFolder: state.inboxFolder,
+      selectedPaths: [...state.inboxSelected],
+    });
+  } catch (error) { state.toolsError = String(error); }
+  finally { state.toolsBusy = false; renderTools(); }
+}
+
+async function executeInboxImport() {
+  if (!state.inboxPlan?.canExecute || workspaceReadOnly()) return;
+  state.toolsBusy = true; renderTools();
+  try {
+    const result = await invoke("execute_inbox_import", {
+      folder: state.folder,
+      sourceFolder: state.inboxFolder,
+      selectedPaths: [...state.inboxSelected],
+    });
+    state.toolsNotice = `${result.imported} imported → ${result.destinationRoot}`;
+    state.inboxSelected.clear(); state.inboxPlan = null;
+    await Promise.all([scanFolder(false, true), refreshOperationHistory(), refreshCacheInfo()]);
+  } catch (error) { state.toolsError = String(error); }
+  finally { state.toolsBusy = false; render(); }
+}
+
+async function savePackageMetadataTool() {
+  const packagePath = el.toolsMetadataPackage.value;
+  if (!state.folder || !packagePath) return;
+  state.toolsBusy = true; renderTools();
+  try {
+    state.workspaceStore = await invoke("set_package_metadata", {
+      folder: state.folder,
+      packagePath,
+      tags: el.toolsTags.value.split(",").map((value) => value.trim()).filter(Boolean),
+      testStatus: el.toolsTestStatus.value,
+      favorite: el.toolsFavorite.checked,
+    });
+    state.toolsNotice = t("metadataSaved");
+  } catch (error) { state.toolsError = String(error); }
+  finally { state.toolsBusy = false; renderTools(); }
+}
+
+async function saveGroupTool() {
+  if (!state.folder || !state.metadataGroupSelected.size) return;
+  state.toolsBusy = true; renderTools();
+  try {
+    state.workspaceStore = await invoke("save_package_group", {
+      folder: state.folder,
+      id: "",
+      name: el.toolsGroupName.value.trim() || `Group ${Date.now()}`,
+      keepTogether: true,
+      packagePaths: [...state.metadataGroupSelected],
+    });
+    state.metadataGroupSelected.clear(); el.toolsGroupName.value = "";
+    state.plan = null; state.toolsNotice = t("groupSaved");
+  } catch (error) { state.toolsError = String(error); }
+  finally { state.toolsBusy = false; renderTools(); }
+}
+
+async function runTechnicalSearch() {
+  if (!state.folder || !el.toolsTechQuery.value.trim()) return;
+  state.toolsBusy = true; renderTools();
+  try {
+    state.technicalResults = await invoke("technical_search", {
+      folder: state.folder, query: el.toolsTechQuery.value,
+    });
+    state.technicalSelected.clear();
+  } catch (error) { state.toolsError = String(error); }
+  finally { state.toolsBusy = false; renderTools(); }
+}
+
+function technicalExportContent(format) {
+  const selected = state.technicalSelected.size
+    ? state.technicalResults.filter((hit) => state.technicalSelected.has(hit.packagePath))
+    : state.technicalResults;
+  if (format === "json") return JSON.stringify(selected, null, 2);
+  if (format === "csv") {
+    const esc = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;
+    return [
+      ["package","relative_path","file_sha256","tgi","payload_sha256"].join(","),
+      ...selected.map((hit) => [hit.packagePath,hit.relativePath,hit.fileSha256,hit.tgi,hit.payloadSha256].map(esc).join(",")),
+    ].join("\n");
+  }
+  return selected.map((hit) => [hit.relativePath, hit.tgi || "", hit.fileSha256].filter(Boolean).join(" | ")).join("\n");
+}
+
+async function exportTechnicalSelection(format) {
+  if (!state.folder || !state.technicalResults.length) return;
+  try {
+    const result = await invoke("save_selection_export", {
+      folder: state.folder, format, content: technicalExportContent(format),
+    });
+    state.toolsNotice = `${t("exportSaved")}: ${result.path}`;
+  } catch (error) { state.toolsError = String(error); }
+  renderTools();
+}
+
+async function comparePackagesTool() {
+  const leftPath = el.toolsCompareLeft.value;
+  const rightPath = el.toolsCompareRight.value;
+  if (!leftPath || !rightPath || leftPath === rightPath) return;
+  state.toolsBusy = true; renderTools();
+  try {
+    state.packageCompare = await invoke("compare_packages", {
+      folder: state.folder, leftPath, rightPath,
+    });
+  } catch (error) { state.toolsError = String(error); }
+  finally { state.toolsBusy = false; renderTools(); }
+}
+
+async function analyzeDependenciesTool() {
+  if (!state.folder || state.toolsBusy) return;
+  state.toolsBusy = true; renderTools();
+  try {
+    state.dependenciesAnalysis = await invoke("analyze_dependencies", { folder: state.folder });
+  } catch (error) { state.toolsError = String(error); }
+  finally { state.toolsBusy = false; renderTools(); }
+}
+
+async function undoManualOperation() {
+  if (!state.folder || workspaceReadOnly() || structureLocked()) return;
+  state.structureBusy = true; renderStructure();
+  try {
+    const result = await invoke("undo_last_manual_operation", { folder: state.folder });
+    state.structureNotice = `${t("undoLast")}: ${result.destinationRelativePath || ""}`;
+    invalidateAnalysesAfterStructureChange();
+    await Promise.all([
+      refreshManualOperations(), refreshOperationHistory(), refreshCacheInfo(),
+      refreshConflictDecisions(),
+    ]);
+    state.structureBusy = false;
+    await loadStructure(state.structureCurrent || "");
+  } catch (error) {
+    state.structureError = String(error);
+  } finally {
+    state.structureBusy = false; render();
+  }
+}
+
 function renderTools() {
   if (!el.toolsState) return;
   for (const button of el.toolsSubtabs) {
