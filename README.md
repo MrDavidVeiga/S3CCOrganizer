@@ -98,6 +98,12 @@ The scanner now recognizes safe non-CASP/OBJD families by authoritative resource
 
 See [docs/PACKAGE-FAMILY-CLASSIFIER.md](docs/PACKAGE-FAMILY-CLASSIFIER.md).
 
+## Analysis UX and cache
+
+Long-running Scan, Duplicates and Conflicts operations now expose progress and cooperative cancellation. Resource/file fingerprints are cached persistently, Restore shows manifest history, and every scanned package can expose on-demand technical TGI/compression/hash details.
+
+See [docs/ANALYSIS-UX-CACHE.md](docs/ANALYSIS-UX-CACHE.md).
+
 ## Status
 
 The repository is organized around four layers:
