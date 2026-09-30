@@ -14,6 +14,7 @@ use std::{
     collections::{BTreeSet, HashMap},
     fs,
     path::{Path, PathBuf},
+    time::Instant,
 };
 use walkdir::WalkDir;
 
@@ -55,6 +56,7 @@ pub struct ScanStats {
     pub invalid: usize,
     pub casp_resources: usize,
     pub objd_resources: usize,
+    pub total_ms: u128,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -388,6 +390,7 @@ pub fn scan_packages_core(
     language: AppLanguage,
     operation_kind: Option<&str>,
 ) -> Result<ScanResult, String> {
+    let total_started = Instant::now();
     let root = PathBuf::from(folder.trim());
     if folder.trim().is_empty() {
         return Err("No folder was selected.".to_string());
@@ -458,6 +461,8 @@ pub fn scan_packages_core(
             );
         }
     }
+
+    stats.total_ms = total_started.elapsed().as_millis();
 
     Ok(ScanResult {
         root: root.to_string_lossy().to_string(),
