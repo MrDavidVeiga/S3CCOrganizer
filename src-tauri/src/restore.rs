@@ -54,6 +54,8 @@ pub struct RestorePlan {
     pub manifest_path: String,
     pub manifest_status: String,
     pub root: String,
+    pub selected_root: Option<String>,
+    pub root_matches_selected: bool,
     pub items: Vec<RestorePlanItem>,
     pub stats: RestoreStats,
     pub can_execute: bool,
@@ -186,6 +188,7 @@ fn manifest_ready_for_restore(status: &str) -> bool {
 pub fn preview_restore(
     manifest_path: String,
     current_language: AppLanguage,
+    expected_root: Option<String>,
 ) -> Result<RestorePlan, String> {
     let manifest_file = PathBuf::from(manifest_path.trim())
         .canonicalize()
@@ -207,6 +210,21 @@ pub fn preview_restore(
     if !root.is_dir() {
         return Err(format!("Manifest root is not a directory: {}", root.display()));
     }
+
+    let selected_root = expected_root
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+        .map(|path| {
+            path.canonicalize()
+                .map_err(|error| format!("Could not resolve selected Mods root: {error}"))
+        })
+        .transpose()?;
+    let root_matches_selected = selected_root
+        .as_ref()
+        .map(|selected| selected == &root)
+        .unwrap_or(true);
 
     for entry in &manifest.entries {
         if !safe_relative(&entry.original_relative_path)
@@ -578,7 +596,13 @@ pub fn preview_restore(
         manifest_path: manifest_file.to_string_lossy().to_string(),
         manifest_status: manifest.status,
         root: root.to_string_lossy().to_string(),
-        can_execute: stats.blocked == 0 && (stats.ready_restore + stats.ready_new) > 0,
+        selected_root: selected_root
+            .as_ref()
+            .map(|path| path.to_string_lossy().to_string()),
+        root_matches_selected,
+        can_execute: root_matches_selected
+            && stats.blocked == 0
+            && (stats.ready_restore + stats.ready_new) > 0,
         stats,
         items,
     })
@@ -619,12 +643,14 @@ fn remove_organizer_directories(root: &Path, manifest: &RestoreManifest) {
 pub fn execute_restore(
     manifest_path: String,
     current_language: AppLanguage,
+    expected_root: Option<String>,
 ) -> Result<RestoreExecutionResult, String> {
-    let plan = preview_restore(manifest_path.clone(), current_language)?;
+    let plan = preview_restore(manifest_path.clone(), current_language, expected_root)?;
 
     if !plan.can_execute {
         return Err(format!(
-            "Restore blocked by preflight: {} blocked item(s), {} collision(s), {} missing, {} changed, {} ambiguous.",
+            "Restore blocked by preflight: root_match={}, {} blocked item(s), {} collision(s), {} missing, {} changed, {} ambiguous.",
+            plan.root_matches_selected,
             plan.stats.blocked,
             plan.stats.collisions,
             plan.stats.missing,
