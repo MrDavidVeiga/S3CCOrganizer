@@ -2919,6 +2919,7 @@ async function analyzeConflicts() {
     state.conflictsAnalysis = await invoke("analyze_conflicts", {
       folder: state.folder,
     });
+    state.conflictMarks = {};
     state.conflictSelectedId = state.conflictsAnalysis?.findings?.[0]?.id || "";
   } catch (error) {
     const message = String(error);
