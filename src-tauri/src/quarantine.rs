@@ -714,4 +714,133 @@ mod tests {
         let root = PathBuf::from("C:/Mods");
         assert!(validate_session_dir(&root, Path::new("C:/evil/20260930-123456-00001")).is_err());
     }
+
+
+    fn isolated_mods_root() -> PathBuf {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        static NEXT: AtomicUsize = AtomicUsize::new(0);
+        let folder = std::env::temp_dir().join(format!(
+            "s3cc-quarantine-{}-{}-{}",
+            std::process::id(),
+            Local::now().timestamp_micros(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        let mods = folder.join("Mods");
+        fs::create_dir_all(mods.join("CAS")).unwrap();
+        mods
+    }
+
+    fn test_package(root: &Path, name: &str, data: &[u8]) -> PathBuf {
+        let path = root.join("CAS").join(name);
+        fs::write(&path, data).unwrap();
+        path
+    }
+
+    fn cleanup(mods: &Path) {
+        if let Some(parent) = mods.parent() {
+            let _ = fs::remove_dir_all(parent);
+        }
+    }
+
+    #[test]
+    fn quarantine_restore_preserves_bytes_and_paths() {
+        let mods = isolated_mods_root();
+        let source = test_package(&mods, "exact.package", b"sample-one");
+        let root_text = mods.to_string_lossy().to_string();
+        let plan = build_quarantine_plan(root_text.clone(),
+            vec![source.to_string_lossy().into_owned()]).unwrap();
+        assert!(plan.can_execute);
+        let result = execute_quarantine(root_text.clone(),
+            vec![source.to_string_lossy().into_owned()],
+            Some(plan.quarantine_root)).unwrap();
+        assert_eq!(result.moved, 1);
+        assert!(!source.exists());
+        let quarantined = PathBuf::from(&result.quarantine_root)
+            .join("CAS").join("exact.package");
+        assert_eq!(fs::read(&quarantined).unwrap(), b"sample-one");
+        let restored = restore_quarantine(root_text, result.manifest_path.clone()).unwrap();
+        assert_eq!(restored.status, "RESTORED");
+        assert_eq!(fs::read(&source).unwrap(), b"sample-one");
+        assert!(!quarantined.exists());
+        cleanup(&mods);
+    }
+
+    #[test]
+    fn interrupted_quarantine_can_be_recovered_without_overwrite() {
+        let mods = isolated_mods_root();
+        let source = test_package(&mods, "pending.package", b"recover-me");
+        let root_text = mods.to_string_lossy().to_string();
+        let plan = build_quarantine_plan(root_text.clone(),
+            vec![source.to_string_lossy().into_owned()]).unwrap();
+        let qroot = PathBuf::from(&plan.quarantine_root);
+        let session = qroot.file_name().unwrap().to_string_lossy();
+        let manifest_path = manifest_base(&mods)
+            .join(format!("Quarantine-{session}.json"));
+        write_manifest_atomic(&manifest_path, &manifest_from_plan(&plan, "PENDING")).unwrap();
+        fs::create_dir_all(qroot.join("CAS")).unwrap();
+        fs::rename(&source, qroot.join("CAS/pending.package")).unwrap();
+        let recovered = recover_quarantine(root_text,
+            manifest_path.to_string_lossy().into_owned()).unwrap();
+        assert_eq!(recovered.status, "ROLLED_BACK");
+        assert_eq!(fs::read(&source).unwrap(), b"recover-me");
+        cleanup(&mods);
+    }
+
+    #[test]
+    fn changed_quarantined_file_blocks_restore() {
+        let mods = isolated_mods_root();
+        let source = test_package(&mods, "tamper.package", b"original");
+        let root_text = mods.to_string_lossy().to_string();
+        let result = execute_quarantine(root_text.clone(),
+            vec![source.to_string_lossy().into_owned()], None).unwrap();
+        let quarantined = PathBuf::from(&result.quarantine_root)
+            .join("CAS").join("tamper.package");
+        fs::write(&quarantined, b"tampered").unwrap();
+        assert!(restore_quarantine(root_text, result.manifest_path).is_err());
+        assert!(!source.exists());
+        assert_eq!(fs::read(&quarantined).unwrap(), b"tampered");
+        cleanup(&mods);
+    }
+
+    #[test]
+    fn occupied_restore_destination_remains_untouched() {
+        let mods = isolated_mods_root();
+        let source = test_package(&mods, "occupied.package", b"original");
+        let root_text = mods.to_string_lossy().to_string();
+        let result = execute_quarantine(root_text.clone(),
+            vec![source.to_string_lossy().into_owned()], None).unwrap();
+        fs::write(&source, b"later-user-file").unwrap();
+        assert!(restore_quarantine(root_text, result.manifest_path).is_err());
+        assert_eq!(fs::read(&source).unwrap(), b"later-user-file");
+        cleanup(&mods);
+    }
+
+    #[test]
+    fn failed_later_step_rolls_back_an_earlier_move() {
+        let mods = isolated_mods_root();
+        let first = test_package(&mods, "first.package", b"first");
+        let second = test_package(&mods, "second.package", b"second");
+        let plan = build_quarantine_plan(mods.to_string_lossy().into_owned(), vec![
+            first.to_string_lossy().into_owned(), second.to_string_lossy().into_owned()
+        ]).unwrap();
+        let qroot = PathBuf::from(&plan.quarantine_root);
+        let session = qroot.file_name().unwrap().to_string_lossy();
+        let journal_path = manifest_base(&mods)
+            .join(format!("Quarantine-{session}.json"));
+        let mut journal = manifest_from_plan(&plan, "PENDING");
+        write_manifest_atomic(&journal_path, &journal).unwrap();
+        let dest = qroot.join("CAS").join("first.package");
+        fs::create_dir_all(dest.parent().unwrap()).unwrap();
+        fs::rename(&first, &dest).unwrap();
+        // Inject a failure on step 2. The first move must be reverted.
+        let (hash, size) = sha256_file(&dest).unwrap();
+        let moved = vec![(first.clone(), dest.clone(), hash, size)];
+        let _ = abort_quarantine(&journal_path, &mut journal, &moved,
+            "injected second-step failure".into());
+        assert_eq!(journal.status, "ROLLED_BACK");
+        assert_eq!(fs::read(&first).unwrap(), b"first");
+        assert_eq!(fs::read(&second).unwrap(), b"second");
+        assert!(!dest.exists());
+        cleanup(&mods);
+    }
 }
