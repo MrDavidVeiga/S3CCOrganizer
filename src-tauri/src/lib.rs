@@ -1,4 +1,5 @@
 pub mod analyzer;
+pub mod audit_report;
 pub mod catalog;
 pub mod cache;
 pub mod compression;
@@ -16,6 +17,7 @@ pub mod planner;
 pub mod quarantine;
 pub mod restore;
 pub mod restore_history;
+pub mod review_store;
 pub mod resource_cfg;
 pub mod scanner;
 pub mod taxonomy;
@@ -36,6 +38,9 @@ pub fn run() {
             navigation::reveal_path,
             package_details::get_package_technical_details,
             restore_history::list_restore_history,
+            review_store::load_conflict_decisions,
+            review_store::set_conflict_decision,
+            audit_report::save_audit_report,
             quarantine::build_quarantine_plan,
             planner::build_organization_plan,
             executor::execute_organization,
