@@ -1,4 +1,5 @@
 use crate::{
+    workspace::ensure_writable,
     i18n::AppLanguage,
     manifest::{read_manifest, replace_manifest_atomic, sha256_file, RestoreManifest},
 };
@@ -662,6 +663,7 @@ pub fn execute_restore(
     let manifest_file = PathBuf::from(&plan.manifest_path);
     let mut manifest = read_manifest(&manifest_file)?;
     let root = PathBuf::from(&plan.root);
+    ensure_writable(&root)?;
 
     let actionable = plan
         .items
