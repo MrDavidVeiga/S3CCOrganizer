@@ -1,6 +1,7 @@
 use crate::{
+    cache::{get_or_build, load_cache, retain_existing, save_cache},
     catalog::{TYPE_CASP, TYPE_OBJD},
-    dbpf::Package,
+    operation::{self, CANCELLED_ERROR},
     resource_cfg::{find_resource_cfg, package_priority, parse_resource_cfg, ResourceCfgInfo},
 };
 use serde::Serialize;
@@ -126,6 +127,8 @@ pub struct ConflictStats {
     pub potential_conflicts: usize,
     pub mixed_overrides: usize,
     pub analysis_truncated: bool,
+    pub cache_hits: usize,
+    pub cache_misses: usize,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -371,8 +374,10 @@ fn pair_id(left: &PackageInfo, right: &PackageInfo) -> String {
     format!("conflict:{}", &digest[..16])
 }
 
-#[tauri::command]
-pub fn analyze_conflicts(folder: String) -> Result<ConflictAnalysis, String> {
+pub fn analyze_conflicts_core(
+    folder: String,
+    operation_kind: Option<&str>,
+) -> Result<ConflictAnalysis, String> {
     if folder.trim().is_empty() {
         return Err("No folder was selected.".to_string());
     }
@@ -401,12 +406,34 @@ pub fn analyze_conflicts(folder: String) -> Result<ConflictAnalysis, String> {
         .collect::<Vec<_>>();
     paths.sort_by_key(|path| path.to_string_lossy().to_ascii_lowercase());
 
+    if let Some(kind) = operation_kind {
+        operation::set_total(kind, paths.len());
+        operation::update(kind, 0, None, "indexing");
+    }
+
+    let mut cache = load_cache(&root);
+    retain_existing(&mut cache, &paths);
+
     let mut packages = Vec::<PackageInfo>::with_capacity(paths.len());
     let mut resource_index =
         BTreeMap::<(u32, u32, u64), Vec<ResourceOccurrence>>::new();
     let mut errors = Vec::new();
+    let mut cache_hits = 0usize;
+    let mut cache_misses = 0usize;
 
-    for path in paths {
+    for (index, path) in paths.iter().enumerate() {
+        if let Some(kind) = operation_kind {
+            if operation::is_cancelled(kind) {
+                let _ = save_cache(&root, &cache);
+                return Err(CANCELLED_ERROR.to_string());
+            }
+            operation::update(
+                kind,
+                index,
+                path.file_name().map(|value| value.to_string_lossy().to_string()),
+                "indexing",
+            );
+        }
         let relative_path = path
             .strip_prefix(&root)
             .unwrap_or(&path)
@@ -425,8 +452,8 @@ pub fn analyze_conflicts(folder: String) -> Result<ConflictAnalysis, String> {
         let load_priority = priority.as_ref().map(|value| value.priority);
         let load_rule = priority.map(|value| value.rule);
 
-        let package = match Package::load(&path) {
-            Ok(package) => package,
+        let (cached, cache_hit) = match get_or_build(path, &mut cache) {
+            Ok(value) => value,
             Err(error) => {
                 packages.push(PackageInfo {
                     name,
@@ -436,42 +463,66 @@ pub fn analyze_conflicts(folder: String) -> Result<ConflictAnalysis, String> {
                     load_priority,
                     load_rule,
                 });
-                errors.push(format!("{}: {error}", path.display()));
+                errors.push(error);
                 continue;
             }
         };
+
+        if cache_hit {
+            cache_hits += 1;
+        } else {
+            cache_misses += 1;
+        }
+
+        let readable = cached.parse_error.is_none();
+        if let Some(error) = &cached.parse_error {
+            errors.push(format!("{}: {error}", path.display()));
+        }
 
         packages.push(PackageInfo {
             name,
             path: path.clone(),
             relative_path,
-            readable: true,
+            readable,
             load_priority,
             load_rule,
         });
 
-        for entry in &package.entries {
-            let data = match package.data(entry) {
-                Ok(data) => data,
-                Err(error) => {
-                    errors.push(format!("{} / {}: {error}", path.display(), entry.key_string()));
-                    continue;
-                }
-            };
-
-            let payload_hash = format!("{:X}", Sha256::digest(&data));
-            resource_index
-                .entry((entry.type_id, entry.group, entry.instance))
-                .or_default()
-                .push(ResourceOccurrence {
-                    package_index,
-                    type_id: entry.type_id,
-                    group: entry.group,
-                    instance: entry.instance,
-                    payload_hash,
-                    payload_size: data.len(),
-                });
+        if readable {
+            for resource in &cached.resources {
+                resource_index
+                    .entry((resource.type_id, resource.group, resource.instance))
+                    .or_default()
+                    .push(ResourceOccurrence {
+                        package_index,
+                        type_id: resource.type_id,
+                        group: resource.group,
+                        instance: resource.instance,
+                        payload_hash: resource.payload_sha256.clone(),
+                        payload_size: resource.payload_size,
+                    });
+            }
         }
+
+        if let Some(kind) = operation_kind {
+            operation::update(
+                kind,
+                index + 1,
+                path.file_name().map(|value| value.to_string_lossy().to_string()),
+                "indexing",
+            );
+        }
+    }
+
+    if let Err(error) = save_cache(&root, &cache) {
+        errors.push(error);
+    }
+
+    if let Some(kind) = operation_kind {
+        if operation::is_cancelled(kind) {
+            return Err(CANCELLED_ERROR.to_string());
+        }
+        operation::update(kind, paths.len(), None, "comparing");
     }
 
     let mut pairs = HashMap::<(usize, usize), PairAccumulator>::new();
@@ -545,6 +596,8 @@ pub fn analyze_conflicts(folder: String) -> Result<ConflictAnalysis, String> {
         readable_packages: packages.iter().filter(|package| package.readable).count(),
         unreadable_packages: packages.iter().filter(|package| !package.readable).count(),
         analysis_truncated: truncated,
+        cache_hits,
+        cache_misses,
         ..ConflictStats::default()
     };
 
@@ -614,6 +667,26 @@ pub fn analyze_conflicts(folder: String) -> Result<ConflictAnalysis, String> {
         stats,
         errors,
     })
+}
+
+#[tauri::command]
+pub async fn analyze_conflicts(folder: String) -> Result<ConflictAnalysis, String> {
+    const KIND: &str = "conflicts";
+    operation::begin(KIND, "starting");
+
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        analyze_conflicts_core(folder, Some(KIND))
+    })
+    .await
+    .map_err(|error| format!("Conflicts worker failed: {error}"))?;
+
+    match &result {
+        Ok(_) => operation::finish(KIND, "complete", None),
+        Err(error) if error == CANCELLED_ERROR => operation::mark_cancelled(KIND),
+        Err(error) => operation::finish(KIND, "error", Some(error.clone())),
+    }
+
+    result
 }
 
 #[cfg(test)]
