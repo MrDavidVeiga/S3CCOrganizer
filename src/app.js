@@ -3356,6 +3356,414 @@ async function executeStructureAction() {
   }
 }
 
+function workspaceReadOnly() {
+  return !!state.workspaceStore?.readOnly;
+}
+
+function activeWorkspaceProfile() {
+  const store = state.workspaceStore;
+  if (!store) return null;
+  return (store.profiles || []).find((profile) => profile.id === store.activeProfileId)
+    || (store.profiles || [])[0]
+    || null;
+}
+
+async function loadWorkspaceTools() {
+  if (!state.folder) {
+    state.workspaceStore = null;
+    renderTools();
+    return;
+  }
+  try {
+    state.workspaceStore = await invoke("load_workspace", { folder: state.folder });
+  } catch (error) {
+    state.toolsError = String(error);
+  }
+  renderTools();
+}
+
+async function persistWorkspaceStore() {
+  if (!state.folder || !state.workspaceStore) return;
+  state.toolsBusy = true;
+  state.toolsError = "";
+  try {
+    state.workspaceStore = await invoke("save_workspace", {
+      folder: state.folder,
+      store: state.workspaceStore,
+    });
+    state.plan = null;
+    state.toolsNotice = t("profileSaved");
+  } catch (error) {
+    state.toolsError = String(error);
+  } finally {
+    state.toolsBusy = false;
+    renderTools();
+    render();
+  }
+}
+
+function toolListItem(title, detail = "", extraClass = "") {
+  const row = document.createElement("div");
+  row.className = `tools-list-item ${extraClass}`.trim();
+  const strong = document.createElement("strong");
+  strong.textContent = title;
+  row.appendChild(strong);
+  if (detail) {
+    const small = document.createElement("small");
+    small.textContent = detail;
+    row.appendChild(small);
+  }
+  return row;
+}
+
+function renderProfileTools() {
+  if (!el.toolsProfileSelect) return;
+  const store = state.workspaceStore;
+  const disabled = !state.folder || state.toolsBusy;
+  el.toolsReadOnly.disabled = !state.folder || state.toolsBusy;
+  el.toolsReadOnly.checked = !!store?.readOnly;
+
+  el.toolsProfileSelect.innerHTML = "";
+  for (const profile of store?.profiles || []) {
+    const option = document.createElement("option");
+    option.value = profile.id;
+    option.textContent = profile.name;
+    option.selected = profile.id === store.activeProfileId;
+    el.toolsProfileSelect.appendChild(option);
+  }
+
+  const profile = activeWorkspaceProfile();
+  el.toolsProfilePrefix.value = profile?.destinationPrefix || "";
+  el.toolsProfileCollapse.checked = !!profile?.collapseToCategory;
+  el.toolsProfilePrefix.disabled = disabled || !profile;
+  el.toolsProfileCollapse.disabled = disabled || !profile;
+  el.toolsSaveProfile.disabled = disabled || !profile;
+  el.toolsAddProfile.disabled = disabled;
+
+  el.toolsProtectedList.innerHTML = "";
+  for (const folder of profile?.protectedFolders || []) {
+    const row = toolListItem(folder, t("protectedFolders"));
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "secondary-btn compact-btn";
+    button.textContent = "×";
+    button.addEventListener("click", async () => {
+      profile.protectedFolders = profile.protectedFolders.filter((value) => value !== folder);
+      await persistWorkspaceStore();
+    });
+    row.appendChild(button);
+    el.toolsProtectedList.appendChild(row);
+  }
+
+  el.toolsRulesList.innerHTML = "";
+  for (const rule of profile?.rules || []) {
+    const criteria = [
+      rule.category && `category=${rule.category}`,
+      rule.subCategory && `sub=${rule.subCategory}`,
+      rule.detectedFrom && `resource=${rule.detectedFrom}`,
+      rule.nameContains && `name~${rule.nameContains}`,
+      rule.pathContains && `path~${rule.pathContains}`,
+    ].filter(Boolean).join(" · ");
+    const row = toolListItem(rule.name || rule.id, `${criteria || "*"} → ${rule.destination}`);
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "secondary-btn compact-btn";
+    remove.textContent = "×";
+    remove.addEventListener("click", async () => {
+      profile.rules = profile.rules.filter((item) => item.id !== rule.id);
+      await persistWorkspaceStore();
+    });
+    row.appendChild(remove);
+    el.toolsRulesList.appendChild(row);
+  }
+}
+
+function renderHealthTools() {
+  const report = state.healthReport;
+  el.toolsHealthSummary.innerHTML = "";
+  if (report) {
+    const stats = report.stats || {};
+    for (const [label, value] of [
+      [t("packages"), stats.packages],
+      [t("readablePackages"), stats.readable],
+      [t("invalid"), stats.unreadable],
+      [t("emptyFolders"), stats.emptyFolders],
+      [t("uncoveredPackages"), stats.resourceCfgUncovered],
+      [t("outsidePackages"), stats.packagesOutsideRoot],
+    ]) {
+      const card = document.createElement("article");
+      const b = document.createElement("b"); b.textContent = value ?? 0;
+      const span = document.createElement("span"); span.textContent = label;
+      card.append(b, span); el.toolsHealthSummary.appendChild(card);
+    }
+  }
+
+  el.toolsResourcecfg.innerHTML = "";
+  if (report?.resourceCfg) {
+    const header = toolListItem(report.resourceCfg.path,
+      `${report.resourceCfg.rules?.length || 0} rules · ${report.resourceCfg.precedenceReliable ? "priority reliable" : "advanced directives"}`);
+    el.toolsResourcecfg.appendChild(header);
+    const coverage = [...(report.coverage || [])].sort((a,b) =>
+      (b.priority ?? -999999) - (a.priority ?? -999999) ||
+      a.relativePath.localeCompare(b.relativePath)
+    );
+    for (const item of coverage.slice(0, 500)) {
+      el.toolsResourcecfg.appendChild(toolListItem(
+        item.relativePath,
+        item.covered
+          ? `${t("loadOrderViewer")}: ${item.priority ?? "—"} · ${item.rule || "—"}`
+          : t("uncoveredPackages"),
+        item.covered ? "" : "tools-health-bad"
+      ));
+    }
+  } else if (report) {
+    el.toolsResourcecfg.appendChild(toolListItem("Resource.cfg", t("missingResourceCfg"), "tools-health-bad"));
+  }
+
+  el.toolsHealthFindings.innerHTML = "";
+  if (report) {
+    for (const folder of report.emptyFolders || []) {
+      el.toolsHealthFindings.appendChild(toolListItem(t("emptyFolders"), folder));
+    }
+    for (const path of report.unreadablePackages || []) {
+      el.toolsHealthFindings.appendChild(toolListItem(t("invalid"), path, "tools-health-bad"));
+    }
+    for (const path of report.outsidePackages || []) {
+      el.toolsHealthFindings.appendChild(toolListItem(t("outsidePackages"), path, "tools-health-bad"));
+    }
+    for (const item of (report.coverage || []).filter((item) => !item.covered)) {
+      el.toolsHealthFindings.appendChild(toolListItem(t("uncoveredPackages"), item.relativePath, "tools-health-bad"));
+    }
+  }
+}
+
+function renderSnapshotDiff(diff) {
+  el.toolsSnapshotDiff.innerHTML = "";
+  if (!diff) return;
+  for (const [label, values, pathKey] of [
+    [t("addedFiles"), diff.added || [], "relativePath"],
+    [t("removedFiles"), diff.removed || [], "relativePath"],
+    [t("modifiedFiles"), diff.modified || [], "relativePath"],
+    [t("movedFiles"), diff.moved || [], "newPath"],
+  ]) {
+    const section = document.createElement("div");
+    section.className = "tools-diff-section";
+    const h = document.createElement("h4"); h.textContent = `${label}: ${values.length}`;
+    section.appendChild(h);
+    for (const item of values.slice(0, 250)) {
+      section.appendChild(toolListItem(item[pathKey] || "—",
+        item.oldPath ? `${item.oldPath} → ${item.newPath}` : item.sha256 || ""));
+    }
+    el.toolsSnapshotDiff.appendChild(section);
+  }
+}
+
+function renderSnapshotsTools() {
+  el.toolsSnapshotList.innerHTML = "";
+  for (const snapshot of state.snapshots || []) {
+    const row = toolListItem(snapshot.createdAt, `${snapshot.entries?.length || 0} packages`);
+    const compare = document.createElement("button");
+    compare.type = "button";
+    compare.className = "secondary-btn compact-btn";
+    compare.textContent = t("snapshotCompare");
+    compare.addEventListener("click", async () => {
+      state.toolsBusy = true; renderTools();
+      try {
+        state.snapshotDiff = await invoke("compare_snapshot_to_current", {
+          folder: state.folder, snapshotId: snapshot.id,
+        });
+      } catch (error) { state.toolsError = String(error); }
+      finally { state.toolsBusy = false; renderTools(); }
+    });
+    row.appendChild(compare);
+    el.toolsSnapshotList.appendChild(row);
+  }
+  el.toolsCompareRoot.value = state.compareRoot;
+  renderSnapshotDiff(state.snapshotDiff);
+}
+
+function renderInboxTools() {
+  el.toolsInboxPath.textContent = state.inboxFolder || t("noInbox");
+  el.toolsInboxResults.innerHTML = "";
+  for (const item of state.inboxScan?.items || []) {
+    const row = toolListItem(item.name,
+      `${item.status} · ${item.destinationPath || t("noDestination")}`,
+      state.inboxSelected.has(item.path) ? "selected" : "");
+    row.addEventListener("click", () => {
+      if (state.inboxSelected.has(item.path)) state.inboxSelected.delete(item.path);
+      else state.inboxSelected.add(item.path);
+      state.inboxPlan = null;
+      renderInboxTools();
+    });
+    el.toolsInboxResults.appendChild(row);
+  }
+  el.toolsPreviewImport.disabled = !state.inboxFolder || !state.inboxSelected.size || state.toolsBusy;
+  el.toolsExecuteImport.disabled =
+    !state.inboxPlan?.canExecute || workspaceReadOnly() || state.toolsBusy;
+
+  el.toolsInboxPlan.classList.toggle("hidden", !state.inboxPlan);
+  el.toolsInboxPlan.innerHTML = "";
+  if (state.inboxPlan) {
+    el.toolsInboxPlan.appendChild(toolListItem(
+      t("importReady"),
+      `${state.inboxPlan.ready} ready · ${state.inboxPlan.blocked} blocked · ${state.inboxPlan.destinationRoot}`
+    ));
+    for (const item of state.inboxPlan.items || []) {
+      el.toolsInboxPlan.appendChild(toolListItem(item.relativePath, item.status));
+    }
+  }
+}
+
+async function loadMetadataSelection() {
+  const path = el.toolsMetadataPackage.value;
+  if (!path || !state.folder) return;
+  try {
+    const details = await invoke("get_package_technical_details", {
+      folder: state.folder, packagePath: path,
+    });
+    const meta = state.workspaceStore?.packageMetadata?.[details.fileSha256] || null;
+    el.toolsTags.value = (meta?.tags || []).join(", ");
+    el.toolsTestStatus.value = meta?.testStatus || "";
+    el.toolsFavorite.checked = !!meta?.favorite;
+  } catch (_) {
+    el.toolsTags.value = ""; el.toolsTestStatus.value = ""; el.toolsFavorite.checked = false;
+  }
+}
+
+function renderMetadataTools() {
+  const currentPackage = el.toolsMetadataPackage.value;
+  el.toolsMetadataPackage.innerHTML = "";
+  for (const item of state.items || []) {
+    const option = document.createElement("option");
+    option.value = item.path; option.textContent = item.relativePath || item.name;
+    el.toolsMetadataPackage.appendChild(option);
+  }
+  if ([...el.toolsMetadataPackage.options].some((o) => o.value === currentPackage)) {
+    el.toolsMetadataPackage.value = currentPackage;
+  }
+
+  el.toolsGroupPackageList.innerHTML = "";
+  for (const item of state.items || []) {
+    const row = toolListItem(item.name, item.relativePath,
+      state.metadataGroupSelected.has(item.path) ? "selected" : "");
+    row.addEventListener("click", () => {
+      if (state.metadataGroupSelected.has(item.path)) state.metadataGroupSelected.delete(item.path);
+      else state.metadataGroupSelected.add(item.path);
+      renderMetadataTools();
+    });
+    el.toolsGroupPackageList.appendChild(row);
+  }
+
+  el.toolsGroupsList.innerHTML = "";
+  for (const group of state.workspaceStore?.groups || []) {
+    const row = toolListItem(group.name, `${group.memberSha256?.length || 0} packages · keep together`);
+    const remove = document.createElement("button");
+    remove.type = "button"; remove.className = "secondary-btn compact-btn"; remove.textContent = t("deleteGroup");
+    remove.addEventListener("click", async () => {
+      state.workspaceStore = await invoke("delete_package_group", { folder: state.folder, id: group.id });
+      state.plan = null; renderTools();
+    });
+    row.appendChild(remove); el.toolsGroupsList.appendChild(row);
+  }
+}
+
+function renderTechnicalTools() {
+  el.toolsTechResults.innerHTML = "";
+  for (const hit of state.technicalResults || []) {
+    const row = toolListItem(hit.relativePath,
+      hit.tgi || hit.fileSha256,
+      state.technicalSelected.has(hit.packagePath) ? "selected" : "");
+    row.addEventListener("click", () => {
+      if (state.technicalSelected.has(hit.packagePath)) state.technicalSelected.delete(hit.packagePath);
+      else state.technicalSelected.add(hit.packagePath);
+      renderTechnicalTools();
+    });
+    el.toolsTechResults.appendChild(row);
+  }
+
+  const currentLeft = el.toolsCompareLeft.value;
+  const currentRight = el.toolsCompareRight.value;
+  for (const select of [el.toolsCompareLeft, el.toolsCompareRight]) {
+    select.innerHTML = "";
+    for (const item of state.items || []) {
+      const option = document.createElement("option");
+      option.value = item.path; option.textContent = item.relativePath || item.name;
+      select.appendChild(option);
+    }
+  }
+  if ([...el.toolsCompareLeft.options].some((o) => o.value === currentLeft)) el.toolsCompareLeft.value = currentLeft;
+  if ([...el.toolsCompareRight.options].some((o) => o.value === currentRight)) el.toolsCompareRight.value = currentRight;
+
+  el.toolsPackageCompare.innerHTML = "";
+  if (state.packageCompare) {
+    const result = state.packageCompare;
+    el.toolsPackageCompare.appendChild(toolListItem(
+      `${result.identicalResources} identical · ${result.changedResources} changed`,
+      `only left ${result.onlyLeft} · only right ${result.onlyRight}`
+    ));
+    for (const resource of (result.resources || []).slice(0, 500)) {
+      el.toolsPackageCompare.appendChild(toolListItem(resource.tgi, resource.relation));
+    }
+  }
+
+  el.toolsDependencyResults.innerHTML = "";
+  if (state.dependenciesAnalysis) {
+    const summary = toolListItem(
+      `${state.dependenciesAnalysis.findings?.length || 0} potential dependencies`,
+      t("dependenciesConservative")
+    );
+    el.toolsDependencyResults.appendChild(summary);
+    for (const finding of (state.dependenciesAnalysis.findings || []).slice(0, 1000)) {
+      el.toolsDependencyResults.appendChild(toolListItem(
+        `${finding.sourceRelativePath} → ${finding.targetRelativePath}`,
+        `${finding.sourceResource} → ${finding.targetResource} · ${finding.evidence}`
+      ));
+    }
+  }
+}
+
+function renderHistoryTools() {
+  el.toolsOperationHistory.innerHTML = "";
+  for (const item of state.operationHistory || []) {
+    el.toolsOperationHistory.appendChild(toolListItem(
+      `${item.kind}: ${item.title}`,
+      `${item.timestamp} · ${item.source || ""}${item.destination ? " → " + item.destination : ""} · ${item.status}`
+    ));
+  }
+}
+
+function renderTools() {
+  if (!el.toolsState) return;
+  for (const button of el.toolsSubtabs) {
+    button.classList.toggle("active", button.dataset.toolsTab === state.toolsTab);
+  }
+  for (const panel of el.toolsPanels) {
+    panel.classList.toggle("hidden", panel.id !== `tools-${state.toolsTab}`);
+  }
+
+  if (state.toolsBusy) {
+    el.toolsState.textContent = t("scanning");
+    el.toolsState.className = "scan-state busy";
+  } else if (state.toolsError) {
+    el.toolsState.textContent = state.toolsError;
+    el.toolsState.className = "scan-state error";
+  } else if (state.toolsNotice) {
+    el.toolsState.textContent = state.toolsNotice;
+    el.toolsState.className = "scan-state success";
+  } else {
+    el.toolsState.textContent = "";
+    el.toolsState.className = "scan-state";
+  }
+
+  renderProfileTools();
+  renderHealthTools();
+  renderSnapshotsTools();
+  renderInboxTools();
+  renderMetadataTools();
+  renderTechnicalTools();
+  renderHistoryTools();
+}
+
 function renderTabs() {
   for (const button of el.tabs) {
     button.classList.toggle("active", button.dataset.tab === state.tab);
