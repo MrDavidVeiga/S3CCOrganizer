@@ -454,11 +454,19 @@ pub async fn scan_packages(folder: String, language: AppLanguage) -> Result<Scan
     const KIND: &str = "scan";
     operation::begin(KIND, "starting");
 
-    let result = tauri::async_runtime::spawn_blocking(move || {
+    let joined = tauri::async_runtime::spawn_blocking(move || {
         scan_packages_core(folder, language, Some(KIND))
     })
-    .await
-    .map_err(|error| format!("Scanner worker failed: {error}"))?;
+    .await;
+
+    let result = match joined {
+        Ok(result) => result,
+        Err(error) => {
+            let message = format!("Scanner worker failed: {error}");
+            operation::finish(KIND, "error", Some(message.clone()));
+            return Err(message);
+        }
+    };
 
     match &result {
         Ok(_) => operation::finish(KIND, "complete", None),
