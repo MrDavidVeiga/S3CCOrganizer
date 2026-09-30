@@ -230,6 +230,7 @@ const I18N = {
     exportSaved: "Export saved",
     noData: "No data.",
     deleteGroup: "Remove Group",
+    removeEmptyFolder: "Remove Empty Folder",
 
     organizeSelected: "Organize Selected",
     alreadyOrganized: "Already organized",
@@ -587,6 +588,7 @@ const I18N = {
     exportSaved: "Exportação salva",
     noData: "Sem dados.",
     deleteGroup: "Remover Grupo",
+    removeEmptyFolder: "Remover Pasta Vazia",
 
     organizeSelected: "Organizar Selecionados",
     alreadyOrganized: "Já organizado",
@@ -943,6 +945,7 @@ const I18N = {
     exportSaved: "Exportación guardada",
     noData: "Sin datos.",
     deleteGroup: "Eliminar Grupo",
+    removeEmptyFolder: "Eliminar Carpeta Vacía",
 
     organizeSelected: "Organizar Seleccionados",
     alreadyOrganized: "Ya organizado",
@@ -3493,6 +3496,8 @@ function renderHealthTools() {
       [t("emptyFolders"), stats.emptyFolders],
       [t("uncoveredPackages"), stats.resourceCfgUncovered],
       [t("outsidePackages"), stats.packagesOutsideRoot],
+      [t("exactGroups"), state.duplicatesAnalysis?.stats?.exactDuplicateGroups ?? 0],
+      [t("packagePairs"), state.conflictsAnalysis?.stats?.packagePairs ?? 0],
     ]) {
       const card = document.createElement("article");
       const b = document.createElement("b"); b.textContent = value ?? 0;
@@ -3506,6 +3511,12 @@ function renderHealthTools() {
     const header = toolListItem(report.resourceCfg.path,
       `${report.resourceCfg.rules?.length || 0} rules · ${report.resourceCfg.precedenceReliable ? "priority reliable" : "advanced directives"}`);
     el.toolsResourcecfg.appendChild(header);
+    for (const rule of report.resourceCfg.rules || []) {
+      el.toolsResourcecfg.appendChild(toolListItem(
+        `Priority ${rule.priority}`,
+        `PackedFile ${rule.pattern} · line ${rule.sourceLine}`
+      ));
+    }
     const coverage = [...(report.coverage || [])].sort((a,b) =>
       (b.priority ?? -999999) - (a.priority ?? -999999) ||
       a.relativePath.localeCompare(b.relativePath)
@@ -3526,7 +3537,23 @@ function renderHealthTools() {
   el.toolsHealthFindings.innerHTML = "";
   if (report) {
     for (const folder of report.emptyFolders || []) {
-      el.toolsHealthFindings.appendChild(toolListItem(t("emptyFolders"), folder));
+      const row = toolListItem(t("emptyFolders"), folder);
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "secondary-btn compact-btn";
+      remove.textContent = t("removeEmptyFolder");
+      remove.disabled = workspaceReadOnly() || state.toolsBusy;
+      remove.addEventListener("click", async () => {
+        state.toolsBusy = true; renderTools();
+        try {
+          await invoke("remove_empty_folder", { folder: state.folder, relativePath: folder });
+          state.healthReport = await invoke("analyze_mods_health", { folder: state.folder });
+          state.toolsNotice = t("structureComplete");
+        } catch (error) { state.toolsError = String(error); }
+        finally { state.toolsBusy = false; renderTools(); }
+      });
+      row.appendChild(remove);
+      el.toolsHealthFindings.appendChild(row);
     }
     for (const path of report.unreadablePackages || []) {
       el.toolsHealthFindings.appendChild(toolListItem(t("invalid"), path, "tools-health-bad"));
@@ -3717,10 +3744,20 @@ function renderTechnicalTools() {
     );
     el.toolsDependencyResults.appendChild(summary);
     for (const finding of (state.dependenciesAnalysis.findings || []).slice(0, 1000)) {
-      el.toolsDependencyResults.appendChild(toolListItem(
+      const row = toolListItem(
         `${finding.sourceRelativePath} → ${finding.targetRelativePath}`,
         `${finding.sourceResource} → ${finding.targetResource} · ${finding.evidence}`
-      ));
+      );
+      row.title = t("keepTogetherGroups");
+      row.addEventListener("click", () => {
+        const source = state.items.find((item) => item.relativePath === finding.sourceRelativePath);
+        const target = state.items.find((item) => item.relativePath === finding.targetRelativePath);
+        if (source) state.metadataGroupSelected.add(source.path);
+        if (target) state.metadataGroupSelected.add(target.path);
+        state.toolsTab = "metadata";
+        renderTools();
+      });
+      el.toolsDependencyResults.appendChild(row);
     }
   }
 }
@@ -3964,9 +4001,20 @@ async function runTechnicalSearch() {
 }
 
 function technicalExportContent(format) {
-  const selected = state.technicalSelected.size
+  let selected = state.technicalSelected.size
     ? state.technicalResults.filter((hit) => state.technicalSelected.has(hit.packagePath))
     : state.technicalResults;
+  if (!selected.length && state.selectedForPlan.size) {
+    selected = state.items
+      .filter((item) => state.selectedForPlan.has(item.id))
+      .map((item) => ({
+        packagePath: item.path,
+        relativePath: item.relativePath,
+        fileSha256: "",
+        tgi: "",
+        payloadSha256: "",
+      }));
+  }
   if (format === "json") return JSON.stringify(selected, null, 2);
   if (format === "csv") {
     const esc = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;
@@ -3979,7 +4027,7 @@ function technicalExportContent(format) {
 }
 
 async function exportTechnicalSelection(format) {
-  if (!state.folder || !state.technicalResults.length) return;
+  if (!state.folder || (!state.technicalResults.length && !state.selectedForPlan.size)) return;
   try {
     const result = await invoke("save_selection_export", {
       folder: state.folder, format, content: technicalExportContent(format),
