@@ -4036,7 +4036,10 @@ async function executeInboxImport() {
       sourceFolder: state.inboxFolder,
       selectedPaths: [...state.inboxSelected],
     });
-    state.toolsNotice = `${result.imported} imported → ${result.destinationRoot}`;
+    state.toolsNotice = [
+      `${result.imported} imported → ${result.destinationRoot}`,
+      ...(result.warnings || []),
+    ].join(" · ");
     state.inboxSelected.clear(); state.inboxPlan = null;
     await Promise.all([scanFolder(false, true), refreshOperationHistory(), refreshCacheInfo()]);
   } catch (error) { state.toolsError = String(error); }
