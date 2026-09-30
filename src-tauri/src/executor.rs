@@ -1,4 +1,5 @@
 use crate::{
+    workspace::ensure_writable,
     i18n::AppLanguage,
     manifest::{
         replace_manifest_atomic, sha256_file, write_manifest_atomic, RestoreEntry, RestoreManifest,
@@ -202,6 +203,7 @@ pub fn execute_organization(
     }
 
     let root = PathBuf::from(&plan.root);
+    ensure_writable(&root)?;
     let ready = ready_items(&plan.items);
 
     if ready.is_empty() {
