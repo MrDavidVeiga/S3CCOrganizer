@@ -448,25 +448,18 @@ fn stbl_keys(data: &[u8]) -> Vec<u64> {
 fn apply_slider_companion_classification(
     package_paths: &[PathBuf],
     items: &mut [ScanPackageItem],
+    slider_instances: &HashSet<u64>,
 ) {
-    let mut slider_instances = HashSet::<u64>::new();
-
-    for path in package_paths {
-        let Ok(package) = Package::load(path) else {
-            continue;
-        };
-        for entry in &package.entries {
-            if is_slider_morph_type(entry.type_id) {
-                slider_instances.insert(entry.instance);
-            }
-        }
-    }
-
     if slider_instances.is_empty() {
         return;
     }
 
     for (path, item) in package_paths.iter().zip(items.iter_mut()) {
+        // Only STBL carriers can be companions; do not reopen hundreds of
+        // direct morph packages during the second scanner pass.
+        if !item.resource_types.iter().any(|label| label == "STBL") {
+            continue;
+        }
         let Ok(package) = Package::load(path) else {
             continue;
         };
@@ -635,7 +628,12 @@ fn localized_warning(language: AppLanguage, key: &str) -> &'static str {
     }
 }
 
-fn scan_one(root: &Path, path: &Path, language: AppLanguage) -> ScanPackageItem {
+fn scan_one(
+    root: &Path,
+    path: &Path,
+    language: AppLanguage,
+    slider_instances: &mut HashSet<u64>,
+) -> ScanPackageItem {
     let relative = path
         .strip_prefix(root)
         .unwrap_or(path)
@@ -884,6 +882,16 @@ fn scan_one(root: &Path, path: &Path, language: AppLanguage) -> ScanPackageItem 
         );
     }
 
+    // Collect morph IDs only when this package was positively classified
+    // as a slider, never from clothing that happens to contain morphs.
+    if status == "classified" && sub_category.as_deref() == Some("Sliders") {
+        slider_instances.extend(
+            package.entries.iter()
+                .filter(|entry| is_slider_morph_type(entry.type_id))
+                .map(|entry| entry.instance),
+        );
+    }
+
     ScanPackageItem {
         id,
         name,
@@ -939,6 +947,7 @@ pub fn scan_packages_core(
     }
 
     let mut items = Vec::with_capacity(package_paths.len());
+    let mut slider_instances = HashSet::<u64>::new();
 
     for (index, path) in package_paths.iter().enumerate() {
         if let Some(kind) = operation_kind {
@@ -953,7 +962,7 @@ pub fn scan_packages_core(
             );
         }
 
-        items.push(scan_one(&root, path, language));
+        items.push(scan_one(&root, path, language, &mut slider_instances));
 
         if let Some(kind) = operation_kind {
             operation::update(
@@ -965,7 +974,7 @@ pub fn scan_packages_core(
         }
     }
 
-    apply_slider_companion_classification(&package_paths, &mut items);
+    apply_slider_companion_classification(&package_paths, &mut items, &slider_instances);
     apply_manual_classifications(&root, &mut items);
 
     let mut stats = ScanStats::default();
