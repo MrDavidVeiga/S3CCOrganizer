@@ -49,22 +49,23 @@ Current-session annotations:
 
 These marks do not alter packages or Resource.cfg and are cleared on a fresh analysis or app restart.
 
-## Duplicate quarantine preview
-Exact/Content duplicate members can be selected for a quarantine preview.
+## Reversible duplicate quarantine
+Exact/Content duplicate members can be selected for a quarantine preflight.
 
-Proposed destination:
+Destination:
 ```text
 <Packages parent>\S3CC Organizer\Quarantine\<timestamp>\...
 ```
 
-The preview calculates SHA-256, size, collisions and a human-readable manifest.
+Execution is explicit and transactional. It rechecks SHA-256 + size, never overwrites, writes a quarantine manifest, rolls back on failure and can be restored later from Unified History.
 
-Quarantine is intentionally preview-only:
-```text
-canExecute=false
-```
+No package is deleted.
 
-No quarantine move/delete command exists before runtime validation.
+## Manual review
+Unknown/Mixed/Needs Review packages can receive an explicit user-approved destination stored by SHA-256. Invalid Windows/traversal destinations are rejected. Authoritative automatic classifications continue to take priority.
+
+## Dependency group suggestions
+Conservative dependency evidence is aggregated into reviewable Keep Together suggestions. No group is created without explicit user approval.
 
 ## Next step
 Stop feature expansion temporarily and validate locally:
