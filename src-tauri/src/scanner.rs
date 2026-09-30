@@ -2,7 +2,9 @@ use crate::{
     catalog::{classify_resource, CatalogClassification, TYPE_CASP, TYPE_OBJD},
     dbpf::Package,
     i18n::AppLanguage,
+    manifest::sha256_file,
     operation::{self, CANCELLED_ERROR},
+    workspace::{load_workspace_for_root, split_destination},
     package_family::{
         classify_package_family, PackageFamilyClassification, PackageFamilyResult, TYPE_BBLN,
         TYPE_BGEO, TYPE_BONE_DELTA, TYPE_FACE, TYPE_FBLN, TYPE_HAIR_TONE, TYPE_S3SA,
@@ -525,6 +527,51 @@ fn apply_slider_companion_classification(
     }
 }
 
+fn apply_manual_classifications(root: &Path, items: &mut [ScanPackageItem]) {
+    let workspace = load_workspace_for_root(root);
+    if workspace.manual_classifications.is_empty() {
+        return;
+    }
+
+    for item in items.iter_mut() {
+        if item.status == "invalid" {
+            continue;
+        }
+
+        let path = PathBuf::from(&item.path);
+        let Ok((hash, _)) = sha256_file(&path) else {
+            continue;
+        };
+        let Some(manual) = workspace.manual_classifications.get(&hash) else {
+            continue;
+        };
+        let parts = split_destination(&manual.destination);
+        if parts.is_empty() {
+            continue;
+        }
+
+        item.status = "classified".to_string();
+        item.destination_parts = parts.clone();
+        item.destination_path = Some(parts.join("\\"));
+        item.detected_from.push("ManualReview".to_string());
+        item.detected_from.sort();
+        item.detected_from.dedup();
+        item.classification_reason = Some(format!(
+            "Manual review stored by SHA-256 {} => {}",
+            hash,
+            parts.join("\\")
+        ));
+        if item.category.as_deref() == Some("Desconhecido")
+            || item.category.as_deref() == Some("Desconocido")
+            || item.category.as_deref() == Some("Unknown")
+            || item.category.is_none()
+        {
+            item.category = parts.first().cloned();
+            item.sub_category = parts.get(1).cloned();
+        }
+    }
+}
+
 fn resource_type_label(type_id: u32) -> String {
     match type_id {
         TYPE_CASP => "CASP".to_string(),
@@ -917,6 +964,7 @@ pub fn scan_packages_core(
     }
 
     apply_slider_companion_classification(&package_paths, &mut items);
+    apply_manual_classifications(&root, &mut items);
 
     let mut stats = ScanStats::default();
     stats.packages = items.len();
