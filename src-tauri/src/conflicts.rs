@@ -1,5 +1,5 @@
 use crate::{
-    cache::{get_or_build, load_cache, retain_existing, save_cache},
+    cache::{get_or_build_with_metrics, load_cache, retain_existing, save_cache},
     catalog::{TYPE_CASP, TYPE_OBJD},
     operation::{self, CANCELLED_ERROR},
     resource_cfg::{find_resource_cfg, package_priority, parse_resource_cfg, ResourceCfgInfo},
@@ -9,6 +9,7 @@ use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     path::{Path, PathBuf},
+    time::Instant,
 };
 use walkdir::WalkDir;
 
@@ -129,6 +130,11 @@ pub struct ConflictStats {
     pub analysis_truncated: bool,
     pub cache_hits: usize,
     pub cache_misses: usize,
+    pub hashing_ms: u128,
+    pub dbpf_load_ms: u128,
+    pub resource_decode_ms: u128,
+    pub comparison_ms: u128,
+    pub total_ms: u128,
 }
 
 #[derive(Debug, Clone, Serialize)]
