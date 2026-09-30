@@ -121,6 +121,40 @@ fn is_package(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
+
+fn valid_destination_component(value: &str) -> bool {
+    if value.is_empty() || value == "." || value == ".." || value.ends_with(' ') || value.ends_with('.') {
+        return false;
+    }
+    if value.chars().any(|ch| ch < '\u{20}' || matches!(ch, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*')) {
+        return false;
+    }
+    let stem = value.split('.').next().unwrap_or(value).trim().to_ascii_uppercase();
+    if matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL") {
+        return false;
+    }
+    if stem.len() == 4
+        && (stem.starts_with("COM") || stem.starts_with("LPT"))
+        && stem.as_bytes()[3].is_ascii_digit()
+        && stem.as_bytes()[3] != b'0'
+    {
+        return false;
+    }
+    true
+}
+
+fn validate_manual_destination(value: &str) -> Result<String, String> {
+    let normalized = value.replace('/', "\\").trim_matches('\\').trim().to_string();
+    if normalized.is_empty() {
+        return Ok(normalized);
+    }
+    let parts = normalized.split('\\').collect::<Vec<_>>();
+    if parts.is_empty() || parts.iter().any(|part| !valid_destination_component(part.trim())) {
+        return Err("Manual destination contains an unsafe or invalid Windows folder component.".to_string());
+    }
+    Ok(parts.into_iter().map(str::trim).collect::<Vec<_>>().join("\\"))
+}
+
 fn store_path(root: &Path) -> PathBuf {
     root.parent()
         .unwrap_or(root)
@@ -358,11 +392,7 @@ pub fn set_manual_classification(
     let (sha256, _) = sha256_file(&path)
         .map_err(|error| format!("Could not hash package: {error}"))?;
     let mut store = load_from_root(&root);
-    let destination = destination
-        .replace('/', "\\")
-        .trim_matches('\\')
-        .trim()
-        .to_string();
+    let destination = validate_manual_destination(&destination)?;
 
     if destination.is_empty() {
         store.manual_classifications.remove(&sha256);
@@ -459,6 +489,14 @@ mod tests {
     }
 
     #[test]
+    #[test]
+    fn manual_destination_rejects_traversal_and_windows_reserved_names() {
+        assert!(validate_manual_destination(r"CAS\Sliders\Body").is_ok());
+        assert!(validate_manual_destination(r"CAS\..\Elsewhere").is_err());
+        assert!(validate_manual_destination(r"CAS\CON").is_err());
+        assert!(validate_manual_destination(r"C:\Mods").is_err());
+    }
+
     fn custom_rule_can_match_catalog_fields() {
         let profile = OrganizationProfile {
             rules: vec![CustomRule {
