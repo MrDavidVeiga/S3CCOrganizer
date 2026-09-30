@@ -5,10 +5,19 @@ use std::{
     collections::{HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
-    time::UNIX_EPOCH,
+    time::{Instant, UNIX_EPOCH},
 };
 
 const CACHE_VERSION: u32 = 1;
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct CacheBuildMetrics {
+    pub cache_hit: bool,
+    pub total_ms: u128,
+    pub hash_ms: u128,
+    pub dbpf_load_ms: u128,
+    pub resource_decode_ms: u128,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CachedResource {
@@ -119,23 +128,38 @@ pub fn save_cache(root: &Path, cache: &FingerprintCache) -> Result<(), String> {
         .map_err(|error| format!("Could not commit cache {}: {error}", path.display()))
 }
 
-pub fn get_or_build(
+pub fn get_or_build_with_metrics(
     path: &Path,
     cache: &mut FingerprintCache,
-) -> Result<(CachedPackage, bool), String> {
+) -> Result<(CachedPackage, CacheBuildMetrics), String> {
+    let total_started = Instant::now();
     let key = canonical_key(path)?;
     let (size, modified_ns) = metadata_signature(path)?;
 
     if let Some(existing) = cache.entries.get(&key) {
         if existing.size == size && existing.modified_ns == modified_ns {
-            return Ok((existing.clone(), true));
+            return Ok((
+                existing.clone(),
+                CacheBuildMetrics {
+                    cache_hit: true,
+                    total_ms: total_started.elapsed().as_millis(),
+                    ..CacheBuildMetrics::default()
+                },
+            ));
         }
     }
 
+    let hash_started = Instant::now();
     let (file_sha256, _) =
         sha256_file(path).map_err(|error| format!("Could not hash {}: {error}", path.display()))?;
+    let hash_ms = hash_started.elapsed().as_millis();
 
-    let built = match Package::load(path) {
+    let load_started = Instant::now();
+    let loaded = Package::load(path);
+    let dbpf_load_ms = load_started.elapsed().as_millis();
+
+    let decode_started = Instant::now();
+    let built = match loaded {
         Ok(package) => {
             let mut resources = Vec::with_capacity(package.entries.len());
             let mut parse_error = None;
@@ -181,9 +205,27 @@ pub fn get_or_build(
             parse_error: Some(error.to_string()),
         },
     };
+    let resource_decode_ms = decode_started.elapsed().as_millis();
 
     cache.entries.insert(key, built.clone());
-    Ok((built, false))
+    Ok((
+        built,
+        CacheBuildMetrics {
+            cache_hit: false,
+            total_ms: total_started.elapsed().as_millis(),
+            hash_ms,
+            dbpf_load_ms,
+            resource_decode_ms,
+        },
+    ))
+}
+
+pub fn get_or_build(
+    path: &Path,
+    cache: &mut FingerprintCache,
+) -> Result<(CachedPackage, bool), String> {
+    let (package, metrics) = get_or_build_with_metrics(path, cache)?;
+    Ok((package, metrics.cache_hit))
 }
 
 pub fn retain_existing(cache: &mut FingerprintCache, existing_paths: &[PathBuf]) {
