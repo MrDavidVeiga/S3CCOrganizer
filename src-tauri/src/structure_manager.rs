@@ -334,7 +334,7 @@ pub fn create_structure_folder(
             source_relative_path: None,
             destination_relative_path: Some(destination_relative.clone()),
         },
-    )?;
+    );
 
     Ok(StructureActionResult {
         operation: "create_folder".to_string(),
@@ -386,7 +386,7 @@ pub fn move_structure_path(
             source_relative_path: Some(relative_text(&source_relative)),
             destination_relative_path: Some(destination_relative.clone()),
         },
-    )?;
+    );
 
     Ok(StructureActionResult {
         operation: "move".to_string(),
@@ -432,7 +432,7 @@ pub fn rename_structure_folder(
             source_relative_path: Some(relative_text(&source_relative)),
             destination_relative_path: Some(destination_relative.clone()),
         },
-    )?;
+    );
 
     Ok(StructureActionResult {
         operation: "rename_folder".to_string(),
