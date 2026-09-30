@@ -2241,6 +2241,29 @@ function renderDuplicatesPreview() {
     }
     el.duplicatesPreview.appendChild(metrics);
 
+    if (["retexture", "recategorized_variant", "related_variant"].includes(item.kind)) {
+      const groupActions = document.createElement("div");
+      groupActions.className = "quarantine-actions";
+      const keepTogether = document.createElement("button");
+      keepTogether.type = "button";
+      keepTogether.className = "secondary-btn";
+      keepTogether.textContent = t("keepTogetherGroups");
+      keepTogether.addEventListener("click", () => {
+        for (const member of [item.left, item.right]) {
+          const match = state.items.find((candidate) =>
+            candidate.path === member?.path || candidate.relativePath === member?.relativePath
+          );
+          if (match) state.metadataGroupSelected.add(match.path);
+        }
+        state.tab = "tools";
+        state.toolsTab = "metadata";
+        persistPreferences();
+        render();
+      });
+      groupActions.appendChild(keepTogether);
+      el.duplicatesPreview.appendChild(groupActions);
+    }
+
     if (item.evidence?.length) {
       const evidenceTitle = document.createElement("h4");
       evidenceTitle.textContent = t("evidence");
