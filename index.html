@@ -13,6 +13,7 @@
           <button class="mode-btn active" data-tab="organizer" data-i18n="organizer" type="button">Organizer</button>
           <button class="mode-btn" data-tab="duplicates" data-i18n="duplicates" type="button">Duplicates</button>
           <button class="mode-btn" data-tab="conflicts" data-i18n="conflicts" type="button">Conflicts</button>
+          <button class="mode-btn" data-tab="structure" data-i18n="structure" type="button">Structure</button>
           <button class="mode-btn" data-tab="restore" data-i18n="restore" type="button">Restore</button>
         </div>
         <div class="language language-switcher">
@@ -223,6 +224,55 @@
             </div>
           </section>
 
+          <section id="page-structure" class="tool-page hidden structure-page">
+            <div class="hero">
+              <div>
+                <h2 data-i18n="structure">Structure</h2>
+                <p data-i18n="structureIntro">Create folders, move files or folders, and rename folders inside the selected Mods root.</p>
+              </div>
+              <div id="structure-state" class="scan-state"></div>
+            </div>
+
+            <div class="structure-toolbar">
+              <button id="structure-up-btn" class="secondary-btn" type="button" disabled>
+                <i class="fa-solid fa-arrow-up" aria-hidden="true"></i>
+                <span data-i18n="structureUp">Up</span>
+              </button>
+              <button id="structure-refresh-btn" class="secondary-btn" type="button" disabled>
+                <i class="fa-solid fa-rotate" aria-hidden="true"></i>
+                <span data-i18n="refreshHistory">Refresh</span>
+              </button>
+              <button id="structure-create-btn" class="primary-btn" type="button" disabled>
+                <i class="fa-solid fa-folder-plus" aria-hidden="true"></i>
+                <span data-i18n="createFolder">Create Folder</span>
+              </button>
+              <button id="structure-move-btn" class="secondary-btn" type="button" disabled>
+                <i class="fa-solid fa-arrow-right-arrow-left" aria-hidden="true"></i>
+                <span data-i18n="moveSelected">Move Selected</span>
+              </button>
+              <button id="structure-rename-btn" class="secondary-btn" type="button" disabled>
+                <i class="fa-solid fa-pen" aria-hidden="true"></i>
+                <span data-i18n="renameFolder">Rename Folder</span>
+              </button>
+            </div>
+
+            <div class="structure-breadcrumb">
+              <span data-i18n="currentFolder">Current folder</span>
+              <code id="structure-current-path">\</code>
+            </div>
+
+            <div id="structure-empty" class="empty">
+              <span data-i18n="structureChooseRoot">Choose a Mods folder to manage its structure.</span>
+            </div>
+
+            <div id="structure-results" class="structure-results hidden">
+              <div id="structure-list" class="structure-list" aria-live="polite"></div>
+              <aside id="structure-preview" class="structure-preview">
+                <div class="preview-empty" data-i18n="selectStructureItem">Select a file or folder.</div>
+              </aside>
+            </div>
+          </section>
+
           <section id="page-restore" class="tool-page hidden restore-page">
             <div class="hero">
               <div>
@@ -329,6 +379,25 @@
             <button id="plan-execute-btn" class="primary-btn planner-execute-btn" type="button" disabled data-i18n="organizeSelected">Organize Selected</button>
           </div>
         </footer>
+      </section>
+    </div>
+
+    <div id="structure-modal" class="modal-backdrop hidden" aria-hidden="true">
+      <section class="confirm-modal structure-action-modal card" role="dialog" aria-modal="true" aria-labelledby="structure-modal-title">
+        <h2 id="structure-modal-title"></h2>
+        <p id="structure-modal-message"></p>
+        <div id="structure-input-wrap" class="structure-field hidden">
+          <label id="structure-input-label" for="structure-input"></label>
+          <input id="structure-input" class="text-input" type="text" autocomplete="off" spellcheck="false" />
+        </div>
+        <div id="structure-target-wrap" class="structure-field hidden">
+          <label data-i18n="targetFolder" for="structure-target-select">Target folder</label>
+          <select id="structure-target-select" class="text-input"></select>
+        </div>
+        <div class="confirm-actions">
+          <button id="structure-modal-cancel-btn" class="secondary-btn" type="button" data-i18n="cancel">Cancel</button>
+          <button id="structure-modal-action-btn" class="primary-btn" type="button"></button>
+        </div>
       </section>
     </div>
 
