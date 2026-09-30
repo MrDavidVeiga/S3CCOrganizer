@@ -104,6 +104,12 @@ Long-running Scan, Duplicates and Conflicts operations now expose progress and c
 
 See [docs/ANALYSIS-UX-CACHE.md](docs/ANALYSIS-UX-CACHE.md).
 
+## Pre-build hardening
+
+The application now persists UI preferences, supports a resizable sidebar, exposes safe file-manager navigation, shows cache/performance diagnostics, displays technical classification evidence in the Planner, blocks Restore across different Mods roots, supports session-only Conflict review marks, and provides a preview-only duplicate quarantine plan outside Packages.
+
+See [docs/PREBUILD-HARDENING.md](docs/PREBUILD-HARDENING.md).
+
 ## Status
 
 The repository is organized around four layers:
