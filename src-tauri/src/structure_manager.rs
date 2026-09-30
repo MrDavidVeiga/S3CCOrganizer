@@ -464,11 +464,30 @@ pub fn list_manual_operations(folder: String) -> Result<Vec<ManualOperationRecor
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_root() -> PathBuf {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let base = std::env::temp_dir().join(format!("s3cc-organizer-structure-{nonce}"));
+        let root = base.join("Packages");
+        fs::create_dir_all(&root).unwrap();
+        root
+    }
+
+    fn cleanup(root: &Path) {
+        if let Some(base) = root.parent() {
+            let _ = fs::remove_dir_all(base);
+        }
+    }
 
     #[test]
     fn rejects_traversal() {
         assert!(normalize_relative("../outside").is_err());
         assert!(normalize_relative("safe/folder").is_ok());
+        assert!(normalize_relative(r"safe\folder").is_ok());
     }
 
     #[test]
@@ -477,5 +496,73 @@ mod tests {
         assert!(log_path(root)
             .to_string_lossy()
             .contains("S3CC Organizer"));
+    }
+
+    #[test]
+    fn create_move_and_rename_workflow() {
+        let root = temp_root();
+        let root_text = root.to_string_lossy().to_string();
+
+        create_structure_folder(
+            root_text.clone(),
+            String::new(),
+            r"Creator\Hair".to_string(),
+        )
+        .unwrap();
+        assert!(root.join("Creator").join("Hair").is_dir());
+
+        let source = root.join("Sample.package");
+        fs::write(&source, b"package").unwrap();
+
+        move_structure_path(
+            root_text.clone(),
+            "Sample.package".to_string(),
+            r"Creator\Hair".to_string(),
+        )
+        .unwrap();
+        assert!(!source.exists());
+        assert!(root
+            .join("Creator")
+            .join("Hair")
+            .join("Sample.package")
+            .is_file());
+
+        rename_structure_folder(
+            root_text.clone(),
+            r"Creator\Hair".to_string(),
+            "Female Hair".to_string(),
+        )
+        .unwrap();
+        assert!(root
+            .join("Creator")
+            .join("Female Hair")
+            .join("Sample.package")
+            .is_file());
+
+        let records = list_manual_operations(root_text).unwrap();
+        assert_eq!(records.len(), 3);
+        cleanup(&root);
+    }
+
+    #[test]
+    fn move_refuses_existing_destination() {
+        let root = temp_root();
+        let root_text = root.to_string_lossy().to_string();
+        fs::create_dir_all(root.join("Target")).unwrap();
+        fs::write(root.join("Same.package"), b"source").unwrap();
+        fs::write(root.join("Target").join("Same.package"), b"destination").unwrap();
+
+        let result = move_structure_path(
+            root_text,
+            "Same.package".to_string(),
+            "Target".to_string(),
+        );
+        assert!(result.is_err());
+        assert_eq!(fs::read(root.join("Same.package")).unwrap(), b"source");
+        assert_eq!(
+            fs::read(root.join("Target").join("Same.package")).unwrap(),
+            b"destination"
+        );
+        cleanup(&root);
     }
 }
