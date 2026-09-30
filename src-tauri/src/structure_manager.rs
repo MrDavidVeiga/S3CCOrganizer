@@ -89,7 +89,7 @@ fn validate_component(name: &str) -> Result<(), String> {
     if trimmed.is_empty() || trimmed == "." || trimmed == ".." {
         return Err("Folder name is empty or invalid.".to_string());
     }
-    if trimmed.contains(['/', '\\', '\0']) {
+    if trimmed.chars().any(|ch| matches!(ch, '/' | '\\' | '\0')) {
         return Err("Folder name must be a single path component.".to_string());
     }
 
@@ -98,10 +98,18 @@ fn validate_component(name: &str) -> Result<(), String> {
         if trimmed.ends_with(' ') || trimmed.ends_with('.') {
             return Err("Windows folder names cannot end with a space or dot.".to_string());
         }
-        if trimmed.contains(['<', '>', ':', '"', '|', '?', '*']) {
+        if trimmed
+            .chars()
+            .any(|ch| matches!(ch, '<' | '>' | ':' | '"' | '|' | '?' | '*'))
+        {
             return Err("Folder name contains characters invalid on Windows.".to_string());
         }
-        let stem = trimmed.trim_end_matches('.').to_ascii_uppercase();
+        let stem = trimmed
+            .trim_end_matches('.')
+            .split('.')
+            .next()
+            .unwrap_or(trimmed)
+            .to_ascii_uppercase();
         let reserved = [
             "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5",
             "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5",
