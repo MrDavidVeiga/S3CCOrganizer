@@ -505,7 +505,8 @@ fn classify_variant_pair(
 fn add_variant_candidates(
     packages: &[PackageFingerprint],
     relations: &mut Vec<VariantRelation>,
-) -> bool {
+    operation_kind: Option<&str>,
+) -> Result<bool, String> {
     let mut by_structure = BTreeMap::<String, Vec<usize>>::new();
 
     for (index, package) in packages.iter().enumerate() {
@@ -518,12 +519,26 @@ fn add_variant_candidates(
     }
 
     let mut seen_pairs = HashSet::<(usize, usize)>::new();
+    let mut comparisons = 0usize;
 
     for indices in by_structure.values().filter(|indices| indices.len() > 1) {
         for left_pos in 0..indices.len() {
             for right_pos in (left_pos + 1)..indices.len() {
+                comparisons += 1;
+                if comparisons % 256 == 0 {
+                    if let Some(kind) = operation_kind {
+                        if operation::is_cancelled(kind) {
+                            return Err(CANCELLED_ERROR.to_string());
+                        }
+                        operation::set_message(
+                            kind,
+                            Some(format!("Compared {comparisons} variant pair(s)")),
+                        );
+                    }
+                }
+
                 if relations.len() >= MAX_VARIANT_RELATIONS {
-                    return true;
+                    return Ok(true);
                 }
 
                 let left_index = indices[left_pos];
@@ -541,7 +556,7 @@ fn add_variant_candidates(
         }
     }
 
-    false
+    Ok(false)
 }
 
 pub fn analyze_duplicates_core(
@@ -717,7 +732,8 @@ pub fn analyze_duplicates_core(
     }
 
     let mut relations = Vec::new();
-    let variant_analysis_truncated = add_variant_candidates(&packages, &mut relations);
+    let variant_analysis_truncated =
+        add_variant_candidates(&packages, &mut relations, operation_kind)?;
     stats.variant_analysis_truncated = variant_analysis_truncated;
     relations.sort_by_key(|relation| {
         (
