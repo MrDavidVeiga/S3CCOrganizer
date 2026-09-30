@@ -60,6 +60,7 @@ button,input,select{font:inherit}.app{height:100%;max-width:1720px;margin:auto;p
     <button class="tab" data-page="duplicates">Duplicados</button>
     <button class="tab" data-page="conflicts">Conflitos</button>
     <button class="tab" data-page="structure">Estrutura</button>
+    <button class="tab" data-page="tools">Ferramentas</button>
     <button class="tab" data-page="restore">Restaurar</button>
   </nav>
   <div class="langline"><span>Idioma</span><button class="lang" id="langBtn">PT⌄</button></div>
@@ -75,7 +76,7 @@ button,input,select{font:inherit}.app{height:100%;max-width:1720px;margin:auto;p
   </div>
   <div style="padding:9px;border:1px solid rgba(255,255,255,.08);border-radius:11px;background:rgba(0,0,0,.14);font-size:.67rem;color:var(--muted);margin-bottom:8px">
     <strong style="color:var(--text)">Relatório de Auditoria</strong><br>
-    Classificações · Duplicados · Conflitos · Decisões · Estrutura<br>
+    Classificações · Duplicados · Conflitos · Decisões · Estrutura · Ferramentas<br>
     <button class="ghost" style="width:100%;margin-top:7px">Exportar Relatório</button>
   </div>
 
@@ -110,7 +111,16 @@ button,input,select{font:inherit}.app{height:100%;max-width:1720px;margin:auto;p
     <button class="primary">＋ &nbsp; Criar Pasta</button>
     <button class="ghost">⇄ &nbsp; Mover Selecionado</button>
     <button class="ghost">✎ &nbsp; Renomear Pasta</button>
+    <button class="ghost">↶ &nbsp; Desfazer Última</button>
     <div class="note">Sem exclusão e sem sobrescrita. Todas as operações permanecem dentro da raiz selecionada.</div>
+  </div>
+
+  <div class="context" data-context="tools">
+    <button class="primary">▣ &nbsp; Perfis e Regras</button>
+    <button class="ghost">⌕ &nbsp; Saúde / Resource.cfg</button>
+    <button class="ghost">◫ &nbsp; Snapshots</button>
+    <button class="ghost">⇩ &nbsp; Inbox / New CC</button>
+    <div class="note">Metadados, grupos, busca técnica, comparação e histórico ficam reunidos nesta área.</div>
   </div>
 
   <div class="context" data-context="restore">
@@ -170,7 +180,7 @@ button,input,select{font:inherit}.app{height:100%;max-width:1720px;margin:auto;p
 
   <div class="page" id="structure">
     <div class="hero"><div><h2>Estrutura</h2><p>Crie pastas aninhadas, mova arquivos ou pastas e renomeie pastas dentro da raiz selecionada.</p></div><div class="state">Estrutura atualizada</div></div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 10px"><button class="ghost">↑ Subir</button><button class="ghost">↻ Atualizar</button><button class="primary" style="width:auto">＋ Criar Pasta</button><button class="ghost">⇄ Mover Selecionado</button><button class="ghost">✎ Renomear Pasta</button></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 10px"><button class="ghost">↑ Subir</button><button class="ghost">↻ Atualizar</button><button class="primary" style="width:auto">＋ Criar Pasta</button><button class="ghost">⇄ Mover Selecionado</button><button class="ghost">✎ Renomear Pasta</button><button class="ghost">↶ Desfazer Última</button></div>
     <div class="manifest" style="margin-bottom:10px">Pasta atual: \CAS\Cabelos</div>
     <div class="workspace">
       <div class="list">
@@ -179,6 +189,21 @@ button,input,select{font:inherit}.app{height:100%;max-width:1720px;margin:auto;p
         <div class="row"><span>▤</span><div class="row-main"><strong>Hair_Demo.package</strong><small>Arquivo · 2,8 MB</small></div><span class="dot"></span></div>
       </div>
       <aside class="preview"><h3>Feminino</h3><div class="meta"><div><span>Tipo</span><strong>Pasta</strong></div><div><span>Caminho</span><strong>CAS\Cabelos\Feminino</strong></div></div><div class="reason">Criar: aceita caminhos aninhados como Criador\Cabelos\Feminino.<br><br>Mover: escolhe qualquer outra pasta válida da raiz.<br><br>Renomear: nunca sobrescreve um destino existente.</div><button class="ghost" style="width:100%;margin-top:10px">Abrir Localização</button></aside>
+    </div>
+  </div>
+
+  <div class="page" id="tools">
+    <div class="hero"><div><h2>Ferramentas</h2><p>Perfis, saúde, snapshots, Inbox, metadados, dependências e diagnósticos técnicos.</p></div><div class="state">Workspace carregado</div></div>
+    <div class="toolbar" style="grid-template-columns:repeat(7,1fr)"><button class="ghost">Perfis e Regras</button><button class="ghost">Saúde e Resource.cfg</button><button class="ghost">Snapshots</button><button class="ghost">Inbox / New CC</button><button class="ghost">Metadados e Grupos</button><button class="ghost">Técnico</button><button class="ghost">Histórico</button></div>
+    <div class="workspace">
+      <div class="list">
+        <div class="row active"><span>⚙</span><div class="row-main"><strong>Perfil: Default</strong><small>Modo somente leitura: desativado</small></div><span class="badge">ATIVO</span></div>
+        <div class="row"><span>🛡</span><div class="row-main"><strong>Pastas Protegidas</strong><small>NRaas · Overrides</small></div><span class="badge">2</span></div>
+        <div class="row"><span>◫</span><div class="row-main"><strong>Snapshots</strong><small>Último: 1.247 packages · SHA-256 + caminho</small></div><span class="dot"></span></div>
+        <div class="row"><span>⌕</span><div class="row-main"><strong>Saúde do Mods</strong><small>3 pastas vazias · 0 fora do Resource.cfg</small></div><span class="dot"></span></div>
+        <div class="row"><span>⇩</span><div class="row-main"><strong>Inbox / New CC</strong><small>12 packages prontos para preview de importação</small></div><span class="dot"></span></div>
+      </div>
+      <aside class="preview"><h3>Advanced Tools</h3><div class="meta"><div><span>Resource.cfg</span><strong>Priority + PackedFile</strong></div><div><span>Busca Técnica</span><strong>Type / Group / Instance / SHA</strong></div><div><span>Dependências</span><strong>Evidência TGI conservadora</strong></div><div><span>Grupos</span><strong>Manter Juntos</strong></div></div><div class="reason">Snapshots não copiam packages. Inbox copia apenas após preview e verificação SHA-256. Nenhuma função apaga .package automaticamente.</div></aside>
     </div>
   </div>
 
