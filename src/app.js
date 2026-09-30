@@ -2729,7 +2729,12 @@ function invalidateAnalysesAfterStructureChange() {
 }
 
 async function loadStructure(relativePath = state.structureCurrent) {
-  if (!state.folder || structureLocked()) return;
+  if (
+    !state.folder ||
+    state.structureBusy ||
+    state.executing ||
+    state.restoreBusy
+  ) return;
   state.structureBusy = true;
   state.structureError = "";
   renderStructure();
@@ -2905,7 +2910,7 @@ function closeStructureModal() {
 
 async function openStructureModal(action) {
   const selected = selectedStructureEntry();
-  if (!state.folder || state.structureBusy) return;
+  if (!state.folder || structureLocked()) return;
   if ((action === "move" || action === "rename") && !selected) return;
   if (action === "rename" && !selected?.isDirectory) return;
 
@@ -3070,7 +3075,11 @@ function renderSelectionSummary() {
   const count = state.selectedForPlan.size;
   el.selectionSummary.textContent = `${count} ${t("selectedEligible")}`;
   el.planBtn.disabled =
-    count === 0 || state.scanning || state.planning || state.executing;
+    count === 0 ||
+    state.scanning ||
+    state.planning ||
+    state.executing ||
+    state.structureBusy;
 }
 
 function appendMeta(container, label, value) {
@@ -3672,7 +3681,12 @@ async function scanFolder(preserveSelection = false, preserveNotice = false) {
 }
 
 async function buildPlan() {
-  if (!state.folder || !state.selectedForPlan.size || state.planning) return;
+  if (
+    !state.folder ||
+    !state.selectedForPlan.size ||
+    state.planning ||
+    state.structureBusy
+  ) return;
 
   state.planning = true;
   state.planError = "";
@@ -3696,7 +3710,7 @@ async function buildPlan() {
 }
 
 async function executeOrganization() {
-  if (!state.plan?.canExecute || state.executing) return;
+  if (!state.plan?.canExecute || state.executing || state.structureBusy) return;
 
   state.executing = true;
   state.planError = "";
@@ -3752,7 +3766,7 @@ async function chooseManifest() {
 }
 
 async function previewRestore() {
-  if (!state.restoreManifest || state.restoreBusy) return;
+  if (!state.restoreManifest || state.restoreBusy || state.structureBusy) return;
 
   state.restoreBusy = true;
   state.restoreError = "";
@@ -3775,7 +3789,7 @@ async function previewRestore() {
 }
 
 async function executeRestore() {
-  if (!state.restorePlan?.canExecute || state.restoreBusy) return;
+  if (!state.restorePlan?.canExecute || state.restoreBusy || state.structureBusy) return;
 
   state.restoreBusy = true;
   state.restoreError = "";
