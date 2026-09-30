@@ -56,7 +56,7 @@ pub fn build_inbox_import_plan(folder:String,source_folder:String,selected_paths
         if status=="ready"{ready+=1}else{blocked+=1}
         items.push(InboxPlanItem{
             source_path:source.to_string_lossy().to_string(),
-            relative_path:rel.to_string_lossy().replace('/',"\"),
+            relative_path:rel.to_string_lossy().replace('/',"\\"),
             destination_path:destination.to_string_lossy().to_string(),sha256:sha,size,status
         });
     }
