@@ -538,6 +538,7 @@ pub fn analyze_conflicts_core(
         operation::update(kind, paths.len(), None, "comparing");
     }
 
+    let comparison_started = Instant::now();
     let mut pairs = HashMap::<(usize, usize), PairAccumulator>::new();
     let mut truncated = false;
     let mut comparisons = 0usize;
@@ -630,6 +631,10 @@ pub fn analyze_conflicts_core(
         analysis_truncated: truncated,
         cache_hits,
         cache_misses,
+        hashing_ms,
+        dbpf_load_ms,
+        resource_decode_ms,
+        comparison_ms: comparison_started.elapsed().as_millis(),
         ..ConflictStats::default()
     };
 
@@ -691,6 +696,7 @@ pub fn analyze_conflicts_core(
     }
 
     stats.package_pairs = findings.len();
+    stats.total_ms = total_started.elapsed().as_millis();
 
     Ok(ConflictAnalysis {
         root: root.to_string_lossy().to_string(),
