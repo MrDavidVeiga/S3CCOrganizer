@@ -53,7 +53,7 @@ fn capture(root:&Path)->Result<Vec<SnapshotEntry>,String>{
     for entry in walkdir::WalkDir::new(root).follow_links(false).into_iter().filter_map(Result::ok){
         if !entry.file_type().is_file() || !package_path(entry.path()){continue;}
         let (sha256,size)=sha256_file(entry.path()).map_err(|e|format!("Could not hash {}: {e}",entry.path().display()))?;
-        let rel=entry.path().strip_prefix(root).unwrap_or(entry.path()).to_string_lossy().replace('/',"\");
+        let rel=entry.path().strip_prefix(root).unwrap_or(entry.path()).to_string_lossy().replace('/',"\\");
         entries.push(SnapshotEntry{relative_path:rel,size,sha256});
     }
     entries.sort_by_key(|e|e.relative_path.to_ascii_lowercase());
