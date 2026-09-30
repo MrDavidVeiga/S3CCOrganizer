@@ -121,6 +121,8 @@ const I18N = {
     quarantineRestored: "Quarantine restored",
     recoverQuarantine: "Recover interrupted Quarantine",
     quarantineRecovered: "Quarantine recovery completed",
+    dependencySkippedLarge: "Large resource payloads skipped for safety",
+    dependencyTruncated: "Result limit reached; findings are incomplete",
     manualReview: "Manual Review",
     manualDestination: "Approved destination",
     saveManualReview: "Save Review",
@@ -503,6 +505,8 @@ const I18N = {
     quarantineRestored: "Quarentena restaurada",
     recoverQuarantine: "Recuperar Quarentena interrompida",
     quarantineRecovered: "Recuperação da Quarentena concluída",
+    dependencySkippedLarge: "Recursos muito grandes ignorados por segurança",
+    dependencyTruncated: "Limite de resultados atingido; análise incompleta",
     manualReview: "Revisão Manual",
     manualDestination: "Destino aprovado",
     saveManualReview: "Salvar Revisão",
@@ -884,6 +888,8 @@ const I18N = {
     quarantineRestored: "Cuarentena restaurada",
     recoverQuarantine: "Recuperar Cuarentena interrumpida",
     quarantineRecovered: "Recuperación de la Cuarentena completada",
+    dependencySkippedLarge: "Recursos demasiado grandes omitidos por seguridad",
+    dependencyTruncated: "Se alcanzó el límite de resultados; análisis incompleto",
     manualReview: "Revisión Manual",
     manualDestination: "Destino aprobado",
     saveManualReview: "Guardar Revisión",
@@ -3985,9 +3991,16 @@ function renderTechnicalTools() {
 
   el.toolsDependencyResults.innerHTML = "";
   if (state.dependenciesAnalysis) {
+    const dependencyNotes = [t("dependenciesConservative")];
+    if (state.dependenciesAnalysis.skippedLargeReferenceResources > 0) {
+      dependencyNotes.push(
+        `${t("dependencySkippedLarge")}: ${state.dependenciesAnalysis.skippedLargeReferenceResources}`
+      );
+    }
+    if (state.dependenciesAnalysis.truncated) dependencyNotes.push(t("dependencyTruncated"));
     const summary = toolListItem(
       `${state.dependenciesAnalysis.findings?.length || 0} potential dependencies`,
-      t("dependenciesConservative")
+      dependencyNotes.join(" · ")
     );
     el.toolsDependencyResults.appendChild(summary);
     for (const [index, group] of (state.dependenciesAnalysis.suggestedGroups || []).entries()) {
