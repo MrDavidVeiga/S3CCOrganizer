@@ -69,6 +69,7 @@ pub fn run() {
             snapshots::compare_snapshot_to_current,
             snapshots::compare_mods_roots,
             health::analyze_mods_health,
+            health::remove_empty_folder,
             dependencies::analyze_dependencies,
             technical_search::technical_search,
             package_compare::compare_packages,
