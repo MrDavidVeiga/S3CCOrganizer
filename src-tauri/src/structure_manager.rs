@@ -127,6 +127,40 @@ fn relative_text(path: &Path) -> String {
     path.to_string_lossy().replace('/', "\\")
 }
 
+fn validate_existing_destination_chain(
+    root: &Path,
+    parent: &Path,
+    nested: &Path,
+) -> Result<(), String> {
+    let mut current = parent.to_path_buf();
+    for component in nested.components() {
+        let Component::Normal(name) = component else {
+            continue;
+        };
+        current.push(name);
+        if !current.exists() {
+            continue;
+        }
+
+        let metadata = fs::symlink_metadata(&current)
+            .map_err(|error| format!("Could not inspect {}: {error}", current.display()))?;
+        if metadata.file_type().is_symlink() {
+            return Err(format!(
+                "Folder creation cannot traverse a symbolic link: {}",
+                current.display()
+            ));
+        }
+
+        let canonical = current
+            .canonicalize()
+            .map_err(|error| format!("Could not resolve {}: {error}", current.display()))?;
+        if !canonical.starts_with(root) {
+            return Err("Folder creation would leave the selected root.".to_string());
+        }
+    }
+    Ok(())
+}
+
 fn resolve_existing(root: &Path, relative: &Path) -> Result<PathBuf, String> {
     let path = root.join(relative);
     let canonical = path
@@ -277,6 +311,8 @@ pub fn create_structure_folder(
             validate_component(&name.to_string_lossy())?;
         }
     }
+
+    validate_existing_destination_chain(&root, &parent, &nested)?;
 
     let destination = parent.join(&nested);
     if destination.exists() {
