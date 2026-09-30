@@ -1315,7 +1315,7 @@ function buildAuditMarkdown(snapshot) {
         "",
         `- A: ${relation.left?.relativePath || "—"}`,
         `- B: ${relation.right?.relativePath || "—"}`,
-        `- Shared resources: ${relation.sharedResources ?? 0}`,
+        `- Shared resources: ${relation.sharedResourceCount ?? 0}`,
         ""
       );
     }
@@ -1374,7 +1374,7 @@ function buildAuditMarkdown(snapshot) {
 }
 
 async function exportAuditReport() {
-  if (!state.folder || state.auditBusy) return;
+  if (!state.folder || state.auditBusy || state.reviewBusy) return;
   state.auditBusy = true;
   state.auditError = "";
   renderAuditPanel();
@@ -1409,7 +1409,7 @@ function renderAuditPanel() {
   } else {
     el.auditStatus.textContent = t("auditReportHint");
   }
-  el.exportAuditBtn.disabled = !state.folder || state.auditBusy;
+  el.exportAuditBtn.disabled = !state.folder || state.auditBusy || state.reviewBusy;
   el.openReportFolderBtn.disabled = !state.lastAuditReport?.directory;
 }
 
