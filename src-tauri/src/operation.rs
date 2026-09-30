@@ -2,6 +2,7 @@ use serde::Serialize;
 use std::{
     collections::HashMap,
     sync::{Mutex, OnceLock},
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 pub const CANCELLED_ERROR: &str = "__S3CC_OPERATION_CANCELLED__";
@@ -17,6 +18,15 @@ pub struct OperationStatus {
     pub current: Option<String>,
     pub phase: String,
     pub message: Option<String>,
+    pub started_unix_ms: u64,
+    pub elapsed_ms: u64,
+}
+
+fn now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_millis().min(u64::MAX as u128) as u64)
+        .unwrap_or(0)
 }
 
 fn registry() -> &'static Mutex<HashMap<String, OperationStatus>> {
@@ -47,6 +57,8 @@ pub fn begin(kind: &str, phase: &str) {
             current: None,
             phase: phase.to_string(),
             message: None,
+            started_unix_ms: now_ms(),
+            elapsed_ms: 0,
         };
     });
 }
@@ -80,6 +92,7 @@ pub fn finish(kind: &str, phase: &str, message: Option<String>) {
         status.current = None;
         status.phase = phase.to_string();
         status.message = message.clone();
+        status.elapsed_ms = now_ms().saturating_sub(status.started_unix_ms);
     });
 }
 
@@ -90,17 +103,22 @@ pub fn mark_cancelled(kind: &str) {
         status.current = None;
         status.phase = "cancelled".to_string();
         status.message = Some("Cancelled by user.".to_string());
+        status.elapsed_ms = now_ms().saturating_sub(status.started_unix_ms);
     });
 }
 
 #[tauri::command]
 pub fn get_operation_status(kind: String) -> OperationStatus {
     let map = registry().lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-    map.get(&kind).cloned().unwrap_or_else(|| OperationStatus {
+    let mut status = map.get(&kind).cloned().unwrap_or_else(|| OperationStatus {
         kind,
         phase: "idle".to_string(),
         ..OperationStatus::default()
-    })
+    });
+    if status.running && status.started_unix_ms > 0 {
+        status.elapsed_ms = now_ms().saturating_sub(status.started_unix_ms);
+    }
+    status
 }
 
 #[tauri::command]
