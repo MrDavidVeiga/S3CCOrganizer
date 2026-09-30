@@ -169,6 +169,9 @@ Implemented in code:
 - Resource.cfg coverage and load-order inspection;
 - Mods snapshots and two-folder comparison;
 - safe Inbox/New CC scanning and verified copy import;
+- SHA-256-stable manual review destinations for unresolved packages;
+- dependency-based Keep Together group suggestions requiring explicit approval;
+- reversible duplicate Quarantine with manifest, rollback and History restore;
 - advanced TGI/SHA technical search and TXT/CSV/JSON selection export;
 - side-by-side normalized package comparison;
 - conservative package dependency evidence;
@@ -177,6 +180,7 @@ Implemented in code:
 Still pending before release:
 
 - successful Rust/Tauri build in an available execution environment;
-- runtime validation against the supplied real .package samples;
-- correction of any parser/classifier differences found during those real-package tests;
+- runtime validation of write actions through the compiled Tauri application;
+- large mixed Mods-folder performance testing;
+- additional authoritative package-family classifiers only when real samples prove safe resource-level rules;
 - portable/release workflows after runtime validation.
