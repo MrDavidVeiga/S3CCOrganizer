@@ -62,6 +62,12 @@ pub fn save_audit_report(
         return Err(format!("Selected root is not a directory: {}", root.display()));
     }
 
+    if markdown.trim().is_empty() {
+        return Err("Markdown audit report is empty.".to_string());
+    }
+    serde_json::from_str::<serde_json::Value>(&json_content)
+        .map_err(|error| format!("Audit JSON is invalid: {error}"))?;
+
     let directory = reports_dir(&root);
     fs::create_dir_all(&directory)
         .map_err(|error| format!("Could not create reports directory {}: {error}", directory.display()))?;
