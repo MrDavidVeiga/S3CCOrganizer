@@ -126,6 +126,9 @@ const I18N = {
     reportNotAnalyzed: "Not analyzed",
     reportGeneratedAt: "Generated at",
     reportDecision: "Review decision",
+    confirmRemoveEmptyTitle: "Remove empty folder?",
+    confirmRemoveEmptyMessage: "Only this empty folder will be removed. No package file will be deleted.",
+    removeEmptyFolderAction: "Remove Empty Folder",
     structure: "Structure",
     structureIntro: "Create folders, move files or folders, and rename folders inside the selected Mods root.",
     structureUp: "Up",
@@ -488,6 +491,9 @@ const I18N = {
     reportNotAnalyzed: "Não analisado",
     reportGeneratedAt: "Gerado em",
     reportDecision: "Decisão de revisão",
+    confirmRemoveEmptyTitle: "Remover pasta vazia?",
+    confirmRemoveEmptyMessage: "Somente esta pasta vazia será removida. Nenhum arquivo package será apagado.",
+    removeEmptyFolderAction: "Remover Pasta Vazia",
     structure: "Estrutura",
     structureIntro: "Crie pastas, mova arquivos ou pastas e renomeie pastas dentro da raiz de Mods selecionada.",
     structureUp: "Subir",
@@ -849,6 +855,9 @@ const I18N = {
     reportNotAnalyzed: "No analizado",
     reportGeneratedAt: "Generado en",
     reportDecision: "Decisión de revisión",
+    confirmRemoveEmptyTitle: "¿Eliminar carpeta vacía?",
+    confirmRemoveEmptyMessage: "Solo se eliminará esta carpeta vacía. No se borrará ningún archivo package.",
+    removeEmptyFolderAction: "Eliminar Carpeta Vacía",
     structure: "Estructura",
     structureIntro: "Crea carpetas, mueve archivos o carpetas y renombra carpetas dentro de la raíz de Mods seleccionada.",
     structureUp: "Subir",
@@ -1203,6 +1212,7 @@ const state = {
   packageCompare: null,
   dependenciesAnalysis: null,
   operationHistory: [],
+  pendingEmptyFolder: "",
   pendingAction: "",
 };
 
@@ -3665,14 +3675,9 @@ function renderHealthTools() {
       remove.className = "secondary-btn compact-btn";
       remove.textContent = t("removeEmptyFolder");
       remove.disabled = workspaceReadOnly() || state.toolsBusy;
-      remove.addEventListener("click", async () => {
-        state.toolsBusy = true; renderTools();
-        try {
-          await invoke("remove_empty_folder", { folder: state.folder, relativePath: folder });
-          state.healthReport = await invoke("analyze_mods_health", { folder: state.folder });
-          state.toolsNotice = t("structureComplete");
-        } catch (error) { state.toolsError = String(error); }
-        finally { state.toolsBusy = false; renderTools(); }
+      remove.addEventListener("click", () => {
+        state.pendingEmptyFolder = folder;
+        openConfirm("remove_empty_folder");
       });
       row.appendChild(remove);
       el.toolsHealthFindings.appendChild(row);
@@ -4735,6 +4740,10 @@ function openConfirm(action) {
     el.confirmTitle.textContent = t("confirmClearCacheTitle");
     el.confirmMessage.textContent = t("confirmClearCacheMessage");
     el.confirmActionBtn.textContent = t("clearCache");
+  } else if (action === "remove_empty_folder") {
+    el.confirmTitle.textContent = t("confirmRemoveEmptyTitle");
+    el.confirmMessage.textContent = `${t("confirmRemoveEmptyMessage")}\n${state.pendingEmptyFolder}`;
+    el.confirmActionBtn.textContent = t("removeEmptyFolderAction");
   } else {
     el.confirmTitle.textContent = t("confirmRestoreTitle");
     el.confirmMessage.textContent = t("confirmRestoreMessage");
@@ -5379,6 +5388,25 @@ el.confirmActionBtn.addEventListener("click", async () => {
     state.pendingAction = "";
     el.confirmModal.classList.add("hidden");
     render();
+  } else if (state.pendingAction === "remove_empty_folder") {
+    state.toolsBusy = true;
+    try {
+      await invoke("remove_empty_folder", {
+        folder: state.folder,
+        relativePath: state.pendingEmptyFolder,
+      });
+      state.healthReport = await invoke("analyze_mods_health", { folder: state.folder });
+      state.toolsNotice = t("structureComplete");
+      await refreshOperationHistory();
+    } catch (error) {
+      state.toolsError = String(error);
+    } finally {
+      state.toolsBusy = false;
+      state.pendingEmptyFolder = "";
+      state.pendingAction = "";
+      el.confirmModal.classList.add("hidden");
+      render();
+    }
   }
 });
 
