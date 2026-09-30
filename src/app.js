@@ -1033,7 +1033,8 @@ function renderDuplicatesPreview() {
 
 function renderDuplicates() {
   if (!el.analyzeDuplicatesBtn) return;
-  el.analyzeDuplicatesBtn.disabled = !state.folder || state.duplicatesBusy;
+  el.analyzeDuplicatesBtn.disabled =
+    !state.folder || state.duplicatesBusy || state.scanning || state.conflictsBusy;
 
   const stats = state.duplicatesAnalysis?.stats || {};
   el.dupStatPackages.textContent = stats.packagesScanned ?? 0;
@@ -1372,7 +1373,8 @@ function renderConflictsPreview() {
 
 function renderConflicts() {
   if (!el.analyzeConflictsBtn) return;
-  el.analyzeConflictsBtn.disabled = !state.folder || state.conflictsBusy;
+  el.analyzeConflictsBtn.disabled =
+    !state.folder || state.conflictsBusy || state.scanning || state.duplicatesBusy;
 
   const analysis = state.conflictsAnalysis;
   const stats = analysis?.stats || {};
@@ -1651,7 +1653,11 @@ function renderTechnicalDetails(container, item) {
   button.type = "button";
   button.className = "secondary-btn technical-details-btn";
   button.textContent = t("technicalDetails");
-  button.disabled = state.technicalDetailsLoading === item.path;
+  button.disabled =
+    state.technicalDetailsLoading === item.path ||
+    state.scanning ||
+    state.duplicatesBusy ||
+    state.conflictsBusy;
   button.addEventListener("click", () => loadTechnicalDetails(item));
   container.appendChild(button);
 
@@ -2159,9 +2165,18 @@ function render() {
   el.folderPath.textContent = state.folder || t("noFolder");
   el.folderPath.title = state.folder;
   el.scanBtn.disabled =
-    !state.folder || state.scanning || state.planning || state.executing;
+    !state.folder ||
+    state.scanning ||
+    state.duplicatesBusy ||
+    state.conflictsBusy ||
+    state.planning ||
+    state.executing;
   el.chooseFolderBtn.disabled =
-    state.scanning || state.planning || state.executing;
+    state.scanning ||
+    state.duplicatesBusy ||
+    state.conflictsBusy ||
+    state.planning ||
+    state.executing;
 
   if (state.executing) {
     el.scanState.textContent = t("executing");
