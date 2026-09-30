@@ -64,6 +64,7 @@ const I18N = {
     technicalDetails: "Technical Details",
     technicalDetailsLoading: "Reading package resources…",
     technicalDetailsError: "Could not load technical details",
+    showingResourceLimit: "Showing the first 500 resources",
     fileSha256: "File SHA-256",
     dbpfVersion: "DBPF version",
     compression: "Compression",
@@ -270,6 +271,7 @@ const I18N = {
     technicalDetails: "Detalhes Técnicos",
     technicalDetailsLoading: "Lendo resources do package…",
     technicalDetailsError: "Não foi possível carregar os detalhes técnicos",
+    showingResourceLimit: "Exibindo os primeiros 500 resources",
     fileSha256: "SHA-256 do arquivo",
     dbpfVersion: "Versão DBPF",
     compression: "Compressão",
@@ -475,6 +477,7 @@ const I18N = {
     technicalDetails: "Detalles Técnicos",
     technicalDetailsLoading: "Leyendo resources del package…",
     technicalDetailsError: "No se pudieron cargar los detalles técnicos",
+    showingResourceLimit: "Mostrando los primeros 500 resources",
     fileSha256: "SHA-256 del archivo",
     dbpfVersion: "Versión DBPF",
     compression: "Compresión",
@@ -649,19 +652,21 @@ const state = {
   duplicatesAnalysis: null,
   duplicatesBusy: false,
   duplicatesError: "",
+  duplicatesNotice: "",
   duplicatesSearch: "",
   duplicatesFilter: "all",
   duplicateSelectedId: "",
   conflictsAnalysis: null,
   conflictsBusy: false,
   conflictsError: "",
+  conflictsNotice: "",
   conflictsSearch: "",
   conflictsFilter: "all",
   conflictSelectedId: "",
   operations: { scan: null, duplicates: null, conflicts: null },
   technicalDetails: {},
   technicalDetailsLoading: "",
-  technicalDetailsError: "",
+  technicalDetailsErrors: {},
   restoreHistory: [],
   restoreHistoryLoading: false,
   restoreHistoryError: "",
@@ -1050,6 +1055,9 @@ function renderDuplicates() {
   } else if (state.duplicatesError) {
     el.duplicatesState.textContent = `${t("duplicatesFailed")}: ${state.duplicatesError}`;
     el.duplicatesState.className = "scan-state error";
+  } else if (state.duplicatesNotice) {
+    el.duplicatesState.textContent = state.duplicatesNotice;
+    el.duplicatesState.className = "scan-state";
   } else if (state.duplicatesAnalysis) {
     const unreadable = stats.unreadablePackages ?? 0;
     const parts = [t("duplicatesReady")];
@@ -1398,6 +1406,9 @@ function renderConflicts() {
   } else if (state.conflictsError) {
     el.conflictsState.textContent = `${t("conflictsFailed")}: ${state.conflictsError}`;
     el.conflictsState.className = "scan-state error";
+  } else if (state.conflictsNotice) {
+    el.conflictsState.textContent = state.conflictsNotice;
+    el.conflictsState.className = "scan-state";
   } else if (analysis) {
     const parts = [t("conflictsReady")];
     if (stats.unreadablePackages) {
@@ -1632,7 +1643,7 @@ async function loadRestoreHistory() {
 async function loadTechnicalDetails(item) {
   if (!item || !state.folder || state.technicalDetailsLoading) return;
   state.technicalDetailsLoading = item.path;
-  state.technicalDetailsError = "";
+  delete state.technicalDetailsErrors[item.path];
   renderPreview();
 
   try {
@@ -1641,7 +1652,7 @@ async function loadTechnicalDetails(item) {
       packagePath: item.path,
     });
   } catch (error) {
-    state.technicalDetailsError = String(error);
+    state.technicalDetailsErrors[item.path] = String(error);
   } finally {
     state.technicalDetailsLoading = "";
     renderPreview();
@@ -1669,10 +1680,10 @@ function renderTechnicalDetails(container, item) {
     return;
   }
 
-  if (state.technicalDetailsError && !state.technicalDetails[item.path]) {
+  if (state.technicalDetailsErrors[item.path] && !state.technicalDetails[item.path]) {
     const error = document.createElement("div");
     error.className = "technical-details-state error";
-    error.textContent = `${t("technicalDetailsError")}: ${state.technicalDetailsError}`;
+    error.textContent = `${t("technicalDetailsError")}: ${state.technicalDetailsErrors[item.path]}`;
     container.appendChild(error);
   }
 
@@ -1701,7 +1712,8 @@ function renderTechnicalDetails(container, item) {
 
   const list = document.createElement("div");
   list.className = "technical-resource-list";
-  for (const resource of details.resources || []) {
+  const visibleResources = (details.resources || []).slice(0, 500);
+  for (const resource of visibleResources) {
     const row = document.createElement("article");
     row.className = "technical-resource";
     const top = document.createElement("div");
@@ -1725,6 +1737,14 @@ function renderTechnicalDetails(container, item) {
     list.appendChild(row);
   }
   container.appendChild(list);
+
+  if ((details.resources || []).length > visibleResources.length) {
+    const limited = document.createElement("div");
+    limited.className = "technical-details-state";
+    limited.textContent =
+      `${t("showingResourceLimit")}: ${visibleResources.length}/${details.resources.length}`;
+    container.appendChild(limited);
+  }
 }
 
 function renderTabs() {
@@ -2224,17 +2244,19 @@ async function chooseFolder() {
   state.plan = null;
   state.duplicatesAnalysis = null;
   state.duplicatesError = "";
+  state.duplicatesNotice = "";
   state.duplicatesSearch = "";
   state.duplicatesFilter = "all";
   state.duplicateSelectedId = "";
   state.conflictsAnalysis = null;
   state.conflictsError = "";
+  state.conflictsNotice = "";
   state.conflictsSearch = "";
   state.conflictsFilter = "all";
   state.conflictSelectedId = "";
   state.technicalDetails = {};
   state.technicalDetailsLoading = "";
-  state.technicalDetailsError = "";
+  state.technicalDetailsErrors = {};
   state.restoreHistory = [];
   closePlanModal();
   render();
@@ -2454,6 +2476,7 @@ async function analyzeDuplicates() {
   const previousSelectedId = state.duplicateSelectedId;
 
   state.duplicatesBusy = true;
+  state.duplicatesNotice = "";
   state.operations.duplicates = null;
   void monitorOperation("duplicates");
   state.duplicatesError = "";
@@ -2471,6 +2494,7 @@ async function analyzeDuplicates() {
     const message = String(error);
     if (message.includes("__S3CC_OPERATION_CANCELLED__")) {
       state.duplicatesError = "";
+      state.duplicatesNotice = t("cancelled");
       state.duplicatesAnalysis = previousAnalysis;
       state.duplicateSelectedId = previousSelectedId;
     } else {
@@ -2489,6 +2513,7 @@ async function analyzeConflicts() {
   const previousSelectedId = state.conflictSelectedId;
 
   state.conflictsBusy = true;
+  state.conflictsNotice = "";
   state.operations.conflicts = null;
   void monitorOperation("conflicts");
   state.conflictsError = "";
@@ -2505,6 +2530,7 @@ async function analyzeConflicts() {
     const message = String(error);
     if (message.includes("__S3CC_OPERATION_CANCELLED__")) {
       state.conflictsError = "";
+      state.conflictsNotice = t("cancelled");
       state.conflictsAnalysis = previousAnalysis;
       state.conflictSelectedId = previousSelectedId;
     } else {
