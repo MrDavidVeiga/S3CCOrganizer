@@ -1,5 +1,6 @@
 use crate::{
     dbpf::Package,
+    workspace::ensure_writable,
     resource_cfg::{find_resource_cfg, package_priority, parse_resource_cfg, ResourceCfgInfo},
 };
 use serde::Serialize;
@@ -70,6 +71,25 @@ fn outside_packages(root:&Path)->Vec<String>{
     }
     out.sort_by_key(|v|v.to_ascii_lowercase());out
 }
+#[tauri::command]
+pub fn remove_empty_folder(folder:String,relative_path:String)->Result<bool,String>{
+    let root=canonical_root(&folder)?;
+    ensure_writable(&root)?;
+    let normalized=relative_path.replace('\\',"/");
+    let relative=Path::new(&normalized);
+    if relative.is_absolute() || relative.components().any(|c|matches!(c,std::path::Component::ParentDir|std::path::Component::RootDir|std::path::Component::Prefix(_))){
+        return Err("Unsafe empty-folder path.".into());
+    }
+    let candidate=root.join(relative);
+    let meta=fs::symlink_metadata(&candidate).map_err(|e|format!("Could not inspect folder: {e}"))?;
+    if meta.file_type().is_symlink() || !meta.is_dir(){return Err("Target is not a regular directory.".into());}
+    let canonical=candidate.canonicalize().map_err(|e|e.to_string())?;
+    if !canonical.starts_with(&root)||canonical==root{return Err("Target is outside the selected root.".into());}
+    if fs::read_dir(&canonical).map_err(|e|e.to_string())?.next().is_some(){return Err("Folder is not empty.".into());}
+    fs::remove_dir(&canonical).map_err(|e|format!("Could not remove empty folder: {e}"))?;
+    Ok(true)
+}
+
 #[tauri::command]
 pub fn analyze_mods_health(folder:String)->Result<ModsHealthReport,String>{
     let root=canonical_root(&folder)?;
