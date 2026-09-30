@@ -1,4 +1,5 @@
 use crate::{restore_history::list_restore_history,structure_manager::list_manual_operations,snapshots::list_snapshots};
+use chrono::{DateTime, Local};
 use serde::Serialize;
 use std::path::PathBuf;
 
@@ -41,8 +42,9 @@ pub fn get_operation_history(folder:String)->Result<Vec<OperationHistoryItem>,St
     if inbox_dir.is_dir(){
         for entry in std::fs::read_dir(inbox_dir).map_err(|e|e.to_string())?.filter_map(Result::ok){
             if !entry.path().is_file(){continue;}
-            let timestamp=entry.metadata().ok().and_then(|m|m.modified().ok()).and_then(|t|t.duration_since(std::time::UNIX_EPOCH).ok())
-                .map(|d|format!("{}",d.as_secs())).unwrap_or_default();
+            let timestamp=entry.metadata().ok().and_then(|m|m.modified().ok())
+                .map(|time|DateTime::<Local>::from(time).to_rfc3339())
+                .unwrap_or_default();
             out.push(OperationHistoryItem{
                 timestamp,kind:"inbox_import".into(),title:entry.file_name().to_string_lossy().to_string(),
                 source:None,destination:Some(entry.path().to_string_lossy().to_string()),status:"imported".into()
