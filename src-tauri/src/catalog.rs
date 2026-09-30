@@ -20,6 +20,7 @@ pub struct CatalogClassification {
     pub folder_parts: Vec<String>,
     pub candidate_folder_parts: Vec<Vec<String>>,
     pub ambiguous: bool,
+    pub technical_reason: String,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -720,6 +721,15 @@ pub fn classify_casp(data: &[u8], language: AppLanguage) -> Option<CatalogClassi
         folder_parts.push(sub.clone());
     }
 
+    let technical_reason = format!(
+        "CASP clothingType=0x{:08X}; typeFlags=0x{:08X}; ageSpeciesGender=0x{:08X}; clothingCategory=0x{:08X} => {}",
+        core.clothing_type,
+        core.type_flags,
+        core.age_species_gender,
+        core.clothing_category,
+        folder_parts.join("\\")
+    );
+
     Some(CatalogClassification {
         source: "CASP".to_string(),
         kind: "cas".to_string(),
@@ -732,6 +742,7 @@ pub fn classify_casp(data: &[u8], language: AppLanguage) -> Option<CatalogClassi
         candidate_folder_parts: vec![folder_parts.clone()],
         folder_parts,
         ambiguous: false,
+        technical_reason,
     })
 }
 
@@ -1063,6 +1074,23 @@ pub fn classify_objd(data: &[u8], language: AppLanguage) -> Option<CatalogClassi
             Some(tr(language, build_options[0]).to_string())
         };
 
+        let technical_reason = format!(
+            "OBJD buildCategory=0x{:08X}; functionCategory=0x{:08X}; subCategory1=0x{:016X}; subCategory2=0x{:016X} => {}",
+            flags.build_category_flags,
+            flags.function_category_flags,
+            flags.sub_category1_flags,
+            flags.sub_category2_flags,
+            if folder_parts.is_empty() {
+                candidate_folder_parts
+                    .iter()
+                    .map(|parts| parts.join("\\"))
+                    .collect::<Vec<_>>()
+                    .join(" | ")
+            } else {
+                folder_parts.join("\\")
+            }
+        );
+
         return Some(CatalogClassification {
             source: "OBJD".to_string(),
             kind: "build".to_string(),
@@ -1075,6 +1103,7 @@ pub fn classify_objd(data: &[u8], language: AppLanguage) -> Option<CatalogClassi
             folder_parts,
             candidate_folder_parts,
             ambiguous,
+            technical_reason,
         });
     }
 
@@ -1133,6 +1162,23 @@ pub fn classify_objd(data: &[u8], language: AppLanguage) -> Option<CatalogClassi
         None
     };
 
+    let technical_reason = format!(
+        "OBJD functionCategory=0x{:08X}; subCategory1=0x{:016X}; subCategory2=0x{:016X}; buildCategory=0x{:08X} => {}",
+        flags.function_category_flags,
+        flags.sub_category1_flags,
+        flags.sub_category2_flags,
+        flags.build_category_flags,
+        if folder_parts.is_empty() {
+            candidate_folder_parts
+                .iter()
+                .map(|parts| parts.join("\\"))
+                .collect::<Vec<_>>()
+                .join(" | ")
+        } else {
+            folder_parts.join("\\")
+        }
+    );
+
     Some(CatalogClassification {
         source: "OBJD".to_string(),
         kind: "buy".to_string(),
@@ -1145,6 +1191,7 @@ pub fn classify_objd(data: &[u8], language: AppLanguage) -> Option<CatalogClassi
         folder_parts,
         candidate_folder_parts,
         ambiguous,
+        technical_reason,
     })
 }
 
