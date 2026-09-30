@@ -1,7 +1,7 @@
 use crate::{
     i18n::AppLanguage,
     manifest::sha256_file,
-    scanner::{scan_packages, ScanPackageItem},
+    scanner::{scan_packages_core, ScanPackageItem},
 };
 use chrono::{Local, SecondsFormat};
 use serde::Serialize;
@@ -193,7 +193,7 @@ pub fn build_organization_plan(
         return Err(format!("Root is not a directory: {}", root.display()));
     }
 
-    let scan = scan_packages(root.to_string_lossy().to_string(), language)?;
+    let scan = scan_packages_core(root.to_string_lossy().to_string(), language, None)?;
 
     let mut scan_by_canonical = HashMap::<PathBuf, &ScanPackageItem>::new();
     for item in &scan.items {
