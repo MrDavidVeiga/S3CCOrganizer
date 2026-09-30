@@ -1274,9 +1274,28 @@ function renderDuplicatesPreview() {
 
     const members = document.createElement("div");
     members.className = "duplicate-member-list";
+    const quarantineEligible =
+      item.kind === "exact_duplicate" || item.kind === "content_duplicate";
     for (const member of item.members || []) {
       const card = document.createElement("article");
       card.className = "duplicate-member";
+      if (quarantineEligible) {
+        const selector = document.createElement("label");
+        selector.className = "quarantine-member-select";
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.checked = state.quarantineSelected.has(member.path);
+        checkbox.title = t("selectForQuarantine");
+        checkbox.addEventListener("change", () => {
+          if (checkbox.checked) state.quarantineSelected.add(member.path);
+          else state.quarantineSelected.delete(member.path);
+          state.quarantinePlan = null;
+          renderDuplicatesPreview();
+        });
+        selector.appendChild(checkbox);
+        card.appendChild(selector);
+      }
+
       const name = document.createElement("strong");
       name.textContent = member.name;
       const path = document.createElement("code");
