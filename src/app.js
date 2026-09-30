@@ -1916,7 +1916,7 @@ function visibleConflictFindings() {
   const findings = state.conflictsAnalysis?.findings || [];
   const query = state.conflictsSearch.trim().toLocaleLowerCase();
   return findings.filter((item) => {
-    const mark = state.conflictMarks[item.id];
+    const mark = effectiveConflictMark(item);
     if (state.conflictsFilter === "ignored_session") {
       if (mark !== "ignored") return false;
     } else if (state.conflictsFilter === "intentional_override") {
@@ -1954,13 +1954,6 @@ function visibleConflictFindings() {
   });
 }
 
-function setConflictMark(id, mark) {
-  if (!id) return;
-  if (mark) state.conflictMarks[id] = mark;
-  else delete state.conflictMarks[id];
-  renderConflicts();
-}
-
 function renderConflictsPreview() {
   if (!el.conflictsPreview) return;
   const finding = (state.conflictsAnalysis?.findings || []).find(
@@ -1976,7 +1969,7 @@ function renderConflictsPreview() {
     return;
   }
 
-  const sessionMark = state.conflictMarks[finding.id];
+  const sessionMark = effectiveConflictMark(finding);
   const header = document.createElement("div");
   header.className = "preview-header";
   const title = document.createElement("h3");
@@ -1999,7 +1992,7 @@ function renderConflictsPreview() {
     const markNotice = document.createElement("div");
     markNotice.className = "conflict-session-mark";
     markNotice.textContent =
-      sessionMark === "intentional" ? t("intentionalOverride") : t("ignoredSession");
+      sessionMark === "intentional" ? t("savedIntentionalOverride") : t("ignoredSession");
     reason.appendChild(markNotice);
   }
 
@@ -2009,15 +2002,15 @@ function renderConflictsPreview() {
   intentionalButton.type = "button";
   intentionalButton.className = "secondary-btn";
   intentionalButton.textContent = t("markIntentional");
-  intentionalButton.disabled = sessionMark === "intentional";
-  intentionalButton.addEventListener("click", () => setConflictMark(finding.id, "intentional"));
+  intentionalButton.disabled = sessionMark === "intentional" || state.reviewBusy;
+  intentionalButton.addEventListener("click", () => setConflictMark(finding, "intentional"));
 
   const ignoreButton = document.createElement("button");
   ignoreButton.type = "button";
   ignoreButton.className = "secondary-btn";
   ignoreButton.textContent = t("ignoreSession");
-  ignoreButton.disabled = sessionMark === "ignored";
-  ignoreButton.addEventListener("click", () => setConflictMark(finding.id, "ignored"));
+  ignoreButton.disabled = sessionMark === "ignored" || state.reviewBusy;
+  ignoreButton.addEventListener("click", () => setConflictMark(finding, "ignored"));
 
   markActions.append(intentionalButton, ignoreButton);
   if (sessionMark) {
@@ -2025,7 +2018,7 @@ function renderConflictsPreview() {
     clearButton.type = "button";
     clearButton.className = "secondary-btn";
     clearButton.textContent = t("clearMark");
-    clearButton.addEventListener("click", () => setConflictMark(finding.id, null));
+    clearButton.addEventListener("click", () => setConflictMark(finding, null));
     markActions.appendChild(clearButton);
   }
   reason.appendChild(markActions);
