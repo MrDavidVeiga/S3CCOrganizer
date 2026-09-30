@@ -13,7 +13,7 @@ pub struct RestoreHistoryItem {
     pub file_name: String,
     pub status: String,
     pub created_at: String,
-    pub modified_unix_ms: u128,
+    pub modified_unix_ms: u64,
     pub files: usize,
     pub root: Option<String>,
     pub matches_selected_root: bool,
@@ -63,7 +63,7 @@ pub fn list_restore_history(folder: String) -> Result<Vec<RestoreHistoryItem>, S
         let modified_unix_ms = metadata
             .and_then(|metadata| metadata.modified().ok())
             .and_then(|modified| modified.duration_since(UNIX_EPOCH).ok())
-            .map(|duration| duration.as_millis())
+            .map(|duration| duration.as_millis().min(u64::MAX as u128) as u64)
             .unwrap_or(0);
 
         let file_name = path
