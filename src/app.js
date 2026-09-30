@@ -1428,6 +1428,8 @@ function renderConflictFilter() {
     ["potential_conflict", t("potentialConflict")],
     ["mixed_override", t("mixedOverride")],
     ["shared_identical", t("sharedIdentical")],
+    ["intentional_override", t("intentionalOverride")],
+    ["ignored_session", t("ignoredSession")],
   ];
   el.conflictsFilter.innerHTML = "";
   for (const [value, label] of options) {
@@ -2575,15 +2577,14 @@ async function chooseFolder() {
   state.duplicatesAnalysis = null;
   state.duplicatesError = "";
   state.duplicatesNotice = "";
-  state.duplicatesSearch = "";
-  state.duplicatesFilter = "all";
   state.duplicateSelectedId = "";
   state.conflictsAnalysis = null;
   state.conflictsError = "";
   state.conflictsNotice = "";
-  state.conflictsSearch = "";
-  state.conflictsFilter = "all";
   state.conflictSelectedId = "";
+  state.conflictMarks = {};
+  state.quarantineSelected.clear();
+  state.quarantinePlan = null;
   state.technicalDetails = {};
   state.technicalDetailsLoading = "";
   state.technicalDetailsErrors = {};
