@@ -49,7 +49,7 @@ fn is_package(path:&Path)->bool{
     path.extension().and_then(|v|v.to_str()).map(|v|v.eq_ignore_ascii_case("package")).unwrap_or(false)
 }
 fn rel(root:&Path,path:&Path)->String{
-    path.strip_prefix(root).unwrap_or(path).to_string_lossy().replace('/',"\")
+    path.strip_prefix(root).unwrap_or(path).to_string_lossy().replace('/',"\\")
 }
 fn empty_dirs(root:&Path)->Vec<String>{
     let mut out=Vec::new();
