@@ -179,7 +179,7 @@ pub fn ensure_writable(root: &Path) -> Result<(), String> {
 }
 
 pub fn normalize_relative_text(value: &str) -> String {
-    value.replace('/', "\").trim_matches('\').to_ascii_lowercase()
+    value.replace('/', "\\").trim_matches('\\').to_ascii_lowercase()
 }
 
 pub fn is_protected(relative_path: &str, profile: &OrganizationProfile) -> bool {
@@ -187,7 +187,7 @@ pub fn is_protected(relative_path: &str, profile: &OrganizationProfile) -> bool 
     profile.protected_folders.iter().any(|folder| {
         let protected = normalize_relative_text(folder);
         !protected.is_empty()
-            && (relative == protected || relative.starts_with(&(protected + "\")))
+            && (relative == protected || relative.starts_with(&(protected + "\\")))
     })
 }
 
