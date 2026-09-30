@@ -1520,6 +1520,13 @@ function visibleConflictFindings() {
   });
 }
 
+function setConflictMark(id, mark) {
+  if (!id) return;
+  if (mark) state.conflictMarks[id] = mark;
+  else delete state.conflictMarks[id];
+  renderConflicts();
+}
+
 function renderConflictsPreview() {
   if (!el.conflictsPreview) return;
   const finding = (state.conflictsAnalysis?.findings || []).find(
@@ -1535,10 +1542,12 @@ function renderConflictsPreview() {
     return;
   }
 
+  const sessionMark = state.conflictMarks[finding.id];
   const header = document.createElement("div");
   header.className = "preview-header";
   const title = document.createElement("h3");
-  title.textContent = conflictKindLabel(finding.kind);
+  title.textContent =
+    sessionMark === "intentional" ? t("intentionalOverride") : conflictKindLabel(finding.kind);
   const badge = document.createElement("span");
   badge.className = `conflict-kind conflict-kind-${finding.severity}`;
   badge.textContent = finding.severity?.toUpperCase() || "";
@@ -1551,6 +1560,41 @@ function renderConflictsPreview() {
   const reasonText = document.createElement("p");
   reasonText.textContent = conflictExplanation(finding.kind);
   reason.append(reasonTitle, reasonText);
+
+  if (sessionMark) {
+    const markNotice = document.createElement("div");
+    markNotice.className = "conflict-session-mark";
+    markNotice.textContent =
+      sessionMark === "intentional" ? t("intentionalOverride") : t("ignoredSession");
+    reason.appendChild(markNotice);
+  }
+
+  const markActions = document.createElement("div");
+  markActions.className = "conflict-mark-actions";
+  const intentionalButton = document.createElement("button");
+  intentionalButton.type = "button";
+  intentionalButton.className = "secondary-btn";
+  intentionalButton.textContent = t("markIntentional");
+  intentionalButton.disabled = sessionMark === "intentional";
+  intentionalButton.addEventListener("click", () => setConflictMark(finding.id, "intentional"));
+
+  const ignoreButton = document.createElement("button");
+  ignoreButton.type = "button";
+  ignoreButton.className = "secondary-btn";
+  ignoreButton.textContent = t("ignoreSession");
+  ignoreButton.disabled = sessionMark === "ignored";
+  ignoreButton.addEventListener("click", () => setConflictMark(finding.id, "ignored"));
+
+  markActions.append(intentionalButton, ignoreButton);
+  if (sessionMark) {
+    const clearButton = document.createElement("button");
+    clearButton.type = "button";
+    clearButton.className = "secondary-btn";
+    clearButton.textContent = t("clearMark");
+    clearButton.addEventListener("click", () => setConflictMark(finding.id, null));
+    markActions.appendChild(clearButton);
+  }
+  reason.appendChild(markActions);
 
   const pair = document.createElement("div");
   pair.className = "conflict-pair";
