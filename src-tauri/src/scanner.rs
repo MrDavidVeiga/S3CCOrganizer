@@ -534,7 +534,9 @@ fn apply_manual_classifications(root: &Path, items: &mut [ScanPackageItem]) {
     }
 
     for item in items.iter_mut() {
-        if item.status == "invalid" {
+        // Authoritative automatic classifications win. Manual review exists to
+        // resolve Unknown/Mixed/Needs Review cases, so only those need hashing.
+        if item.status == "invalid" || item.status == "classified" {
             continue;
         }
 
