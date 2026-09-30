@@ -40,6 +40,7 @@ pub struct ScanPackageItem {
     pub destination_path: Option<String>,
     pub candidate_destinations: Vec<String>,
     pub classifications: Vec<CatalogClassification>,
+    pub classification_reason: Option<String>,
     pub warnings: Vec<String>,
 }
 
@@ -170,6 +171,7 @@ fn scan_one(root: &Path, path: &Path, language: AppLanguage) -> ScanPackageItem 
                 destination_path: None,
                 candidate_destinations: Vec::new(),
                 classifications: Vec::new(),
+                classification_reason: None,
                 warnings: vec![error.to_string()],
             };
         }
@@ -270,6 +272,9 @@ fn scan_one(root: &Path, path: &Path, language: AppLanguage) -> ScanPackageItem 
     };
 
     let mut family_primary: Option<PackageFamilyClassification> = None;
+    let mut classification_reason = primary
+        .as_ref()
+        .map(|classification| classification.technical_reason.clone());
 
     if status == "unknown" && catalog_resource_count == 0 {
         match classify_package_family(&type_ids, language) {
@@ -280,6 +285,7 @@ fn scan_one(root: &Path, path: &Path, language: AppLanguage) -> ScanPackageItem 
                 destination_parts = classification.folder_parts.clone();
                 destination_path = Some(destination_parts.join("\\"));
                 status = "classified".to_string();
+                classification_reason = Some(classification.technical_reason.clone());
                 family_primary = Some(classification);
             }
             PackageFamilyResult::Ambiguous(candidates) => {
@@ -341,6 +347,16 @@ fn scan_one(root: &Path, path: &Path, language: AppLanguage) -> ScanPackageItem 
         )
     };
 
+    if classification_reason.is_none() && !classifications.is_empty() {
+        classification_reason = Some(
+            classifications
+                .iter()
+                .map(|classification| classification.technical_reason.clone())
+                .collect::<Vec<_>>()
+                .join(" | "),
+        );
+    }
+
     ScanPackageItem {
         id,
         name,
@@ -362,6 +378,7 @@ fn scan_one(root: &Path, path: &Path, language: AppLanguage) -> ScanPackageItem 
         destination_path,
         candidate_destinations: candidate_destinations.into_iter().collect(),
         classifications,
+        classification_reason,
         warnings,
     }
 }
