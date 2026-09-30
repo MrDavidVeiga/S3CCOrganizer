@@ -85,11 +85,30 @@ Results:
 ```text
 direct slider/morph packages: 290
 STBL slider companion packages: 1
-classified to CAS\Sliders: 291
+classified under CAS\Sliders: 291
+refined by internal NMAP/STBL anatomical name: 284
+kept at CAS\Sliders root because the internal name is generic/opaque: 6
+shared companion kept at CAS\Sliders root: 1
 conservative Unknown/Needs Review auxiliaries: 8
 ```
 
 The STBL-only companion is classified as a slider only because its STBL entry keys match morph-resource instance IDs in other packages from the selected set. Its filename is not used as evidence.
+
+
+Direct sliders are subdivided only from their internal NMAP name, with STBL text as a fallback when NMAP is missing or opaque. The CAS panel/category where the creator exposed the slider is deliberately ignored because body sliders can legitimately appear under Head, Mouth or another unrelated UI panel.
+
+Examples confirmed from the corpus:
+
+```text
+Bloom_ArmTwist_slider  -> CAS\Sliders\Body\Arms
+Bloom_LegLenght_slider -> CAS\Sliders\Body\Legs
+Bloom_Footwidth_slider -> CAS\Sliders\Body\Feet
+Shoulder Height        -> CAS\Sliders\Body\Shoulders
+Nose Tip Height        -> CAS\Sliders\Face\Nose
+```
+
+Generic internal names such as `Tip Width` and `Outer Curve` are intentionally not forced into a region from the package filename.
+
 
 The real corpus confirmed matches from the STBL companion to FBLN instances for the following slider concepts:
 
@@ -124,9 +143,13 @@ already organized: 0
 same-content destination collisions: 0
 different-content destination collisions: 0
 destination filename collisions inside CAS\Sliders: 0
-directories to create:
+directories to create: 26
   CAS
   CAS\Sliders
+  CAS\Sliders\Face
+  CAS\Sliders\Body
+  CAS\Sliders\Head
+  + 21 anatomy-specific child folders
 canExecute expectation: true
 ```
 
@@ -142,7 +165,9 @@ Organization result:
 
 ```text
 planned classified packages: 291
-moved to CAS\Sliders: 291
+moved under CAS\Sliders: 291
+moved into anatomy-specific subfolders: 284
+kept at CAS\Sliders root: 7
 conservative auxiliaries left in place: 8
 total packages after organization: 299
 destination overwrites: 0
@@ -200,7 +225,10 @@ The code now includes regression checks for:
 - LAYO labeling and visual-override classification;
 - STBL v2 key parsing;
 - morph resource types used by slider companion matching;
-- STBL-key-to-morph-instance companion evidence.
+- STBL-key-to-morph-instance companion evidence;
+- NMAP internal slider-name parsing;
+- anatomical slider subfolder mapping independent of CAS UI placement;
+- conservative fallback to the CAS\Sliders root for generic/opaque internal names.
 
 ### Next validation stage
 
