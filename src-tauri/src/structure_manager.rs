@@ -181,7 +181,7 @@ fn log_path(root: &Path) -> PathBuf {
         .join("manual-operations-v1.jsonl")
 }
 
-fn append_log(root: &Path, record: &ManualOperationRecord) -> Result<(), String> {
+pub(crate) fn append_log(root: &Path, record: &ManualOperationRecord) -> Result<(), String> {
     let path = log_path(root);
     let parent = path
         .parent()
@@ -521,6 +521,19 @@ pub fn undo_last_manual_operation(folder: String) -> Result<StructureActionResul
             fs::remove_dir(&destination)
                 .map_err(|error| format!("Could not undo folder creation: {error}"))?;
             (Some(destination_relative.clone()), String::new())
+        }
+        "remove_empty_folder" => {
+            let source_relative = original
+                .source_relative_path
+                .clone()
+                .ok_or_else(|| "Empty-folder history is missing its path.".to_string())?;
+            let destination = root.join(&source_relative);
+            if destination.exists() {
+                return Err("The removed empty folder path is already occupied.".to_string());
+            }
+            fs::create_dir(&destination)
+                .map_err(|error| format!("Could not recreate empty folder: {error}"))?;
+            (None, source_relative)
         }
         "move" | "rename_folder" => {
             let source_relative = original
