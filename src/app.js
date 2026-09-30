@@ -1307,6 +1307,30 @@ function renderDuplicatesPreview() {
       members.appendChild(card);
     }
     el.duplicatesPreview.appendChild(members);
+
+    if (quarantineEligible) {
+      const actions = document.createElement("div");
+      actions.className = "quarantine-actions";
+      const previewButton = document.createElement("button");
+      previewButton.type = "button";
+      previewButton.className = "secondary-btn";
+      previewButton.textContent = t("previewQuarantine");
+      previewButton.disabled = !state.quarantineSelected.size || state.quarantineBusy;
+      previewButton.addEventListener("click", buildQuarantinePreview);
+
+      const clearButton = document.createElement("button");
+      clearButton.type = "button";
+      clearButton.className = "secondary-btn";
+      clearButton.textContent = t("clearSelection");
+      clearButton.disabled = !state.quarantineSelected.size;
+      clearButton.addEventListener("click", () => {
+        state.quarantineSelected.clear();
+        state.quarantinePlan = null;
+        renderDuplicatesPreview();
+      });
+      actions.append(previewButton, clearButton);
+      el.duplicatesPreview.appendChild(actions);
+    }
   } else {
     const pair = document.createElement("div");
     pair.className = "duplicate-pair";
