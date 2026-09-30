@@ -53,11 +53,30 @@
 
           <div id="selection-summary" class="selection-summary">0</div>
 
+          <section id="cache-panel" class="sidebar-utility">
+            <div class="sidebar-utility-header">
+              <strong data-i18n="cacheTitle">Analysis Cache</strong>
+              <span id="cache-status-dot" class="utility-dot"></span>
+            </div>
+            <div id="cache-summary" class="sidebar-utility-summary" data-i18n="cacheNoData">No cache information.</div>
+            <div class="sidebar-utility-actions">
+              <button id="open-cache-btn" class="secondary-btn compact-btn" type="button" disabled data-i18n="openCacheFolder">Open Cache</button>
+              <button id="clear-cache-btn" class="secondary-btn compact-btn" type="button" disabled data-i18n="clearCache">Clear Cache</button>
+            </div>
+          </section>
+
+          <details id="diagnostics-panel" class="sidebar-diagnostics">
+            <summary data-i18n="performanceDiagnostics">Performance</summary>
+            <div id="diagnostics-content" class="diagnostics-content"></div>
+          </details>
+
           <div class="sidebar-note">
             <i class="fa-solid fa-shield-halved" aria-hidden="true"></i>
             <span data-i18n="readOnlyStage">This stage only analyzes files. Nothing is moved.</span>
           </div>
         </aside>
+
+        <div id="sidebar-resizer" class="sidebar-resizer" role="separator" aria-orientation="vertical" aria-label="Resize sidebar"></div>
 
         <section class="content right-panel card">
           <section id="page-organizer" class="tool-page">
@@ -209,6 +228,19 @@
               <div id="restore-manifest-path" class="restore-manifest-path" data-i18n="noManifest">No manifest selected.</div>
               <button id="preview-restore-btn" class="secondary-btn" type="button" disabled data-i18n="previewRestore">Preview Restore</button>
               <button id="execute-restore-btn" class="primary-btn restore-primary" type="button" disabled data-i18n="executeRestore">Restore Structure</button>
+              <button id="open-manifest-folder-btn" class="secondary-btn" type="button" disabled data-i18n="openManifestFolder">Open Manifest Folder</button>
+            </div>
+
+            <div id="restore-root-check" class="restore-root-check hidden">
+              <div>
+                <span data-i18n="manifestRoot">Manifest root</span>
+                <code id="restore-manifest-root"></code>
+              </div>
+              <div>
+                <span data-i18n="selectedRoot">Selected Mods root</span>
+                <code id="restore-selected-root"></code>
+              </div>
+              <strong id="restore-root-status"></strong>
             </div>
 
             <div class="restore-history-panel">
