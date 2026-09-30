@@ -1787,8 +1787,12 @@ function renderConflicts() {
     for (const finding of findings) {
       const button = document.createElement("button");
       button.type = "button";
+      const sessionMark = state.conflictMarks[finding.id];
       button.className =
-        "conflict-row" + (finding.id === state.conflictSelectedId ? " active" : "");
+        "conflict-row" +
+        (finding.id === state.conflictSelectedId ? " active" : "") +
+        (sessionMark === "intentional" ? " intentional" : "") +
+        (sessionMark === "ignored" ? " ignored" : "");
 
       const main = document.createElement("div");
       main.className = "conflict-row-main";
