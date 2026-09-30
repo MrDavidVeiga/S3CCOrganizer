@@ -1,7 +1,8 @@
 use crate::{
     dbpf::Package,
-    workspace::ensure_writable,
     resource_cfg::{find_resource_cfg, package_priority, parse_resource_cfg, ResourceCfgInfo},
+    structure_manager::{append_log, ManualOperationRecord},
+    workspace::ensure_writable,
 };
 use serde::Serialize;
 use std::{fs, path::{Path, PathBuf}};
