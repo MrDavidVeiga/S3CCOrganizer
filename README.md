@@ -4,11 +4,13 @@ A Windows desktop tool for **The Sims 3** to analyze, classify and organize cust
 
 ## Goals
 
-The Organizer is designed around three independent views:
+The Organizer is designed around five independent views:
 
 - **Organizer** — classify packages from their actual game resources and propose a folder structure.
 - **Duplicates** — distinguish exact copies, content duplicates, related variants/retextures and files that only share resources.
 - **Conflicts** — compare resource definitions and avoid treating every shared TGI/pattern as a real conflict.
+- **Structure** — manually create nested folders, move files/folders and rename folders inside the selected Mods root.
+- **Restore** — preview and execute transactional restoration from Organizer manifests.
 
 The application is implemented in **Rust + Tauri 2 + Vite**, following the same desktop stack used by Veiga's S3CC Packer/Splitter. S3PI is used only as technical reference for known The Sims 3 resource/category information; S3PI code is not embedded as a dependency.
 
@@ -18,8 +20,9 @@ The application is implemented in **Rust + Tauri 2 + Vite**, following the same 
 2. Never call two packages duplicates only because their names or sizes match.
 3. Never call two packages conflicting only because they share a pattern or resource key.
 4. Show the reason for every duplicate/conflict classification.
-5. Create a restore point before moving files.
-6. Restoring a previous layout must preserve files that were added later.
+5. Automated organization writes a restore manifest before moving files.
+6. Manual Structure operations never delete or silently overwrite content and are recorded in a local operation history.
+7. Restoring a previous layout must preserve files that were added later.
 
 ## Language-aware taxonomy
 
@@ -143,7 +146,8 @@ Implemented in code:
 - read-only Conflicts analysis with conservative Resource.cfg priority evidence;
 - organization Planner;
 - transactional organization execution with full baseline manifest;
-- transactional Restore with rollback and preservation of later-added packages.
+- transactional Restore with rollback and preservation of later-added packages;
+- manual Structure management for nested folder creation, file/folder moves and folder renaming.
 
 Still pending before release:
 
