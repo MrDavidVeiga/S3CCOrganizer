@@ -3360,8 +3360,10 @@ function renderRestore() {
   const plan = state.restorePlan;
   el.restoreManifestPath.textContent = state.restoreManifest || t("noManifest");
   el.restoreManifestPath.title = state.restoreManifest;
-  el.previewRestoreBtn.disabled = !state.restoreManifest || state.restoreBusy;
-  el.executeRestoreBtn.disabled = !plan?.canExecute || state.restoreBusy;
+  el.previewRestoreBtn.disabled =
+    !state.restoreManifest || state.restoreBusy || state.structureBusy;
+  el.executeRestoreBtn.disabled =
+    !plan?.canExecute || state.restoreBusy || state.structureBusy;
   el.openManifestFolderBtn.disabled = !state.restoreManifest;
 
   if (plan) {
