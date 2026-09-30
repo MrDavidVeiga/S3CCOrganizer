@@ -79,36 +79,60 @@ const TYPE_NMAP_LOCAL: u32 = 0x0166_038C;
 const TYPE_STBL_LOCAL: u32 = 0x2205_57DA;
 const TYPE_MANIFEST_LOCAL: u32 = 0x73E9_3EEB;
 
-fn is_slider_morph_type(type_id: u32) -> bool {
-    matches!(
-        type_id,
-        TYPE_BONE_DELTA | TYPE_FACE | TYPE_BBLN | TYPE_BGEO | TYPE_FBLN
-    )
+fn nmap_names(data: &[u8]) -> Vec<String> {
+    if data.len() < 8 {
+        return Vec::new();
+    }
+
+    let version = u32::from_le_bytes(data[0..4].try_into().unwrap());
+    if version != 1 {
+        return Vec::new();
+    }
+    let count = u32::from_le_bytes(data[4..8].try_into().unwrap()) as usize;
+    let mut offset = 8usize;
+    let mut names = Vec::with_capacity(count.min(64));
+
+    for _ in 0..count {
+        if offset.checked_add(12).map(|end| end <= data.len()) != Some(true) {
+            return Vec::new();
+        }
+        offset += 8; // name hash
+        let byte_count =
+            u32::from_le_bytes(data[offset..offset + 4].try_into().unwrap()) as usize;
+        offset += 4;
+        let Some(next) = offset.checked_add(byte_count) else {
+            return Vec::new();
+        };
+        if next > data.len() {
+            return Vec::new();
+        }
+        let name = String::from_utf8_lossy(&data[offset..next]).trim().to_string();
+        if !name.is_empty() {
+            names.push(name);
+        }
+        offset = next;
+    }
+
+    names
 }
 
-fn stbl_keys(data: &[u8]) -> Vec<u64> {
+fn stbl_entries(data: &[u8]) -> Vec<(u64, String)> {
     if data.len() < 17 || &data[..4] != b"STBL" {
         return Vec::new();
     }
 
-    let Some(count_bytes) = data.get(7..11) else {
-        return Vec::new();
-    };
-    let count = u32::from_le_bytes(count_bytes.try_into().unwrap()) as usize;
+    let count = u32::from_le_bytes(data[7..11].try_into().unwrap()) as usize;
     let mut offset = 17usize;
-    let mut keys = Vec::with_capacity(count.min(4096));
+    let mut entries = Vec::with_capacity(count.min(4096));
 
     for _ in 0..count {
-        let Some(key_bytes) = data.get(offset..offset + 8) else {
+        if offset.checked_add(12).map(|end| end <= data.len()) != Some(true) {
             return Vec::new();
-        };
-        let key = u64::from_le_bytes(key_bytes.try_into().unwrap());
+        }
+        let key = u64::from_le_bytes(data[offset..offset + 8].try_into().unwrap());
         offset += 8;
-
-        let Some(length_bytes) = data.get(offset..offset + 4) else {
-            return Vec::new();
-        };
-        let char_count = u32::from_le_bytes(length_bytes.try_into().unwrap()) as usize;
+        let char_count =
+            u32::from_le_bytes(data[offset..offset + 4].try_into().unwrap()) as usize;
         offset += 4;
 
         let Some(byte_count) = char_count.checked_mul(2) else {
@@ -121,11 +145,302 @@ fn stbl_keys(data: &[u8]) -> Vec<u64> {
             return Vec::new();
         }
 
-        keys.push(key);
+        let units = data[offset..next]
+            .chunks_exact(2)
+            .map(|pair| u16::from_le_bytes([pair[0], pair[1]]));
+        let text = char::decode_utf16(units)
+            .map(|value| value.unwrap_or('\u{FFFD}'))
+            .collect::<String>();
+        entries.push((key, text));
         offset = next;
     }
 
-    keys
+    entries
+}
+
+fn normalize_slider_internal_name(value: &str) -> String {
+    let mut out = String::with_capacity(value.len() + 8);
+    let mut previous_lower = false;
+
+    for ch in value.chars() {
+        if ch.is_ascii_alphanumeric() {
+            if ch.is_ascii_uppercase() && previous_lower && !out.ends_with(' ') {
+                out.push(' ');
+            }
+            out.push(ch.to_ascii_lowercase());
+            previous_lower = ch.is_ascii_lowercase();
+        } else {
+            if !out.ends_with(' ') {
+                out.push(' ');
+            }
+            previous_lower = false;
+        }
+    }
+
+    out.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn token_starts_with_any(normalized: &str, roots: &[&str]) -> bool {
+    normalized
+        .split_whitespace()
+        .any(|token| roots.iter().any(|root| token.starts_with(root)))
+}
+
+fn token_contains(normalized: &str, value: &str) -> bool {
+    normalized
+        .split_whitespace()
+        .any(|token| token.contains(value))
+}
+
+fn slider_region_keys(internal_name: &str) -> Option<(&'static str, Option<&'static str>)> {
+    let name = normalize_slider_internal_name(internal_name);
+
+    // Specific anatomy always wins over generic words such as "height".
+    // This is intentionally based on internal NMAP/STBL names, never on the
+    // CAS panel/category in which the creator placed the slider.
+    if token_starts_with_any(&name, &["eyebrow", "brow"]) {
+        return Some(("face", Some("eyebrows")));
+    }
+    if token_starts_with_any(&name, &["eyelid", "eyeball", "eye", "pupil", "iris"]) {
+        return Some(("face", Some("eyes")));
+    }
+    if token_starts_with_any(&name, &["nostril", "septum", "nose", "bridge"]) {
+        return Some(("face", Some("nose")));
+    }
+    if token_starts_with_any(
+        &name,
+        &["lip", "mouth", "philtrum", "cupid", "overlip", "frown", "smile"],
+    ) {
+        return Some(("face", Some("mouth_lips")));
+    }
+    if token_starts_with_any(&name, &["jaw", "chin"]) {
+        return Some(("face", Some("jaw_chin")));
+    }
+    if token_starts_with_any(&name, &["cheek"]) || token_contains(&name, "cheek") {
+        return Some(("face", Some("cheeks")));
+    }
+    if token_starts_with_any(&name, &["ear", "midear"]) {
+        return Some(("face", Some("ears")));
+    }
+    if token_starts_with_any(&name, &["forehead"]) {
+        return Some(("face", Some("forehead")));
+    }
+    if token_starts_with_any(&name, &["face"]) {
+        return Some(("face", None));
+    }
+
+    if token_starts_with_any(&name, &["hat"]) {
+        return Some(("head", Some("hats")));
+    }
+    if token_starts_with_any(&name, &["glasses"]) {
+        return Some(("head", Some("glasses")));
+    }
+    if token_starts_with_any(&name, &["head", "skull"]) {
+        return Some(("head", None));
+    }
+
+    if token_starts_with_any(&name, &["shoulder"]) {
+        return Some(("body", Some("shoulders")));
+    }
+    if token_starts_with_any(&name, &["forearm", "arm", "bicep", "tricep", "elbow"]) {
+        return Some(("body", Some("arms")));
+    }
+    if token_starts_with_any(&name, &["hand", "finger", "thumb", "nail"]) {
+        return Some(("body", Some("hands")));
+    }
+    if token_starts_with_any(&name, &["breast", "chest", "nipple", "ribcage"]) {
+        return Some(("body", Some("chest_breasts")));
+    }
+    if token_starts_with_any(&name, &["waist"]) {
+        return Some(("body", Some("waist")));
+    }
+    if token_starts_with_any(&name, &["hip", "butt", "pelvis"]) {
+        return Some(("body", Some("hips_butt")));
+    }
+    if token_starts_with_any(&name, &["leg", "thigh", "calf", "knee"]) {
+        return Some(("body", Some("legs")));
+    }
+    if token_starts_with_any(&name, &["foot", "feet", "ankle", "toe"]) {
+        return Some(("body", Some("feet")));
+    }
+    if token_starts_with_any(&name, &["neck"]) {
+        return Some(("body", Some("neck")));
+    }
+    if token_starts_with_any(&name, &["torso", "body", "belly", "abdomen", "stomach", "back"]) {
+        return Some(("body", Some("torso")));
+    }
+    if token_starts_with_any(&name, &["simheight", "height", "posture", "simscaler"]) {
+        return Some(("body", Some("height_posture")));
+    }
+
+    None
+}
+
+fn slider_folder_label(language: AppLanguage, key: &str) -> &'static str {
+    match (language, key) {
+        (AppLanguage::En, "face") => "Face",
+        (AppLanguage::Pt, "face") => "Rosto",
+        (AppLanguage::Es, "face") => "Rostro",
+        (AppLanguage::En, "body") => "Body",
+        (AppLanguage::Pt, "body") => "Corpo",
+        (AppLanguage::Es, "body") => "Cuerpo",
+        (AppLanguage::En, "head") => "Head",
+        (AppLanguage::Pt, "head") => "Cabeça",
+        (AppLanguage::Es, "head") => "Cabeza",
+        (AppLanguage::En, "eyebrows") => "Eyebrows",
+        (AppLanguage::Pt, "eyebrows") => "Sobrancelhas",
+        (AppLanguage::Es, "eyebrows") => "Cejas",
+        (AppLanguage::En, "eyes") => "Eyes",
+        (AppLanguage::Pt, "eyes") => "Olhos",
+        (AppLanguage::Es, "eyes") => "Ojos",
+        (AppLanguage::En, "nose") => "Nose",
+        (AppLanguage::Pt, "nose") => "Nariz",
+        (AppLanguage::Es, "nose") => "Nariz",
+        (AppLanguage::En, "mouth_lips") => "Mouth & Lips",
+        (AppLanguage::Pt, "mouth_lips") => "Boca e Lábios",
+        (AppLanguage::Es, "mouth_lips") => "Boca y Labios",
+        (AppLanguage::En, "jaw_chin") => "Jaw & Chin",
+        (AppLanguage::Pt, "jaw_chin") => "Mandíbula e Queixo",
+        (AppLanguage::Es, "jaw_chin") => "Mandíbula y Mentón",
+        (AppLanguage::En, "cheeks") => "Cheeks",
+        (AppLanguage::Pt, "cheeks") => "Bochechas",
+        (AppLanguage::Es, "cheeks") => "Mejillas",
+        (AppLanguage::En, "ears") => "Ears",
+        (AppLanguage::Pt, "ears") => "Orelhas",
+        (AppLanguage::Es, "ears") => "Orejas",
+        (AppLanguage::En, "forehead") => "Forehead",
+        (AppLanguage::Pt, "forehead") => "Testa",
+        (AppLanguage::Es, "forehead") => "Frente",
+        (AppLanguage::En, "hats") => "Hats",
+        (AppLanguage::Pt, "hats") => "Chapéus",
+        (AppLanguage::Es, "hats") => "Sombreros",
+        (AppLanguage::En, "glasses") => "Glasses",
+        (AppLanguage::Pt, "glasses") => "Óculos",
+        (AppLanguage::Es, "glasses") => "Gafas",
+        (AppLanguage::En, "shoulders") => "Shoulders",
+        (AppLanguage::Pt, "shoulders") => "Ombros",
+        (AppLanguage::Es, "shoulders") => "Hombros",
+        (AppLanguage::En, "arms") => "Arms",
+        (AppLanguage::Pt, "arms") => "Braços",
+        (AppLanguage::Es, "arms") => "Brazos",
+        (AppLanguage::En, "hands") => "Hands",
+        (AppLanguage::Pt, "hands") => "Mãos",
+        (AppLanguage::Es, "hands") => "Manos",
+        (AppLanguage::En, "chest_breasts") => "Chest & Breasts",
+        (AppLanguage::Pt, "chest_breasts") => "Peito e Seios",
+        (AppLanguage::Es, "chest_breasts") => "Pecho y Senos",
+        (AppLanguage::En, "waist") => "Waist",
+        (AppLanguage::Pt, "waist") => "Cintura",
+        (AppLanguage::Es, "waist") => "Cintura",
+        (AppLanguage::En, "hips_butt") => "Hips & Butt",
+        (AppLanguage::Pt, "hips_butt") => "Quadris e Bumbum",
+        (AppLanguage::Es, "hips_butt") => "Caderas y Glúteos",
+        (AppLanguage::En, "legs") => "Legs",
+        (AppLanguage::Pt, "legs") => "Pernas",
+        (AppLanguage::Es, "legs") => "Piernas",
+        (AppLanguage::En, "feet") => "Feet",
+        (AppLanguage::Pt, "feet") => "Pés",
+        (AppLanguage::Es, "feet") => "Pies",
+        (AppLanguage::En, "neck") => "Neck",
+        (AppLanguage::Pt, "neck") => "Pescoço",
+        (AppLanguage::Es, "neck") => "Cuello",
+        (AppLanguage::En, "torso") => "Torso",
+        (AppLanguage::Pt, "torso") => "Tronco",
+        (AppLanguage::Es, "torso") => "Torso",
+        (AppLanguage::En, "height_posture") => "Height & Posture",
+        (AppLanguage::Pt, "height_posture") => "Altura e Postura",
+        (AppLanguage::Es, "height_posture") => "Altura y Postura",
+        _ => key,
+    }
+}
+
+fn slider_destination_from_internal_name(
+    internal_name: &str,
+    language: AppLanguage,
+) -> Option<Vec<String>> {
+    let (region, part) = slider_region_keys(internal_name)?;
+    let mut result = vec![
+        "CAS".to_string(),
+        "Sliders".to_string(),
+        slider_folder_label(language, region).to_string(),
+    ];
+    if let Some(part) = part {
+        result.push(slider_folder_label(language, part).to_string());
+    }
+    Some(result)
+}
+
+fn slider_internal_candidates(package: &Package) -> Vec<(String, &'static str)> {
+    let mut candidates = Vec::new();
+    let mut seen = BTreeSet::<String>::new();
+
+    for entry in &package.entries {
+        if entry.type_id != TYPE_NMAP_LOCAL {
+            continue;
+        }
+        let Ok(data) = package.data(entry) else {
+            continue;
+        };
+        if let Some(name) = nmap_names(&data).into_iter().next() {
+            let key = name.to_ascii_lowercase();
+            if seen.insert(key) {
+                candidates.push((name, "NMAP"));
+            }
+        }
+    }
+
+    let mut stbl_resources = package
+        .entries
+        .iter()
+        .filter(|entry| entry.type_id == TYPE_STBL_LOCAL)
+        .collect::<Vec<_>>();
+    stbl_resources.sort_by_key(|entry| ((entry.instance >> 56) != 0, entry.instance));
+
+    for entry in stbl_resources {
+        let Ok(data) = package.data(entry) else {
+            continue;
+        };
+        if let Some((_, text)) = stbl_entries(&data)
+            .into_iter()
+            .find(|(_, text)| !text.trim().is_empty())
+        {
+            let text = text.trim().to_string();
+            let key = text.to_ascii_lowercase();
+            if seen.insert(key) {
+                candidates.push((text, "STBL"));
+            }
+        }
+    }
+
+    candidates
+}
+
+fn slider_internal_evidence(
+    package: &Package,
+    language: AppLanguage,
+) -> Option<(String, &'static str, Option<Vec<String>>)> {
+    let candidates = slider_internal_candidates(package);
+    for (name, source) in &candidates {
+        if let Some(destination) = slider_destination_from_internal_name(name, language) {
+            return Some((name.clone(), *source, Some(destination)));
+        }
+    }
+    candidates
+        .into_iter()
+        .next()
+        .map(|(name, source)| (name, source, None))
+}
+
+
+fn is_slider_morph_type(type_id: u32) -> bool {
+    matches!(
+        type_id,
+        TYPE_BONE_DELTA | TYPE_FACE | TYPE_BBLN | TYPE_BGEO | TYPE_FBLN
+    )
+}
+
+fn stbl_keys(data: &[u8]) -> Vec<u64> {
+    stbl_entries(data).into_iter().map(|(key, _)| key).collect()
 }
 
 fn apply_slider_companion_classification(
@@ -420,11 +735,36 @@ fn scan_one(root: &Path, path: &Path, language: AppLanguage) -> ScanPackageItem 
                 for source in &classification.detected_from {
                     detected_from.insert(source.clone());
                 }
+                let is_slider_family = classification.sub_category.as_deref() == Some("Sliders");
                 destination_parts = classification.folder_parts.clone();
                 destination_path = Some(destination_parts.join("\\"));
                 status = "classified".to_string();
                 classification_reason = Some(classification.technical_reason.clone());
                 family_primary = Some(classification);
+
+                if is_slider_family {
+                    if let Some((internal_name, source, refined_destination)) =
+                        slider_internal_evidence(&package, language)
+                    {
+                        detected_from.insert(source.to_string());
+                        if let Some(parts) = refined_destination {
+                            destination_parts = parts;
+                            destination_path = Some(destination_parts.join("\\"));
+                            classification_reason = Some(format!(
+                                "{} | Internal slider name from {source} '{}' => {}",
+                                classification_reason.unwrap_or_default(),
+                                internal_name,
+                                destination_parts.join("\\")
+                            ));
+                        } else {
+                            classification_reason = Some(format!(
+                                "{} | Internal slider name from {source} '{}' did not safely identify an anatomical region; kept at CAS\\Sliders.",
+                                classification_reason.unwrap_or_default(),
+                                internal_name
+                            ));
+                        }
+                    }
+                }
             }
             PackageFamilyResult::Ambiguous(candidates) => {
                 for classification in candidates {
@@ -674,5 +1014,76 @@ mod tests {
         }
 
         assert_eq!(stbl_keys(&data), vec![key]);
+    }
+
+    #[test]
+    fn nmap_parser_reads_internal_slider_names() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&1u32.to_le_bytes());
+        data.extend_from_slice(&1u32.to_le_bytes());
+        data.extend_from_slice(&0x8D243219BAF14119u64.to_le_bytes());
+        let name = b"Bloom_LegLenght_slider";
+        data.extend_from_slice(&(name.len() as u32).to_le_bytes());
+        data.extend_from_slice(name);
+
+        assert_eq!(nmap_names(&data), vec!["Bloom_LegLenght_slider"]);
+    }
+
+    #[test]
+    fn slider_region_uses_internal_anatomy_not_cas_panel() {
+        assert_eq!(
+            slider_destination_from_internal_name("Bloom_ArmTwist_slider", AppLanguage::Pt),
+            Some(vec![
+                "CAS".to_string(),
+                "Sliders".to_string(),
+                "Corpo".to_string(),
+                "Braços".to_string(),
+            ])
+        );
+        assert_eq!(
+            slider_destination_from_internal_name("Bloom_LegLenght_slider", AppLanguage::Pt),
+            Some(vec![
+                "CAS".to_string(),
+                "Sliders".to_string(),
+                "Corpo".to_string(),
+                "Pernas".to_string(),
+            ])
+        );
+    }
+
+    #[test]
+    fn specific_anatomy_wins_over_generic_height_words() {
+        assert_eq!(
+            slider_destination_from_internal_name("Nose Tip Height", AppLanguage::En),
+            Some(vec![
+                "CAS".to_string(),
+                "Sliders".to_string(),
+                "Face".to_string(),
+                "Nose".to_string(),
+            ])
+        );
+        assert_eq!(
+            slider_destination_from_internal_name("Shoulder Height", AppLanguage::En),
+            Some(vec![
+                "CAS".to_string(),
+                "Sliders".to_string(),
+                "Body".to_string(),
+                "Shoulders".to_string(),
+            ])
+        );
+    }
+
+    #[test]
+    fn ambiguous_internal_name_stays_at_slider_root() {
+        assert!(slider_destination_from_internal_name("Tip Width", AppLanguage::En).is_none());
+        assert!(slider_destination_from_internal_name("Outer Curve", AppLanguage::En).is_none());
+    }
+
+    #[test]
+    fn pupil_heart_is_eye_not_ear() {
+        assert_eq!(
+            slider_region_keys("Pupil Heart"),
+            Some(("face", Some("eyes")))
+        );
     }
 }
