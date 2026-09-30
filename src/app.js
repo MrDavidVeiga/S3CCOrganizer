@@ -1161,6 +1161,7 @@ async function clearAnalysisCache() {
     state.scanning ||
     state.duplicatesBusy ||
     state.conflictsBusy ||
+    state.structureBusy ||
     state.technicalDetailsLoading
   ) return;
   state.cacheBusy = true;
@@ -1199,6 +1200,7 @@ function renderCachePanel() {
     state.scanning ||
     state.duplicatesBusy ||
     state.conflictsBusy ||
+    state.structureBusy ||
     !!state.technicalDetailsLoading;
 }
 
@@ -1491,7 +1493,7 @@ function buildAuditMarkdown(snapshot) {
 }
 
 async function exportAuditReport() {
-  if (!state.folder || state.auditBusy || state.reviewBusy) return;
+  if (!state.folder || state.auditBusy || state.reviewBusy || state.structureBusy) return;
   state.auditBusy = true;
   state.auditError = "";
   renderAuditPanel();
@@ -1526,7 +1528,8 @@ function renderAuditPanel() {
   } else {
     el.auditStatus.textContent = t("auditReportHint");
   }
-  el.exportAuditBtn.disabled = !state.folder || state.auditBusy || state.reviewBusy;
+  el.exportAuditBtn.disabled =
+    !state.folder || state.auditBusy || state.reviewBusy || state.structureBusy;
   el.openReportFolderBtn.disabled = !state.lastAuditReport?.directory;
 }
 
@@ -1874,7 +1877,11 @@ function renderDuplicatesPreview() {
 function renderDuplicates() {
   if (!el.analyzeDuplicatesBtn) return;
   el.analyzeDuplicatesBtn.disabled =
-    !state.folder || state.duplicatesBusy || state.scanning || state.conflictsBusy;
+    !state.folder ||
+    state.duplicatesBusy ||
+    state.scanning ||
+    state.conflictsBusy ||
+    state.structureBusy;
 
   const stats = state.duplicatesAnalysis?.stats || {};
   el.dupStatPackages.textContent = stats.packagesScanned ?? 0;
@@ -2266,7 +2273,11 @@ function renderConflictsPreview() {
 function renderConflicts() {
   if (!el.analyzeConflictsBtn) return;
   el.analyzeConflictsBtn.disabled =
-    !state.folder || state.conflictsBusy || state.scanning || state.duplicatesBusy;
+    !state.folder ||
+    state.conflictsBusy ||
+    state.scanning ||
+    state.duplicatesBusy ||
+    state.structureBusy;
 
   const analysis = state.conflictsAnalysis;
   const stats = analysis?.stats || {};
@@ -3575,7 +3586,13 @@ async function chooseFolder() {
 }
 
 async function scanFolder(preserveSelection = false, preserveNotice = false) {
-  if (!state.folder || state.scanning || state.planning || state.executing) return;
+  if (
+    !state.folder ||
+    state.scanning ||
+    state.planning ||
+    state.executing ||
+    state.structureBusy
+  ) return;
 
   const previousSelection = new Set(state.selectedForPlan);
   const previousNotice = state.notice;
@@ -3783,7 +3800,7 @@ async function executeRestore() {
 }
 
 async function analyzeDuplicates() {
-  if (!state.folder || state.duplicatesBusy) return;
+  if (!state.folder || state.duplicatesBusy || state.structureBusy) return;
 
   const previousAnalysis = state.duplicatesAnalysis;
   const previousSelectedId = state.duplicateSelectedId;
@@ -3823,7 +3840,7 @@ async function analyzeDuplicates() {
 }
 
 async function analyzeConflicts() {
-  if (!state.folder || state.conflictsBusy) return;
+  if (!state.folder || state.conflictsBusy || state.structureBusy) return;
 
   const previousAnalysis = state.conflictsAnalysis;
   const previousSelectedId = state.conflictSelectedId;
