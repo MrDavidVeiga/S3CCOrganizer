@@ -36,7 +36,7 @@ pub fn technical_search(folder:String,query:String)->Result<Vec<TechnicalSearchH
     let mut cache=load_cache(&root);let mut hits=Vec::new();
     for e in walkdir::WalkDir::new(&root).follow_links(false).into_iter().filter_map(Result::ok){
         if !e.file_type().is_file()||!is_package(e.path()){continue;}
-        let rel=e.path().strip_prefix(&root).unwrap_or(e.path()).to_string_lossy().replace('/',"\");
+        let rel=e.path().strip_prefix(&root).unwrap_or(e.path()).to_string_lossy().replace('/',"\\");
         let (cached,_)=get_or_build(e.path(),&mut cache)?;
         let generic=type_filter.is_none()&&group_filter.is_none()&&instance_filter.is_none()&&sha_filter.is_none();
         if generic && (rel.to_ascii_lowercase().contains(&lower)||cached.file_sha256.to_ascii_lowercase().contains(&lower)){
