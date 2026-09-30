@@ -1746,7 +1746,7 @@ function buildAuditMarkdown(snapshot) {
   } else {
     const ds = snapshot.duplicates.stats || {};
     lines.push(
-      `Packages: ${ds.packagesScanned ?? 0} · Exact groups: ${ds.exactDuplicateGroups ?? 0} · Content groups: ${ds.contentDuplicateGroups ?? 0} · Retextures: ${ds.retextureRelations ?? 0} · Related: ${ds.relatedVariantRelations ?? 0}`,
+      `Packages: ${ds.packagesScanned ?? 0} · Exact groups: ${ds.exactGroups ?? 0} · Content groups: ${ds.contentGroups ?? 0} · Retextures: ${ds.retextureRelations ?? 0} · Related: ${ds.relatedVariantRelations ?? 0}`,
       ""
     );
     for (const group of snapshot.duplicates.groups || []) {
@@ -3585,7 +3585,7 @@ function renderHealthTools() {
       [t("emptyFolders"), stats.emptyFolders],
       [t("uncoveredPackages"), stats.resourceCfgUncovered],
       [t("outsidePackages"), stats.packagesOutsideRoot],
-      [t("exactGroups"), state.duplicatesAnalysis?.stats?.exactDuplicateGroups ?? 0],
+      [t("exactGroups"), state.duplicatesAnalysis?.stats?.exactGroups ?? 0],
       [t("packagePairs"), state.conflictsAnalysis?.stats?.packagePairs ?? 0],
     ]) {
       const card = document.createElement("article");
