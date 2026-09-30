@@ -1482,6 +1482,8 @@ function renderDuplicates() {
       button.append(main, count);
       button.addEventListener("click", () => {
         state.duplicateSelectedId = finding.id;
+        state.quarantineSelected.clear();
+        state.quarantinePlan = null;
         renderDuplicates();
       });
       el.duplicatesList.appendChild(button);
@@ -2959,6 +2961,8 @@ async function analyzeDuplicates() {
     state.duplicatesAnalysis = await invoke("analyze_duplicates", {
       folder: state.folder,
     });
+    state.quarantineSelected.clear();
+    state.quarantinePlan = null;
     const first = flattenedDuplicateFindings()[0];
     state.duplicateSelectedId = first?.id || "";
   } catch (error) {
