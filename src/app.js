@@ -1482,10 +1482,18 @@ function visibleConflictFindings() {
   const findings = state.conflictsAnalysis?.findings || [];
   const query = state.conflictsSearch.trim().toLocaleLowerCase();
   return findings.filter((item) => {
-    if (state.conflictsFilter !== "all") {
-      const matchesPrimary = item.kind === state.conflictsFilter;
-      const matchesImpact = (item.impactKinds || []).includes(state.conflictsFilter);
-      if (!matchesPrimary && !matchesImpact) return false;
+    const mark = state.conflictMarks[item.id];
+    if (state.conflictsFilter === "ignored_session") {
+      if (mark !== "ignored") return false;
+    } else if (state.conflictsFilter === "intentional_override") {
+      if (mark !== "intentional") return false;
+    } else {
+      if (mark === "ignored") return false;
+      if (state.conflictsFilter !== "all") {
+        const matchesPrimary = item.kind === state.conflictsFilter;
+        const matchesImpact = (item.impactKinds || []).includes(state.conflictsFilter);
+        if (!matchesPrimary && !matchesImpact) return false;
+      }
     }
     if (!query) return true;
 
