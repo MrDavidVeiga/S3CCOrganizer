@@ -784,7 +784,12 @@ const state = {
   conflictsError: "",
   conflictsNotice: "",
   conflictsSearch: typeof preferences.conflictsSearch === "string" ? preferences.conflictsSearch : "",
-  conflictsFilter: typeof preferences.conflictsFilter === "string" ? preferences.conflictsFilter : "all",
+  conflictsFilter:
+    typeof preferences.conflictsFilter === "string" &&
+    preferences.conflictsFilter !== "intentional_override" &&
+    preferences.conflictsFilter !== "ignored_session"
+      ? preferences.conflictsFilter
+      : "all",
   conflictSelectedId: "",
   operations: { scan: null, duplicates: null, conflicts: null },
   technicalDetails: {},
