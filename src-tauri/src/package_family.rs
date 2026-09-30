@@ -23,6 +23,7 @@ pub struct PackageFamilyClassification {
     pub sub_category: Option<String>,
     pub folder_parts: Vec<String>,
     pub detected_from: Vec<String>,
+    pub technical_reason: String,
 }
 
 #[derive(Debug, Clone)]
@@ -51,11 +52,19 @@ fn classification(
     folder_parts: Vec<&str>,
     detected_from: Vec<&str>,
 ) -> PackageFamilyClassification {
+    let folder_parts = folder_parts.into_iter().map(str::to_string).collect::<Vec<_>>();
+    let detected_from = detected_from.into_iter().map(str::to_string).collect::<Vec<_>>();
+    let technical_reason = format!(
+        "Resource family [{}] => {}",
+        detected_from.join(", "),
+        folder_parts.join("\\")
+    );
     PackageFamilyClassification {
         main_category: main_category.to_string(),
         sub_category: sub_category.map(str::to_string),
-        folder_parts: folder_parts.into_iter().map(str::to_string).collect(),
-        detected_from: detected_from.into_iter().map(str::to_string).collect(),
+        folder_parts,
+        detected_from,
+        technical_reason,
     }
 }
 
