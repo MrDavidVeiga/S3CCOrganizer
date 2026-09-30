@@ -1213,6 +1213,24 @@ function visibleDuplicateFindings() {
   });
 }
 
+async function buildQuarantinePreview() {
+  if (!state.folder || !state.quarantineSelected.size || state.quarantineBusy) return;
+  state.quarantineBusy = true;
+  state.quarantinePlan = null;
+  renderDuplicatesPreview();
+  try {
+    state.quarantinePlan = await invoke("build_quarantine_plan", {
+      folder: state.folder,
+      selectedPaths: [...state.quarantineSelected],
+    });
+  } catch (error) {
+    state.duplicatesError = String(error);
+  } finally {
+    state.quarantineBusy = false;
+    renderDuplicatesPreview();
+  }
+}
+
 function renderDuplicatesPreview() {
   if (!el.duplicatesPreview) return;
   const item = flattenedDuplicateFindings().find(
