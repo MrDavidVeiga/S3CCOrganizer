@@ -2915,6 +2915,7 @@ async function openStructureModal(action) {
   if (action === "rename" && !selected?.isDirectory) return;
 
   state.structureModalAction = action;
+  el.structureModalActionBtn.disabled = false;
   el.structureInputWrap.classList.toggle("hidden", action === "move");
   el.structureTargetWrap.classList.toggle("hidden", action !== "move");
 
@@ -2967,6 +2968,10 @@ async function openStructureModal(action) {
           : "\\";
       el.structureTargetSelect.appendChild(option);
     }
+
+    if (!el.structureTargetSelect.options.length) {
+      el.structureModalActionBtn.disabled = true;
+    }
   }
 
   el.structureModal.classList.remove("hidden");
@@ -3010,7 +3015,13 @@ async function executeStructureAction() {
     state.structureNotice =
       `${t("structureComplete")}: ${result?.destinationRelativePath || ""}`;
     closeStructureModal();
-    invalidateAnalysesAfterStructureChange();
+    if (action === "create") {
+      state.plan = null;
+      state.planError = "";
+      state.lastAuditReport = null;
+    } else {
+      invalidateAnalysesAfterStructureChange();
+    }
     await Promise.all([
       refreshManualOperations(),
       refreshCacheInfo(),
@@ -3020,6 +3031,8 @@ async function executeStructureAction() {
     await loadStructure(state.structureCurrent);
   } catch (error) {
     state.structureError = String(error);
+    el.structureModalMessage.textContent =
+      `${t("structureFailed")}: ${state.structureError}`;
   } finally {
     state.structureBusy = false;
     el.structureModalActionBtn.disabled = false;
