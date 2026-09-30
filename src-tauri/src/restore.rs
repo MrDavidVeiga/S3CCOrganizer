@@ -224,7 +224,7 @@ pub fn preview_restore(
     let root_matches_selected = selected_root
         .as_ref()
         .map(|selected| selected == &root)
-        .unwrap_or(true);
+        .unwrap_or(false);
 
     for entry in &manifest.entries {
         if !safe_relative(&entry.original_relative_path)
