@@ -1276,6 +1276,7 @@ async function refreshConflictDecisions() {
     state.reviewBusy = false;
     renderConflicts();
     renderAuditPanel();
+    renderStructure();
   }
 }
 
@@ -1322,6 +1323,7 @@ async function setConflictMark(finding, mark) {
     state.reviewBusy = false;
     renderConflicts();
     renderAuditPanel();
+    renderStructure();
   }
 }
 
@@ -1512,6 +1514,7 @@ async function exportAuditReport() {
   state.auditBusy = true;
   state.auditError = "";
   renderAuditPanel();
+  renderStructure();
 
   try {
     await refreshManualOperations();
@@ -1527,6 +1530,7 @@ async function exportAuditReport() {
   } finally {
     state.auditBusy = false;
     renderAuditPanel();
+    renderStructure();
   }
 }
 
