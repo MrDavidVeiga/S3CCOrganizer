@@ -1691,6 +1691,17 @@ function buildAuditSnapshot() {
     restorePreview: state.restorePlan,
     quarantinePreview: state.quarantinePlan,
     cache: state.cacheInfo,
+    workspace: state.workspaceStore,
+    health: state.healthReport,
+    snapshots: state.snapshots,
+    snapshotDiff: state.snapshotDiff,
+    dependencies: state.dependenciesAnalysis,
+    operationHistory: state.operationHistory,
+    inbox: {
+      sourceFolder: state.inboxFolder || null,
+      scan: state.inboxScan,
+      importPlan: state.inboxPlan,
+    },
     performance: {
       scan: state.stats?.totalMs ?? null,
       duplicates: state.duplicatesAnalysis?.stats ?? null,
@@ -1809,6 +1820,39 @@ function buildAuditMarkdown(snapshot) {
     lines.push("");
   }
 
+  lines.push("## Workspace", "");
+  if (snapshot.workspace) {
+    lines.push(
+      `- Read-only: ${snapshot.workspace.readOnly}`,
+      `- Active profile: ${snapshot.workspace.activeProfileId}`,
+      `- Profiles: ${snapshot.workspace.profiles?.length || 0}`,
+      `- Groups: ${snapshot.workspace.groups?.length || 0}`,
+      `- Tagged packages: ${Object.keys(snapshot.workspace.packageMetadata || {}).length}`,
+      ""
+    );
+  } else lines.push("—", "");
+
+  lines.push("## Mods Health", "");
+  if (snapshot.health) {
+    const hs = snapshot.health.stats || {};
+    lines.push(
+      `- Packages: ${hs.packages ?? 0}`,
+      `- Unreadable: ${hs.unreadable ?? 0}`,
+      `- Empty folders: ${hs.emptyFolders ?? 0}`,
+      `- Resource.cfg uncovered: ${hs.resourceCfgUncovered ?? 0}`,
+      `- Outside root: ${hs.packagesOutsideRoot ?? 0}`,
+      ""
+    );
+  } else lines.push(t("reportNotAnalyzed"), "");
+
+  lines.push("## Snapshots / Dependencies", "");
+  lines.push(
+    `- Snapshots: ${snapshot.snapshots?.length || 0}`,
+    `- Potential dependencies: ${snapshot.dependencies?.findings?.length || 0}`,
+    `- History entries: ${snapshot.operationHistory?.length || 0}`,
+    ""
+  );
+
   lines.push("## Performance", "");
   if (snapshot.performance.scan != null) {
     lines.push(`- Scan: ${formatMs(snapshot.performance.scan)}`);
@@ -1915,6 +1959,9 @@ function renderLanguage() {
   for (const element of document.querySelectorAll("[data-i18n]")) {
     const key = element.dataset.i18n;
     element.textContent = t(key);
+  }
+  for (const element of document.querySelectorAll("[data-i18n-placeholder]")) {
+    element.placeholder = t(element.dataset.i18nPlaceholder);
   }
   if (el.languageCode) el.languageCode.textContent = state.language.toUpperCase();
   el.languageButton?.setAttribute(
@@ -4129,10 +4176,23 @@ function renderStats() {
   el.statInvalid.textContent = stats.invalid ?? 0;
 }
 
+function metadataForItem(item) {
+  if (!item || !state.workspaceStore?.packageMetadata) return null;
+  const details = state.technicalDetails[item.path];
+  if (details?.fileSha256 && state.workspaceStore.packageMetadata[details.fileSha256]) {
+    return state.workspaceStore.packageMetadata[details.fileSha256];
+  }
+  const target = String(item.relativePath || "").replaceAll("/", "\\").toLowerCase();
+  return Object.values(state.workspaceStore.packageMetadata).find(
+    (meta) => String(meta.lastPath || "").replaceAll("/", "\\").toLowerCase() === target
+  ) || null;
+}
+
 function visibleItems() {
   const query = state.search.trim().toLocaleLowerCase();
   return state.items.filter((item) => {
     if (state.status !== "all" && item.status !== state.status) return false;
+    const metadata = metadataForItem(item);
     if (!query) return true;
 
     const haystack = [
@@ -4146,6 +4206,9 @@ function visibleItems() {
       ...(item.resourceTypes || []),
       ...(item.usageCategories || []),
       ...(item.candidateDestinations || []),
+      ...(metadata?.tags || []),
+      metadata?.testStatus,
+      metadata?.favorite ? "favorite favorito favorito" : "",
     ]
       .filter(Boolean)
       .join(" ")
@@ -4214,6 +4277,10 @@ function renderPreview() {
   appendMeta(meta, t("originalPath"), item.relativePath);
   appendMeta(meta, t("suggestedDestination"), item.destinationPath || t("noDestination"));
   appendMeta(meta, t("classificationReason"), item.classificationReason);
+  const localMetadata = metadataForItem(item);
+  appendMeta(meta, t("tags"), localMetadata?.tags);
+  appendMeta(meta, t("testStatus"), localMetadata?.testStatus);
+  if (localMetadata?.favorite) appendMeta(meta, t("favorite"), "★");
 
   if (!item.destinationPath && item.candidateDestinations?.length) {
     appendMeta(meta, t("possibleDestinations"), item.candidateDestinations);
@@ -4292,7 +4359,8 @@ function createPackageRow(item) {
   const main = document.createElement("div");
   main.className = "package-main";
   const name = document.createElement("strong");
-  name.textContent = item.name;
+  const localMetadata = metadataForItem(item);
+  name.textContent = `${localMetadata?.favorite ? "★ " : ""}${item.name}`;
   const details = document.createElement("span");
   details.textContent =
     [item.category, item.subCategory, item.gender, item.age]
