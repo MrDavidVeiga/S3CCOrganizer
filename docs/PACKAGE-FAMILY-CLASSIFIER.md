@@ -52,11 +52,54 @@ BGEO      0x067CAA11
 FBLN      0xB52F5055
 ```
 
-Destination:
+Base destination:
 
 ```text
 CAS\Sliders
 ```
+
+For direct morph sliders, the Organizer then reads the slider's **internal name**, not the CAS panel/category in which the creator placed the control.
+
+Evidence order:
+
+1. NMAP internal slider name;
+2. STBL internal label as fallback when NMAP is missing or opaque.
+
+This matters because a body slider can legitimately be exposed by the creator under a Head, Mouth or other CAS panel. The UI placement is therefore never used as anatomical evidence.
+
+When the internal name safely identifies anatomy, the destination is refined, for example:
+
+```text
+CAS\Sliders\Face\Eyes
+CAS\Sliders\Face\Nose
+CAS\Sliders\Face\Mouth & Lips
+CAS\Sliders\Body\Arms
+CAS\Sliders\Body\Legs
+CAS\Sliders\Body\Shoulders
+CAS\Sliders\Body\Waist
+CAS\Sliders\Head\Hats
+```
+
+PT/ES use localized folder labels.
+
+Specific anatomy wins over generic words. For example:
+
+```text
+"Nose Tip Height"   -> Face\Nose
+"Shoulder Height"   -> Body\Shoulders
+"Bloom_ArmTwist..." -> Body\Arms
+"Bloom_LegLenght..."-> Body\Legs
+```
+
+If the internal name is too generic or opaque (for example `Tip Width` or `Outer Curve`), the package remains conservatively at:
+
+```text
+CAS\Sliders
+```
+
+No filename heuristic is used to force a subfolder.
+
+Companion packages that provide shared slider labels for several anatomical regions also remain at `CAS\Sliders`, because assigning the companion to one region would split a real package set.
 
 This classifier is only used when CASP/OBJD did not already classify the package, so clothing containing morph resources is not reclassified as a slider.
 
