@@ -110,7 +110,7 @@ See [docs/ANALYSIS-UX-CACHE.md](docs/ANALYSIS-UX-CACHE.md).
 
 ## Pre-build hardening
 
-The application now persists UI preferences, supports a resizable sidebar, exposes safe file-manager navigation, shows cache/performance diagnostics, displays technical classification evidence in the Planner, blocks Restore across different Mods roots, supports persistent Intentional Override decisions plus session-only ignore marks, and provides a preview-only duplicate quarantine plan outside Packages.
+The application now persists UI preferences, supports a resizable sidebar, exposes safe file-manager navigation, shows cache/performance diagnostics, displays technical classification evidence in the Planner, blocks Restore across different Mods roots, supports persistent Intentional Override decisions plus session-only ignore marks, and provides reversible duplicate Quarantine outside Packages with SHA-256 preflight, rollback, manifest history and explicit restore.
 
 See [docs/PREBUILD-HARDENING.md](docs/PREBUILD-HARDENING.md).
 
