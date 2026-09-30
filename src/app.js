@@ -1505,6 +1505,7 @@ function renderOperationProgress(kind) {
   if (total > 0) pieces.push(`${processed}/${total}`);
   if (status?.current) pieces.push(status.current);
   else if (status?.phase) pieces.push(status.phase);
+  if (status?.message) pieces.push(status.message);
   text.textContent = pieces.join(" · ");
 
   cancelButton.disabled = !!status?.cancelRequested;
@@ -1671,6 +1672,13 @@ function renderTechnicalDetails(container, item) {
 
   const details = state.technicalDetails[item.path];
   if (!details) return;
+
+  if (details.parseError) {
+    const parseError = document.createElement("div");
+    parseError.className = "technical-details-state error";
+    parseError.textContent = details.parseError;
+    container.appendChild(parseError);
+  }
 
   const summary = document.createElement("div");
   summary.className = "technical-summary";
@@ -2223,6 +2231,9 @@ async function scanFolder(preserveSelection = false, preserveNotice = false) {
 
   const previousSelection = new Set(state.selectedForPlan);
   const previousNotice = state.notice;
+  const previousItems = state.items;
+  const previousStats = state.stats;
+  const previousSelectedId = state.selectedId;
 
   state.scanning = true;
   state.operations.scan = null;
@@ -2263,12 +2274,16 @@ async function scanFolder(preserveSelection = false, preserveNotice = false) {
     if (message.includes("__S3CC_OPERATION_CANCELLED__")) {
       state.notice = t("cancelled");
       state.error = "";
+      state.items = previousItems;
+      state.stats = previousStats;
+      state.selectedId = previousSelectedId;
+      state.selectedForPlan = new Set(previousSelection);
     } else {
       state.error = message;
+      state.items = [];
+      state.stats = null;
+      state.selectedForPlan.clear();
     }
-    state.items = [];
-    state.stats = null;
-    state.selectedForPlan.clear();
   } finally {
     state.scanning = false;
     render();
@@ -2420,6 +2435,9 @@ async function executeRestore() {
 async function analyzeDuplicates() {
   if (!state.folder || state.duplicatesBusy) return;
 
+  const previousAnalysis = state.duplicatesAnalysis;
+  const previousSelectedId = state.duplicateSelectedId;
+
   state.duplicatesBusy = true;
   state.operations.duplicates = null;
   void monitorOperation("duplicates");
@@ -2436,7 +2454,13 @@ async function analyzeDuplicates() {
     state.duplicateSelectedId = first?.id || "";
   } catch (error) {
     const message = String(error);
-    state.duplicatesError = message.includes("__S3CC_OPERATION_CANCELLED__") ? "" : message;
+    if (message.includes("__S3CC_OPERATION_CANCELLED__")) {
+      state.duplicatesError = "";
+      state.duplicatesAnalysis = previousAnalysis;
+      state.duplicateSelectedId = previousSelectedId;
+    } else {
+      state.duplicatesError = message;
+    }
   } finally {
     state.duplicatesBusy = false;
     render();
@@ -2445,6 +2469,9 @@ async function analyzeDuplicates() {
 
 async function analyzeConflicts() {
   if (!state.folder || state.conflictsBusy) return;
+
+  const previousAnalysis = state.conflictsAnalysis;
+  const previousSelectedId = state.conflictSelectedId;
 
   state.conflictsBusy = true;
   state.operations.conflicts = null;
@@ -2461,7 +2488,13 @@ async function analyzeConflicts() {
     state.conflictSelectedId = state.conflictsAnalysis?.findings?.[0]?.id || "";
   } catch (error) {
     const message = String(error);
-    state.conflictsError = message.includes("__S3CC_OPERATION_CANCELLED__") ? "" : message;
+    if (message.includes("__S3CC_OPERATION_CANCELLED__")) {
+      state.conflictsError = "";
+      state.conflictsAnalysis = previousAnalysis;
+      state.conflictSelectedId = previousSelectedId;
+    } else {
+      state.conflictsError = message;
+    }
   } finally {
     state.conflictsBusy = false;
     render();
