@@ -69,6 +69,12 @@
               <div id="scan-state" class="scan-state"></div>
             </div>
 
+            <div id="scan-progress" class="operation-progress hidden">
+              <div class="operation-progress-track"><span id="scan-progress-bar"></span></div>
+              <div id="scan-progress-text" class="operation-progress-text"></div>
+              <button id="scan-cancel-btn" class="secondary-btn operation-cancel" type="button" data-operation="scan" data-i18n="cancelAnalysis">Cancel</button>
+            </div>
+
             <div class="stats">
               <article><b id="stat-packages">0</b><span data-i18n="packages">Packages</span></article>
               <article><b id="stat-classified">0</b><span data-i18n="classified">Classified</span></article>
@@ -107,6 +113,12 @@
               <div id="duplicates-state" class="scan-state"></div>
             </div>
 
+            <div id="duplicates-progress" class="operation-progress hidden">
+              <div class="operation-progress-track"><span id="duplicates-progress-bar"></span></div>
+              <div id="duplicates-progress-text" class="operation-progress-text"></div>
+              <button id="duplicates-cancel-btn" class="secondary-btn operation-cancel" type="button" data-operation="duplicates" data-i18n="cancelAnalysis">Cancel</button>
+            </div>
+
             <div class="duplicates-toolbar">
               <button id="analyze-duplicates-btn" class="primary-btn duplicates-primary" type="button" disabled>
                 <i class="fa-solid fa-clone" aria-hidden="true"></i>
@@ -143,6 +155,12 @@
                 <p data-i18n="conflictsIntro">Compare shared TGIs by decompressed payload and classify the impact instead of treating every overlap as a conflict.</p>
               </div>
               <div id="conflicts-state" class="scan-state"></div>
+            </div>
+
+            <div id="conflicts-progress" class="operation-progress hidden">
+              <div class="operation-progress-track"><span id="conflicts-progress-bar"></span></div>
+              <div id="conflicts-progress-text" class="operation-progress-text"></div>
+              <button id="conflicts-cancel-btn" class="secondary-btn operation-cancel" type="button" data-operation="conflicts" data-i18n="cancelAnalysis">Cancel</button>
             </div>
 
             <div class="conflicts-toolbar">
@@ -191,6 +209,17 @@
               <div id="restore-manifest-path" class="restore-manifest-path" data-i18n="noManifest">No manifest selected.</div>
               <button id="preview-restore-btn" class="secondary-btn" type="button" disabled data-i18n="previewRestore">Preview Restore</button>
               <button id="execute-restore-btn" class="primary-btn restore-primary" type="button" disabled data-i18n="executeRestore">Restore Structure</button>
+            </div>
+
+            <div class="restore-history-panel">
+              <div class="restore-history-header">
+                <div>
+                  <strong data-i18n="restoreHistory">Restore History</strong>
+                  <span data-i18n="restoreHistoryHint">Manifests previously created for the selected Mods folder.</span>
+                </div>
+                <button id="refresh-restore-history-btn" class="secondary-btn" type="button" data-i18n="refreshHistory">Refresh</button>
+              </div>
+              <div id="restore-history-list" class="restore-history-list"></div>
             </div>
 
             <div class="restore-summary">
