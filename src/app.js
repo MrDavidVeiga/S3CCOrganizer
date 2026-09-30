@@ -175,6 +175,7 @@ const I18N = {
     destinationPrefix: "Destination prefix",
     collapseCategory: "Collapse to main category",
     saveProfile: "Save Profile",
+    deleteProfile: "Delete Profile",
     protectedFolders: "Protected Folders",
     customRules: "Custom Rules",
     add: "Add",
@@ -540,6 +541,7 @@ const I18N = {
     destinationPrefix: "Prefixo de destino",
     collapseCategory: "Reduzir à categoria principal",
     saveProfile: "Salvar Perfil",
+    deleteProfile: "Excluir Perfil",
     protectedFolders: "Pastas Protegidas",
     customRules: "Regras Personalizadas",
     add: "Adicionar",
@@ -904,6 +906,7 @@ const I18N = {
     destinationPrefix: "Prefijo de destino",
     collapseCategory: "Reducir a categoría principal",
     saveProfile: "Guardar Perfil",
+    deleteProfile: "Eliminar Perfil",
     protectedFolders: "Carpetas Protegidas",
     customRules: "Reglas Personalizadas",
     add: "Añadir",
@@ -1364,6 +1367,7 @@ const el = {
   toolsProfilePrefix: document.querySelector("#tools-profile-prefix"),
   toolsProfileCollapse: document.querySelector("#tools-profile-collapse"),
   toolsSaveProfile: document.querySelector("#tools-save-profile"),
+  toolsDeleteProfile: document.querySelector("#tools-delete-profile"),
   toolsProtectedInput: document.querySelector("#tools-protected-input"),
   toolsAddProtected: document.querySelector("#tools-add-protected"),
   toolsProtectedList: document.querySelector("#tools-protected-list"),
@@ -1416,6 +1420,7 @@ const el = {
   toolsDependencies: document.querySelector("#tools-dependencies"),
   toolsDependencyResults: document.querySelector("#tools-dependency-results"),
   toolsRefreshHistory: document.querySelector("#tools-refresh-history"),
+  toolsHistoryUndo: document.querySelector("#tools-history-undo"),
   toolsOperationHistory: document.querySelector("#tools-operation-history"),
 };
 
@@ -3576,6 +3581,7 @@ function renderProfileTools() {
   el.toolsProfilePrefix.disabled = disabled || !profile;
   el.toolsProfileCollapse.disabled = disabled || !profile;
   el.toolsSaveProfile.disabled = disabled || !profile;
+  el.toolsDeleteProfile.disabled = disabled || !profile || profile.id === "default";
   el.toolsAddProfile.disabled = disabled;
 
   el.toolsProtectedList.innerHTML = "";
@@ -3603,6 +3609,15 @@ function renderProfileTools() {
       rule.pathContains && `path~${rule.pathContains}`,
     ].filter(Boolean).join(" · ");
     const row = toolListItem(rule.name || rule.id, `${criteria || "*"} → ${rule.destination}`);
+    const enabled = document.createElement("input");
+    enabled.type = "checkbox";
+    enabled.checked = rule.enabled !== false;
+    enabled.title = rule.enabled !== false ? "Enabled" : "Disabled";
+    enabled.addEventListener("change", async () => {
+      rule.enabled = enabled.checked;
+      await persistWorkspaceStore();
+    });
+    row.appendChild(enabled);
     const remove = document.createElement("button");
     remove.type = "button";
     remove.className = "secondary-btn compact-btn";
@@ -3625,11 +3640,18 @@ function renderHealthTools() {
       [t("packages"), stats.packages],
       [t("readablePackages"), stats.readable],
       [t("invalid"), stats.unreadable],
+      [t("needsReview"), state.stats?.needsReview ?? 0],
       [t("emptyFolders"), stats.emptyFolders],
       [t("uncoveredPackages"), stats.resourceCfgUncovered],
       [t("outsidePackages"), stats.packagesOutsideRoot],
       [t("exactGroups"), state.duplicatesAnalysis?.stats?.exactGroups ?? 0],
       [t("packagePairs"), state.conflictsAnalysis?.stats?.packagePairs ?? 0],
+      [t("cacheReused"), (() => {
+        const source = state.conflictsAnalysis?.stats || state.duplicatesAnalysis?.stats;
+        const hits = source?.cacheHits ?? 0;
+        const misses = source?.cacheMisses ?? 0;
+        return hits + misses > 0 ? `${Math.round((hits / (hits + misses)) * 100)}%` : "—";
+      })()],
     ]) {
       const card = document.createElement("article");
       const b = document.createElement("b"); b.textContent = value ?? 0;
@@ -3859,7 +3881,20 @@ function renderTechnicalTools() {
       `only left ${result.onlyLeft} · only right ${result.onlyRight}`
     ));
     for (const resource of (result.resources || []).slice(0, 500)) {
-      el.toolsPackageCompare.appendChild(toolListItem(resource.tgi, resource.relation));
+      const row = document.createElement("div");
+      row.className = `package-compare-row compare-${resource.relation}`;
+      const tgi = document.createElement("code");
+      tgi.textContent = resource.tgi;
+      const relation = document.createElement("strong");
+      relation.textContent = resource.relation;
+      const left = document.createElement("code");
+      left.textContent = resource.leftPayload || "—";
+      left.title = resource.leftPayload || "";
+      const right = document.createElement("code");
+      right.textContent = resource.rightPayload || "—";
+      right.title = resource.rightPayload || "";
+      row.append(tgi, relation, left, right);
+      el.toolsPackageCompare.appendChild(row);
     }
   }
 
@@ -3890,6 +3925,7 @@ function renderTechnicalTools() {
 }
 
 function renderHistoryTools() {
+  el.toolsHistoryUndo.disabled = !state.folder || workspaceReadOnly() || state.toolsBusy || state.structureBusy;
   el.toolsOperationHistory.innerHTML = "";
   for (const item of state.operationHistory || []) {
     const row = toolListItem(
@@ -3960,6 +3996,16 @@ async function addWorkspaceProfile() {
   });
   state.workspaceStore.activeProfileId = id;
   el.toolsProfileName.value = "";
+  await persistWorkspaceStore();
+}
+
+async function deleteActiveProfile() {
+  const store = state.workspaceStore;
+  const profile = activeWorkspaceProfile();
+  if (!store || !profile || profile.id === "default" || state.toolsBusy) return;
+  store.profiles = store.profiles.filter((item) => item.id !== profile.id);
+  store.activeProfileId = "default";
+  state.plan = null;
   await persistWorkspaceStore();
 }
 
@@ -5323,6 +5369,7 @@ el.toolsProfileSelect.addEventListener("change", async () => {
 });
 el.toolsAddProfile.addEventListener("click", addWorkspaceProfile);
 el.toolsSaveProfile.addEventListener("click", saveActiveProfile);
+el.toolsDeleteProfile.addEventListener("click", deleteActiveProfile);
 el.toolsAddProtected.addEventListener("click", addProtectedFolder);
 el.toolsAddRule.addEventListener("click", addCustomRule);
 el.toolsHealthRun.addEventListener("click", analyzeHealth);
@@ -5344,6 +5391,7 @@ el.toolsExportJson.addEventListener("click", () => exportTechnicalSelection("jso
 el.toolsComparePackages.addEventListener("click", comparePackagesTool);
 el.toolsDependencies.addEventListener("click", analyzeDependenciesTool);
 el.toolsRefreshHistory.addEventListener("click", refreshOperationHistory);
+el.toolsHistoryUndo.addEventListener("click", undoManualOperation);
 
 el.scanBtn.addEventListener("click", () => scanFolder(false));
 el.planBtn.addEventListener("click", buildPlan);
