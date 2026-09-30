@@ -37,6 +37,8 @@ pub fn compare_packages(folder:String,left_path:String,right_path:String)->Resul
     let mut cache=load_cache(&root);
     let (l,_)=get_or_build(&left,&mut cache)?;let (r,_)=get_or_build(&right,&mut cache)?;
     let _=save_cache(&root,&cache);
+    if let Some(error)=&l.parse_error{return Err(format!("Left package could not be decoded: {error}"));}
+    if let Some(error)=&r.parse_error{return Err(format!("Right package could not be decoded: {error}"));}
     let mut lm=BTreeMap::new();let mut rm=BTreeMap::new();
     for x in &l.resources{lm.insert((x.type_id,x.group,x.instance),x.payload_sha256.clone());}
     for x in &r.resources{rm.insert((x.type_id,x.group,x.instance),x.payload_sha256.clone());}
