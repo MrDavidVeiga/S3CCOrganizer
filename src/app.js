@@ -117,6 +117,8 @@ const I18N = {
     confirmQuarantineTitle: "Move selected duplicates to Quarantine?",
     confirmQuarantineMessage: "Selected files will be moved outside Packages after a fresh SHA-256 preflight. No file is deleted or overwritten, and failures are rolled back.",
     quarantineComplete: "Quarantine completed",
+    restoreQuarantine: "Restore Quarantine",
+    quarantineRestored: "Quarantine restored",
     manualReview: "Manual Review",
     manualDestination: "Approved destination",
     saveManualReview: "Save Review",
@@ -327,7 +329,7 @@ const I18N = {
     unreadablePackages: "Unreadable packages",
     variantAnalysisTruncated: "Variant relation list was limited for performance.",
     noDuplicateFindings: "No findings match the current search and filter.",
-    duplicatesNext: "Duplicate analysis is implemented in read-only mode. No file is deleted or moved.",
+    duplicatesNext: "Duplicate analysis is read-only. Confirmed duplicates may be moved to reversible Quarantine; nothing is deleted automatically.",
     conflictsIntro: "Compare shared TGIs by decompressed payload and classify the impact instead of treating every overlap as a conflict.",
     analyzeConflicts: "Analyze Conflicts",
     analyzingConflicts: "Analyzing shared resources…",
@@ -495,6 +497,8 @@ const I18N = {
     confirmQuarantineTitle: "Mover os duplicados selecionados para a Quarentena?",
     confirmQuarantineMessage: "Os arquivos selecionados serão movidos para fora de Packages após um novo preflight de SHA-256. Nada será apagado ou sobrescrito e falhas serão revertidas.",
     quarantineComplete: "Quarentena concluída",
+    restoreQuarantine: "Restaurar Quarentena",
+    quarantineRestored: "Quarentena restaurada",
     manualReview: "Revisão Manual",
     manualDestination: "Destino aprovado",
     saveManualReview: "Salvar Revisão",
@@ -705,7 +709,7 @@ const I18N = {
     unreadablePackages: "Packages não legíveis",
     variantAnalysisTruncated: "A lista de relações entre variantes foi limitada por desempenho.",
     noDuplicateFindings: "Nenhum resultado corresponde à pesquisa e ao filtro atuais.",
-    duplicatesNext: "A análise de duplicados está implementada em modo somente leitura. Nenhum arquivo é apagado ou movido.",
+    duplicatesNext: "A análise de duplicados é somente leitura. Duplicados confirmados podem ser movidos para uma Quarentena reversível; nada é apagado automaticamente.",
     conflictsIntro: "Compare TGIs compartilhados pelo payload descomprimido e classifique o impacto em vez de tratar toda sobreposição como conflito.",
     analyzeConflicts: "Analisar Conflitos",
     analyzingConflicts: "Analisando resources compartilhados…",
@@ -872,6 +876,8 @@ const I18N = {
     confirmQuarantineTitle: "¿Mover los duplicados seleccionados a Cuarentena?",
     confirmQuarantineMessage: "Los archivos seleccionados se moverán fuera de Packages tras un nuevo preflight SHA-256. Nada se elimina ni se sobrescribe y los fallos se revierten.",
     quarantineComplete: "Cuarentena completada",
+    restoreQuarantine: "Restaurar Cuarentena",
+    quarantineRestored: "Cuarentena restaurada",
     manualReview: "Revisión Manual",
     manualDestination: "Destino aprobado",
     saveManualReview: "Guardar Revisión",
@@ -1082,7 +1088,7 @@ const I18N = {
     unreadablePackages: "Packages no legibles",
     variantAnalysisTruncated: "La lista de relaciones entre variantes fue limitada por rendimiento.",
     noDuplicateFindings: "Ningún resultado coincide con la búsqueda y el filtro actuales.",
-    duplicatesNext: "El análisis de duplicados está implementado en modo de solo lectura. Ningún archivo se elimina ni se mueve.",
+    duplicatesNext: "El análisis de duplicados es de solo lectura. Los duplicados confirmados pueden moverse a una Cuarentena reversible; nada se elimina automáticamente.",
     conflictsIntro: "Compara TGIs compartidos por el payload descomprimido y clasifica el impacto en lugar de tratar cada coincidencia como conflicto.",
     analyzeConflicts: "Analizar Conflictos",
     analyzingConflicts: "Analizando resources compartidos…",
@@ -4018,6 +4024,31 @@ function renderTechnicalTools() {
   }
 }
 
+async function restoreQuarantineFromHistory(item) {
+  if (!state.folder || !item?.destination || workspaceReadOnly() || state.toolsBusy) return;
+  state.toolsBusy = true;
+  state.toolsError = "";
+  renderTools();
+  try {
+    const result = await invoke("restore_quarantine", {
+      folder: state.folder,
+      manifestPath: item.destination,
+    });
+    state.toolsNotice = `${t("quarantineRestored")}: ${result.moved}`;
+    state.duplicatesAnalysis = null;
+    state.quarantinePlan = null;
+    state.quarantineSelected.clear();
+    await Promise.all([refreshOperationHistory(), refreshCacheInfo()]);
+    state.toolsBusy = false;
+    await scanFolder(false, true);
+  } catch (error) {
+    state.toolsError = String(error);
+  } finally {
+    state.toolsBusy = false;
+    render();
+  }
+}
+
 function renderHistoryTools() {
   el.toolsHistoryUndo.disabled = !state.folder || workspaceReadOnly() || state.toolsBusy || state.structureBusy;
   el.toolsOperationHistory.innerHTML = "";
@@ -4038,6 +4069,16 @@ function renderHistoryTools() {
         revealSafe(destination);
       });
       row.appendChild(openButton);
+
+      if (item.kind === "quarantine" && item.status === "COMPLETE") {
+        const restore = document.createElement("button");
+        restore.type = "button";
+        restore.className = "secondary-btn compact-btn";
+        restore.textContent = t("restoreQuarantine");
+        restore.disabled = workspaceReadOnly() || state.toolsBusy;
+        restore.addEventListener("click", () => restoreQuarantineFromHistory(item));
+        row.appendChild(restore);
+      }
     }
     el.toolsOperationHistory.appendChild(row);
   }
