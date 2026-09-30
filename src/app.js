@@ -995,7 +995,14 @@ async function refreshCacheInfo() {
 }
 
 async function clearAnalysisCache() {
-  if (!state.folder || state.cacheBusy) return;
+  if (
+    !state.folder ||
+    state.cacheBusy ||
+    state.scanning ||
+    state.duplicatesBusy ||
+    state.conflictsBusy ||
+    state.technicalDetailsLoading
+  ) return;
   state.cacheBusy = true;
   renderCachePanel();
   try {
@@ -1026,7 +1033,13 @@ function renderCachePanel() {
     el.cacheSummary.textContent = t("cacheNoData");
   }
   el.openCacheBtn.disabled = !state.cacheInfo?.bytes;
-  el.clearCacheBtn.disabled = !state.cacheInfo?.bytes || state.cacheBusy;
+  el.clearCacheBtn.disabled =
+    !state.cacheInfo?.bytes ||
+    state.cacheBusy ||
+    state.scanning ||
+    state.duplicatesBusy ||
+    state.conflictsBusy ||
+    !!state.technicalDetailsLoading;
 }
 
 function appendDiagnostic(label, value) {
