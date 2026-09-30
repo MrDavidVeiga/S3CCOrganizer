@@ -16,6 +16,7 @@ use walkdir::WalkDir;
 const TYPE_IMG: u32 = 0x00B2_D882;
 const TYPE_GEOM: u32 = 0x015A_1849;
 const TYPE_NMAP: u32 = 0x0166_038C;
+const TYPE_LAYO: u32 = 0x025C_95B6;
 const TYPE_MODL: u32 = 0x0166_1233;
 const TYPE_MATD: u32 = 0x01D0_E75D;
 const TYPE_MLOD: u32 = 0x01D1_0F34;
@@ -176,6 +177,7 @@ fn resource_label(type_id: u32) -> String {
         TYPE_IMG => "_IMG".into(),
         TYPE_GEOM => "GEOM".into(),
         TYPE_NMAP => "NMAP".into(),
+        TYPE_LAYO => "LAYO".into(),
         TYPE_MODL => "MODL".into(),
         TYPE_MATD => "MATD".into(),
         TYPE_MLOD => "MLOD".into(),
@@ -197,7 +199,7 @@ fn resource_label(type_id: u32) -> String {
 fn is_visual(type_id: u32) -> bool {
     matches!(
         type_id,
-        TYPE_IMG | TYPE_GEOM | TYPE_MODL | TYPE_MLOD | TYPE_VPXY | TYPE_MATD | TYPE_TXTC | TYPE_TXTF | TYPE_OBJK
+        TYPE_IMG | TYPE_GEOM | TYPE_MODL | TYPE_MLOD | TYPE_VPXY | TYPE_MATD | TYPE_TXTC | TYPE_TXTF | TYPE_OBJK | TYPE_LAYO
     )
 }
 
@@ -814,6 +816,8 @@ mod tests {
     #[test]
     fn visual_and_catalog_payload_differences_are_not_generic_conflicts() {
         assert_eq!(impact_for(TYPE_IMG, false), "visual_override");
+        assert_eq!(impact_for(TYPE_LAYO, false), "visual_override");
+        assert_eq!(resource_label(TYPE_LAYO), "LAYO");
         assert_eq!(impact_for(TYPE_CASP, false), "catalog_override");
         assert_eq!(impact_for(TYPE_OBJD, false), "catalog_override");
     }
