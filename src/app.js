@@ -110,9 +110,21 @@ const I18N = {
     ignoredSession: "Ignored This Session",
     selectForQuarantine: "Select for quarantine preview",
     previewQuarantine: "Preview Quarantine",
-    quarantinePreviewOnly: "Preview only — no file will be moved until quarantine execution is validated.",
+    quarantinePreviewOnly: "Quarantine preflight — review the files and destination before moving.",
     quarantineRoot: "Quarantine destination",
-    quarantineReady: "Ready for future quarantine",
+    quarantineReady: "Ready for quarantine",
+    executeQuarantine: "Move to Quarantine",
+    confirmQuarantineTitle: "Move selected duplicates to Quarantine?",
+    confirmQuarantineMessage: "Selected files will be moved outside Packages after a fresh SHA-256 preflight. No file is deleted or overwritten, and failures are rolled back.",
+    quarantineComplete: "Quarantine completed",
+    manualReview: "Manual Review",
+    manualDestination: "Approved destination",
+    saveManualReview: "Save Review",
+    clearManualReview: "Clear Review",
+    manualReviewHint: "Use a folder such as CAS\\Sliders or Gameplay\\Other. The decision is stored by SHA-256 and never changes the package.",
+    manualReviewSaved: "Manual review saved",
+    suggestedDependencyGroup: "Suggested Keep Together Group",
+    reviewSuggestedGroup: "Review Group",
     clearSelection: "Clear Selection",
     navigationFailed: "Could not open location",
     savedIntentionalOverride: "Saved Intentional Override",
@@ -476,9 +488,21 @@ const I18N = {
     ignoredSession: "Ignorado Nesta Sessão",
     selectForQuarantine: "Selecionar para preview de quarentena",
     previewQuarantine: "Visualizar Quarentena",
-    quarantinePreviewOnly: "Somente preview — nenhum arquivo será movido até a execução de quarentena ser validada.",
+    quarantinePreviewOnly: "Preflight da quarentena — revise os arquivos e o destino antes de mover.",
     quarantineRoot: "Destino da quarentena",
-    quarantineReady: "Pronto para futura quarentena",
+    quarantineReady: "Prontos para quarentena",
+    executeQuarantine: "Mover para Quarentena",
+    confirmQuarantineTitle: "Mover os duplicados selecionados para a Quarentena?",
+    confirmQuarantineMessage: "Os arquivos selecionados serão movidos para fora de Packages após um novo preflight de SHA-256. Nada será apagado ou sobrescrito e falhas serão revertidas.",
+    quarantineComplete: "Quarentena concluída",
+    manualReview: "Revisão Manual",
+    manualDestination: "Destino aprovado",
+    saveManualReview: "Salvar Revisão",
+    clearManualReview: "Limpar Revisão",
+    manualReviewHint: "Use uma pasta como CAS\\Sliders ou Jogabilidade\\Outros. A decisão é salva pelo SHA-256 e nunca altera o package.",
+    manualReviewSaved: "Revisão manual salva",
+    suggestedDependencyGroup: "Grupo Manter Juntos Sugerido",
+    reviewSuggestedGroup: "Revisar Grupo",
     clearSelection: "Limpar Seleção",
     navigationFailed: "Não foi possível abrir a localização",
     savedIntentionalOverride: "Override Intencional Salvo",
@@ -841,9 +865,21 @@ const I18N = {
     ignoredSession: "Ignorado Esta Sesión",
     selectForQuarantine: "Seleccionar para vista previa de cuarentena",
     previewQuarantine: "Ver Cuarentena",
-    quarantinePreviewOnly: "Solo vista previa — ningún archivo se moverá hasta validar la ejecución de cuarentena.",
+    quarantinePreviewOnly: "Preflight de cuarentena — revisa los archivos y el destino antes de mover.",
     quarantineRoot: "Destino de cuarentena",
-    quarantineReady: "Listo para futura cuarentena",
+    quarantineReady: "Listos para cuarentena",
+    executeQuarantine: "Mover a Cuarentena",
+    confirmQuarantineTitle: "¿Mover los duplicados seleccionados a Cuarentena?",
+    confirmQuarantineMessage: "Los archivos seleccionados se moverán fuera de Packages tras un nuevo preflight SHA-256. Nada se elimina ni se sobrescribe y los fallos se revierten.",
+    quarantineComplete: "Cuarentena completada",
+    manualReview: "Revisión Manual",
+    manualDestination: "Destino aprobado",
+    saveManualReview: "Guardar Revisión",
+    clearManualReview: "Quitar Revisión",
+    manualReviewHint: "Usa una carpeta como CAS\\Sliders o Jugabilidad\\Otros. La decisión se guarda por SHA-256 y nunca modifica el package.",
+    manualReviewSaved: "Revisión manual guardada",
+    suggestedDependencyGroup: "Grupo Mantener Juntos Sugerido",
+    reviewSuggestedGroup: "Revisar Grupo",
     clearSelection: "Limpiar Selección",
     navigationFailed: "No se pudo abrir la ubicación",
     savedIntentionalOverride: "Override Intencional Guardado",
@@ -2135,6 +2171,33 @@ async function buildQuarantinePreview() {
   }
 }
 
+async function executeQuarantine() {
+  if (!state.folder || !state.quarantinePlan?.canExecute || !state.quarantineSelected.size || state.quarantineBusy) return;
+  state.quarantineBusy = true;
+  renderDuplicatesPreview();
+  try {
+    const result = await invoke("execute_quarantine", {
+      folder: state.folder,
+      selectedPaths: [...state.quarantineSelected],
+    });
+    state.duplicatesNotice = `${t("quarantineComplete")}: ${result.moved}`;
+    state.quarantineSelected.clear();
+    state.quarantinePlan = null;
+    state.duplicatesAnalysis = null;
+    state.duplicateSelectedId = "";
+    await Promise.all([refreshOperationHistory(), refreshCacheInfo()]);
+    state.quarantineBusy = false;
+    await scanFolder(false, true);
+  } catch (error) {
+    state.duplicatesError = String(error);
+  } finally {
+    state.quarantineBusy = false;
+    state.pendingAction = "";
+    el.confirmModal.classList.add("hidden");
+    render();
+  }
+}
+
 function renderDuplicatesPreview() {
   if (!el.duplicatesPreview) return;
   const item = flattenedDuplicateFindings().find(
@@ -2249,6 +2312,15 @@ function renderDuplicatesPreview() {
         const manifest = document.createElement("pre");
         manifest.textContent = state.quarantinePlan.manifestPreview || "";
         preview.append(title, destination, stats, manifest);
+        if (state.quarantinePlan.canExecute) {
+          const execute = document.createElement("button");
+          execute.type = "button";
+          execute.className = "primary-btn";
+          execute.textContent = t("executeQuarantine");
+          execute.disabled = state.quarantineBusy || workspaceReadOnly();
+          execute.addEventListener("click", () => openConfirm("quarantine"));
+          preview.appendChild(execute);
+        }
         el.duplicatesPreview.appendChild(preview);
       }
     }
@@ -3905,6 +3977,28 @@ function renderTechnicalTools() {
       t("dependenciesConservative")
     );
     el.toolsDependencyResults.appendChild(summary);
+    for (const [index, group] of (state.dependenciesAnalysis.suggestedGroups || []).entries()) {
+      const row = toolListItem(
+        `${t("suggestedDependencyGroup")} ${index + 1}`,
+        `${group.packagePaths?.length || 0} packages · ${group.evidenceCount || 0} evidence`
+      );
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "secondary-btn compact-btn";
+      button.textContent = t("reviewSuggestedGroup");
+      button.addEventListener("click", () => {
+        state.metadataGroupSelected.clear();
+        for (const relativePath of group.packagePaths || []) {
+          const match = state.items.find((item) => item.relativePath === relativePath);
+          if (match) state.metadataGroupSelected.add(match.path);
+        }
+        el.toolsGroupName.value = `${t("suggestedDependencyGroup")} ${index + 1}`;
+        state.toolsTab = "metadata";
+        renderTools();
+      });
+      row.appendChild(button);
+      el.toolsDependencyResults.appendChild(row);
+    }
     for (const finding of (state.dependenciesAnalysis.findings || []).slice(0, 1000)) {
       const row = toolListItem(
         `${finding.sourceRelativePath} → ${finding.targetRelativePath}`,
@@ -4386,6 +4480,40 @@ function appendMeta(container, label, value) {
   container.appendChild(row);
 }
 
+function manualClassificationForItem(item) {
+  const values = Object.values(state.workspaceStore?.manualClassifications || {});
+  const target = String(item?.relativePath || "").replaceAll("/", "\\").toLowerCase();
+  return values.find(
+    (entry) => String(entry.lastPath || "").replaceAll("/", "\\").toLowerCase() === target
+  ) || null;
+}
+
+async function saveManualReview(item, destination) {
+  if (!state.folder || !item || state.reviewBusy) return;
+  state.reviewBusy = true;
+  state.error = "";
+  renderPreview();
+  try {
+    state.workspaceStore = await invoke("set_manual_classification", {
+      folder: state.folder,
+      packagePath: item.path,
+      destination,
+    });
+    state.notice = t("manualReviewSaved");
+    state.plan = null;
+    const selectedPath = item.path;
+    state.reviewBusy = false;
+    await scanFolder(true, true);
+    const refreshed = state.items.find((candidate) => candidate.path === selectedPath);
+    if (refreshed) state.selectedId = refreshed.id;
+  } catch (error) {
+    state.error = String(error);
+  } finally {
+    state.reviewBusy = false;
+    render();
+  }
+}
+
 function renderPreview() {
   const item = state.items.find((candidate) => candidate.id === state.selectedId);
   el.previewCard.innerHTML = "";
@@ -4443,6 +4571,41 @@ function renderPreview() {
   revealButton.addEventListener("click", () => revealSafe(item.path));
   previewActions.appendChild(revealButton);
   el.previewCard.appendChild(previewActions);
+
+  const existingManual = manualClassificationForItem(item);
+  if (item.status !== "invalid" && (!eligibleForPlan(item) || existingManual || (item.detectedFrom || []).includes("ManualReview"))) {
+    const review = document.createElement("div");
+    review.className = "manual-review-box";
+    const title = document.createElement("strong");
+    title.textContent = t("manualReview");
+    const hint = document.createElement("small");
+    hint.textContent = t("manualReviewHint");
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "text-input";
+    input.placeholder = t("manualDestination");
+    input.value = existingManual?.destination || (item.destinationPath || "");
+    const actions = document.createElement("div");
+    actions.className = "preview-actions";
+    const save = document.createElement("button");
+    save.type = "button";
+    save.className = "primary-btn";
+    save.textContent = t("saveManualReview");
+    save.disabled = state.reviewBusy;
+    save.addEventListener("click", () => saveManualReview(item, input.value.trim()));
+    actions.appendChild(save);
+    if (existingManual || (item.detectedFrom || []).includes("ManualReview")) {
+      const clear = document.createElement("button");
+      clear.type = "button";
+      clear.className = "secondary-btn";
+      clear.textContent = t("clearManualReview");
+      clear.disabled = state.reviewBusy;
+      clear.addEventListener("click", () => saveManualReview(item, ""));
+      actions.appendChild(clear);
+    }
+    review.append(title, hint, input, actions);
+    el.previewCard.appendChild(review);
+  }
 
   if (item.warnings?.length) {
     const warnings = document.createElement("div");
@@ -4795,6 +4958,10 @@ function openConfirm(action) {
     el.confirmTitle.textContent = t("confirmRemoveEmptyTitle");
     el.confirmMessage.textContent = `${t("confirmRemoveEmptyMessage")}\n${state.pendingEmptyFolder}`;
     el.confirmActionBtn.textContent = t("removeEmptyFolderAction");
+  } else if (action === "quarantine") {
+    el.confirmTitle.textContent = t("confirmQuarantineTitle");
+    el.confirmMessage.textContent = t("confirmQuarantineMessage");
+    el.confirmActionBtn.textContent = t("executeQuarantine");
   } else {
     el.confirmTitle.textContent = t("confirmRestoreTitle");
     el.confirmMessage.textContent = t("confirmRestoreMessage");
@@ -4805,7 +4972,7 @@ function openConfirm(action) {
 }
 
 function closeConfirm() {
-  if (state.executing || state.restoreBusy) return;
+  if (state.executing || state.restoreBusy || state.quarantineBusy) return;
   state.pendingAction = "";
   el.confirmModal.classList.add("hidden");
   el.confirmModal.setAttribute("aria-hidden", "true");
@@ -5436,6 +5603,7 @@ el.confirmCancelBtn.addEventListener("click", closeConfirm);
 el.confirmActionBtn.addEventListener("click", async () => {
   if (state.pendingAction === "organize") await executeOrganization();
   else if (state.pendingAction === "restore") await executeRestore();
+  else if (state.pendingAction === "quarantine") await executeQuarantine();
   else if (state.pendingAction === "clear_cache") {
     await clearAnalysisCache();
     state.pendingAction = "";
