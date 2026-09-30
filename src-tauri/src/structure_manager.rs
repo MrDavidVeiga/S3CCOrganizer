@@ -9,6 +9,7 @@ use std::{
 #[serde(rename_all = "camelCase")]
 pub struct StructureEntry {
     pub name: String,
+    pub path: String,
     pub relative_path: String,
     pub is_directory: bool,
     pub size: u64,
@@ -64,7 +65,8 @@ fn normalize_relative(raw: &str) -> Result<PathBuf, String> {
         return Ok(PathBuf::new());
     }
 
-    let candidate = Path::new(trimmed);
+    let normalized = trimmed.replace('\\', "/");
+    let candidate = Path::new(&normalized);
     if candidate.is_absolute() {
         return Err("Absolute paths are not allowed.".to_string());
     }
@@ -191,6 +193,7 @@ pub fn list_structure(folder: String, relative_path: String) -> Result<Structure
         };
         entries.push(StructureEntry {
             name: entry.file_name().to_string_lossy().to_string(),
+            path: path.to_string_lossy().to_string(),
             relative_path: relative_text(entry_relative),
             is_directory: file_type.is_dir(),
             size,
@@ -279,7 +282,7 @@ pub fn create_structure_folder(
         .map_err(|error| format!("Could not create {}: {error}", destination.display()))?;
 
     let destination_relative = relative_text(destination.strip_prefix(&root).unwrap_or(&destination));
-    append_log(
+    let _ = append_log(
         &root,
         &ManualOperationRecord {
             created_at: Local::now().to_rfc3339(),
@@ -331,7 +334,7 @@ pub fn move_structure_path(
         .map_err(|error| format!("Could not move {}: {error}", source.display()))?;
 
     let destination_relative = relative_text(destination.strip_prefix(&root).unwrap_or(&destination));
-    append_log(
+    let _ = append_log(
         &root,
         &ManualOperationRecord {
             created_at: Local::now().to_rfc3339(),
@@ -377,7 +380,7 @@ pub fn rename_structure_folder(
         .map_err(|error| format!("Could not rename {}: {error}", source.display()))?;
 
     let destination_relative = relative_text(destination.strip_prefix(&root).unwrap_or(&destination));
-    append_log(
+    let _ = append_log(
         &root,
         &ManualOperationRecord {
             created_at: Local::now().to_rfc3339(),
