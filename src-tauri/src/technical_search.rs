@@ -1,4 +1,4 @@
-use crate::{cache::{get_or_build,load_cache,save_cache},dbpf::Package};
+use crate::cache::{get_or_build,load_cache,save_cache};
 use serde::Serialize;
 use std::path::{Path,PathBuf};
 
@@ -28,10 +28,19 @@ pub fn technical_search(folder:String,query:String)->Result<Vec<TechnicalSearchH
     if q.is_empty(){return Ok(Vec::new());}
     let lower=q.to_ascii_lowercase();
     let mut type_filter=None;let mut group_filter=None;let mut instance_filter=None;let mut sha_filter=None;
-    if let Some(v)=lower.strip_prefix("type:"){type_filter=parse_hex_u32(v);}
-    else if let Some(v)=lower.strip_prefix("group:"){group_filter=parse_hex_u32(v);}
-    else if let Some(v)=lower.strip_prefix("instance:"){instance_filter=parse_hex_u64(v);}
-    else if let Some(v)=lower.strip_prefix("sha:"){sha_filter=Some(v.to_ascii_uppercase());}
+    if let Some(v)=lower.strip_prefix("type:"){
+        type_filter=Some(parse_hex_u32(v).ok_or_else(||"Invalid hexadecimal Type ID.".to_string())?);
+    }else if let Some(v)=lower.strip_prefix("group:"){
+        group_filter=Some(parse_hex_u32(v).ok_or_else(||"Invalid hexadecimal Group ID.".to_string())?);
+    }else if let Some(v)=lower.strip_prefix("instance:"){
+        instance_filter=Some(parse_hex_u64(v).ok_or_else(||"Invalid hexadecimal Instance ID.".to_string())?);
+    }else if let Some(v)=lower.strip_prefix("sha:"){
+        let value=v.trim();
+        if value.is_empty()||value.len()>64||!value.chars().all(|ch|ch.is_ascii_hexdigit()){
+            return Err("Invalid SHA-256 prefix.".to_string());
+        }
+        sha_filter=Some(value.to_ascii_uppercase());
+    }
 
     let mut cache=load_cache(&root);let mut hits=Vec::new();
     for e in walkdir::WalkDir::new(&root).follow_links(false).into_iter().filter_map(Result::ok){
