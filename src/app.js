@@ -3147,12 +3147,15 @@ function renderStructure() {
   el.structureUpBtn.disabled =
     !hasRoot || locked || !listing?.parentRelativePath;
   el.structureRefreshBtn.disabled = !hasRoot || locked;
-  el.structureCreateBtn.disabled = !hasRoot || locked;
+  const readOnly = workspaceReadOnly();
+  el.structureCreateBtn.disabled = !hasRoot || locked || readOnly;
 
   const selected = selectedStructureEntry();
-  el.structureMoveBtn.disabled = !selected || locked;
+  el.structureMoveBtn.disabled = !selected || locked || readOnly;
   el.structureRenameBtn.disabled =
-    !selected || !selected.isDirectory || locked;
+    !selected || !selected.isDirectory || locked || readOnly;
+  el.structureUndoBtn.disabled =
+    !hasRoot || locked || readOnly || !state.manualOperations.length;
 
   if (state.structureBusy) {
     el.structureState.textContent = t("scanning");
@@ -3226,7 +3229,7 @@ function closeStructureModal() {
 
 async function openStructureModal(action) {
   const selected = selectedStructureEntry();
-  if (!state.folder || structureLocked()) return;
+  if (!state.folder || structureLocked() || workspaceReadOnly()) return;
   if ((action === "move" || action === "rename") && !selected) return;
   if (action === "rename" && !selected?.isDirectory) return;
 
@@ -4319,7 +4322,7 @@ function renderPlan() {
   el.planStatCollisions.textContent = collisions;
   el.planStatBlocked.textContent = stats.blocked ?? 0;
   el.planStatFolders.textContent = stats.directoriesToCreate ?? 0;
-  el.planExecuteBtn.disabled = !plan.canExecute || state.executing;
+  el.planExecuteBtn.disabled = !plan.canExecute || state.executing || workspaceReadOnly();
 
   el.planItems.innerHTML = "";
   for (const item of plan.items || []) {
@@ -4386,6 +4389,20 @@ function renderPlan() {
     }
   }
 
+  el.planTree.innerHTML = "";
+  for (const item of plan.items || []) {
+    const row = document.createElement("div");
+    row.className = "plan-tree-row";
+    const before = document.createElement("code");
+    before.textContent = item.sourceRelativePath || "—";
+    const arrow = document.createElement("span");
+    arrow.textContent = "→";
+    const after = document.createElement("code");
+    after.textContent = item.destinationRelativePath || "—";
+    row.append(before, arrow, after);
+    el.planTree.appendChild(row);
+  }
+
   el.manifestPreviewText.textContent = plan.manifestPreview || "";
 }
 
@@ -4396,7 +4413,7 @@ function renderRestore() {
   el.previewRestoreBtn.disabled =
     !state.restoreManifest || state.restoreBusy || state.structureBusy;
   el.executeRestoreBtn.disabled =
-    !plan?.canExecute || state.restoreBusy || state.structureBusy;
+    !plan?.canExecute || state.restoreBusy || state.structureBusy || workspaceReadOnly();
   el.openManifestFolderBtn.disabled = !state.restoreManifest;
 
   if (plan) {
@@ -4544,6 +4561,7 @@ function render() {
   renderDiagnostics();
   renderAuditPanel();
   renderStructure();
+  renderTools();
   applySidebarWidth();
 
   el.folderPath.textContent = state.folder || t("noFolder");
@@ -4642,6 +4660,7 @@ async function chooseFolder() {
     refreshConflictDecisions(),
     refreshManualOperations(),
     loadStructure(""),
+    refreshToolsContext(),
   ]);
 }
 
@@ -4969,6 +4988,9 @@ for (const button of el.tabs) {
     if (state.tab === "structure" && state.folder && !state.structureListing) {
       void loadStructure(state.structureCurrent || "");
     }
+    if (state.tab === "tools" && state.folder) {
+      void refreshToolsContext();
+    }
   });
 }
 
@@ -5061,11 +5083,48 @@ el.structureRefreshBtn.addEventListener("click", () =>
 el.structureCreateBtn.addEventListener("click", () => openStructureModal("create"));
 el.structureMoveBtn.addEventListener("click", () => openStructureModal("move"));
 el.structureRenameBtn.addEventListener("click", () => openStructureModal("rename"));
+el.structureUndoBtn.addEventListener("click", undoManualOperation);
 el.structureModalCancelBtn.addEventListener("click", closeStructureModal);
 el.structureModalActionBtn.addEventListener("click", executeStructureAction);
 el.structureModal.addEventListener("click", (event) => {
   if (event.target === el.structureModal) closeStructureModal();
 });
+for (const button of el.toolsSubtabs) {
+  button.addEventListener("click", () => {
+    state.toolsTab = button.dataset.toolsTab || "profiles";
+    renderTools();
+  });
+}
+el.toolsReadOnly.addEventListener("change", toggleReadOnly);
+el.toolsProfileSelect.addEventListener("change", async () => {
+  if (!state.workspaceStore) return;
+  state.workspaceStore.activeProfileId = el.toolsProfileSelect.value;
+  await persistWorkspaceStore();
+});
+el.toolsAddProfile.addEventListener("click", addWorkspaceProfile);
+el.toolsSaveProfile.addEventListener("click", saveActiveProfile);
+el.toolsAddProtected.addEventListener("click", addProtectedFolder);
+el.toolsAddRule.addEventListener("click", addCustomRule);
+el.toolsHealthRun.addEventListener("click", analyzeHealth);
+el.toolsCreateSnapshot.addEventListener("click", createSnapshotTool);
+el.toolsRefreshSnapshots.addEventListener("click", refreshSnapshots);
+el.toolsChooseCompareRoot.addEventListener("click", chooseCompareRoot);
+el.toolsCompareRoots.addEventListener("click", compareRootsTool);
+el.toolsChooseInbox.addEventListener("click", chooseInboxFolder);
+el.toolsScanInbox.addEventListener("click", scanInboxTool);
+el.toolsPreviewImport.addEventListener("click", previewInboxImport);
+el.toolsExecuteImport.addEventListener("click", executeInboxImport);
+el.toolsMetadataPackage.addEventListener("change", loadMetadataSelection);
+el.toolsSaveMetadata.addEventListener("click", savePackageMetadataTool);
+el.toolsSaveGroup.addEventListener("click", saveGroupTool);
+el.toolsTechSearch.addEventListener("click", runTechnicalSearch);
+el.toolsExportTxt.addEventListener("click", () => exportTechnicalSelection("txt"));
+el.toolsExportCsv.addEventListener("click", () => exportTechnicalSelection("csv"));
+el.toolsExportJson.addEventListener("click", () => exportTechnicalSelection("json"));
+el.toolsComparePackages.addEventListener("click", comparePackagesTool);
+el.toolsDependencies.addEventListener("click", analyzeDependenciesTool);
+el.toolsRefreshHistory.addEventListener("click", refreshOperationHistory);
+
 el.scanBtn.addEventListener("click", () => scanFolder(false));
 el.planBtn.addEventListener("click", buildPlan);
 el.selectAllBtn.addEventListener("click", selectAllVisible);
@@ -5144,6 +5203,7 @@ if (state.folder) {
   void refreshConflictDecisions();
   void refreshManualOperations();
   void loadStructure("");
+  void refreshToolsContext();
 }
 
 render();
