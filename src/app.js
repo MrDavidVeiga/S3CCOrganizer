@@ -932,7 +932,11 @@ function persistPreferences() {
     duplicatesSearch: state.duplicatesSearch,
     duplicatesFilter: state.duplicatesFilter,
     conflictsSearch: state.conflictsSearch,
-    conflictsFilter: state.conflictsFilter,
+    conflictsFilter:
+      state.conflictsFilter === "intentional_override" ||
+      state.conflictsFilter === "ignored_session"
+        ? "all"
+        : state.conflictsFilter,
     sidebarWidth: state.sidebarWidth,
   };
   localStorage.setItem(PREFS_KEY, JSON.stringify(data));
