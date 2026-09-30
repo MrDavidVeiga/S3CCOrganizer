@@ -693,11 +693,19 @@ pub async fn analyze_conflicts(folder: String) -> Result<ConflictAnalysis, Strin
     const KIND: &str = "conflicts";
     operation::begin(KIND, "starting");
 
-    let result = tauri::async_runtime::spawn_blocking(move || {
+    let joined = tauri::async_runtime::spawn_blocking(move || {
         analyze_conflicts_core(folder, Some(KIND))
     })
-    .await
-    .map_err(|error| format!("Conflicts worker failed: {error}"))?;
+    .await;
+
+    let result = match joined {
+        Ok(result) => result,
+        Err(error) => {
+            let message = format!("Conflicts worker failed: {error}");
+            operation::finish(KIND, "error", Some(message.clone()));
+            return Err(message);
+        }
+    };
 
     match &result {
         Ok(_) => operation::finish(KIND, "complete", None),
