@@ -787,11 +787,19 @@ pub async fn analyze_duplicates(folder: String) -> Result<DuplicateAnalysis, Str
     const KIND: &str = "duplicates";
     operation::begin(KIND, "starting");
 
-    let result = tauri::async_runtime::spawn_blocking(move || {
+    let joined = tauri::async_runtime::spawn_blocking(move || {
         analyze_duplicates_core(folder, Some(KIND))
     })
-    .await
-    .map_err(|error| format!("Duplicates worker failed: {error}"))?;
+    .await;
+
+    let result = match joined {
+        Ok(result) => result,
+        Err(error) => {
+            let message = format!("Duplicates worker failed: {error}");
+            operation::finish(KIND, "error", Some(message.clone()));
+            return Err(message);
+        }
+    };
 
     match &result {
         Ok(_) => operation::finish(KIND, "complete", None),
