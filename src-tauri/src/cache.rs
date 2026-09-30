@@ -108,9 +108,11 @@ pub fn save_cache(root: &Path, cache: &FingerprintCache) -> Result<(), String> {
         .map_err(|error| format!("Could not write cache temp {}: {error}", temp.display()))?;
 
     #[cfg(windows)]
-    if path.exists() {
-        fs::remove_file(&path)
-            .map_err(|error| format!("Could not replace cache {}: {error}", path.display()))?;
+    {
+        if path.exists() {
+            fs::remove_file(&path)
+                .map_err(|error| format!("Could not replace cache {}: {error}", path.display()))?;
+        }
     }
 
     fs::rename(&temp, &path)
