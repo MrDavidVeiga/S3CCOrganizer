@@ -1128,6 +1128,291 @@ function renderDiagnostics() {
   }
 }
 
+function applyPersistentDecisionRecords(records) {
+  state.persistentConflictRecords = Array.isArray(records) ? records : [];
+  state.persistentConflictMarks = {};
+  for (const record of state.persistentConflictRecords) {
+    if (record?.decisionKey && record?.mark === "intentional_override") {
+      state.persistentConflictMarks[record.decisionKey] = "intentional";
+    }
+  }
+}
+
+async function refreshConflictDecisions() {
+  if (!state.folder) {
+    applyPersistentDecisionRecords([]);
+    renderConflicts();
+    renderAuditPanel();
+    return;
+  }
+
+  state.reviewBusy = true;
+  try {
+    const records = await invoke("load_conflict_decisions", { folder: state.folder });
+    applyPersistentDecisionRecords(records);
+  } catch (error) {
+    state.conflictsNotice = String(error);
+    applyPersistentDecisionRecords([]);
+  } finally {
+    state.reviewBusy = false;
+    renderConflicts();
+    renderAuditPanel();
+  }
+}
+
+function effectiveConflictMark(finding) {
+  if (!finding) return null;
+  if (state.conflictMarks[finding.id] === "ignored") return "ignored";
+  if (state.persistentConflictMarks[finding.decisionKey] === "intentional") return "intentional";
+  return null;
+}
+
+async function setConflictMark(finding, mark) {
+  if (!finding || state.reviewBusy) return;
+
+  if (mark === "ignored") {
+    state.conflictMarks[finding.id] = "ignored";
+    renderConflicts();
+    return;
+  }
+
+  if (mark === null && state.conflictMarks[finding.id] === "ignored") {
+    delete state.conflictMarks[finding.id];
+    renderConflicts();
+    return;
+  }
+
+  state.reviewBusy = true;
+  renderConflicts();
+
+  try {
+    const records = await invoke("set_conflict_decision", {
+      folder: state.folder,
+      decisionKey: finding.decisionKey,
+      mark: mark === "intentional" ? "intentional_override" : null,
+      leftSha256: finding.left?.fileSha256 || "",
+      rightSha256: finding.right?.fileSha256 || "",
+      leftRelativePath: finding.left?.relativePath || "",
+      rightRelativePath: finding.right?.relativePath || "",
+    });
+    applyPersistentDecisionRecords(records);
+    delete state.conflictMarks[finding.id];
+  } catch (error) {
+    state.conflictsNotice = String(error);
+  } finally {
+    state.reviewBusy = false;
+    renderConflicts();
+    renderAuditPanel();
+  }
+}
+
+function reportCell(value) {
+  return String(value ?? "")
+    .replaceAll("|", "\\|")
+    .replaceAll("\n", " ");
+}
+
+function buildAuditSnapshot() {
+  const conflicts = state.conflictsAnalysis
+    ? {
+        ...state.conflictsAnalysis,
+        findings: (state.conflictsAnalysis.findings || []).map((finding) => ({
+          ...finding,
+          reviewDecision: effectiveConflictMark(finding),
+          persistentDecision:
+            state.persistentConflictMarks[finding.decisionKey] === "intentional"
+              ? "intentional_override"
+              : null,
+        })),
+      }
+    : null;
+
+  return {
+    schemaVersion: 1,
+    generatedAt: new Date().toISOString(),
+    root: state.folder,
+    language: state.language,
+    organizer: state.stats
+      ? {
+          stats: state.stats,
+          packages: state.items.map((item) => ({
+            name: item.name,
+            path: item.path,
+            relativePath: item.relativePath,
+            status: item.status,
+            category: item.category,
+            subCategory: item.subCategory,
+            destinationPath: item.destinationPath,
+            classificationReason: item.classificationReason,
+            warnings: item.warnings || [],
+          })),
+        }
+      : null,
+    duplicates: state.duplicatesAnalysis,
+    conflicts,
+    persistentConflictDecisions: state.persistentConflictRecords,
+    restorePreview: state.restorePlan,
+    quarantinePreview: state.quarantinePlan,
+    cache: state.cacheInfo,
+    performance: {
+      scan: state.stats?.totalMs ?? null,
+      duplicates: state.duplicatesAnalysis?.stats ?? null,
+      conflicts: state.conflictsAnalysis?.stats ?? null,
+    },
+  };
+}
+
+function buildAuditMarkdown(snapshot) {
+  const lines = [
+    "# S3CC Organizer Audit Report",
+    "",
+    `- ${t("reportGeneratedAt")}: ${snapshot.generatedAt}`,
+    `- Root: ${snapshot.root || "—"}`,
+    `- ${t("language")}: ${snapshot.language}`,
+    "",
+    "## Organizer",
+    "",
+  ];
+
+  if (!snapshot.organizer) {
+    lines.push(t("reportNotAnalyzed"), "");
+  } else {
+    const stats = snapshot.organizer.stats || {};
+    lines.push(
+      `Packages: ${stats.packages ?? snapshot.organizer.packages.length} · ${t("classified")}: ${stats.classified ?? 0} · ${t("mixed")}: ${stats.mixed ?? 0} · ${t("needsReview")}: ${stats.needsReview ?? 0} · ${t("invalid")}: ${stats.invalid ?? 0}`,
+      "",
+      "| Package | Status | Category | Destination | Evidence |",
+      "| --- | --- | --- | --- | --- |"
+    );
+    for (const item of snapshot.organizer.packages) {
+      lines.push(
+        `| ${reportCell(item.relativePath || item.name)} | ${reportCell(item.status)} | ${reportCell([item.category, item.subCategory].filter(Boolean).join(" / "))} | ${reportCell(item.destinationPath)} | ${reportCell(item.classificationReason)} |`
+      );
+    }
+    lines.push("");
+  }
+
+  lines.push("## Duplicates", "");
+  if (!snapshot.duplicates) {
+    lines.push(t("reportNotAnalyzed"), "");
+  } else {
+    const ds = snapshot.duplicates.stats || {};
+    lines.push(
+      `Packages: ${ds.packagesScanned ?? 0} · Exact groups: ${ds.exactDuplicateGroups ?? 0} · Content groups: ${ds.contentDuplicateGroups ?? 0} · Retextures: ${ds.retextureRelations ?? 0} · Related: ${ds.relatedVariantRelations ?? 0}`,
+      ""
+    );
+    for (const group of snapshot.duplicates.groups || []) {
+      lines.push(
+        `### ${duplicateKindLabel(group.kind)}`,
+        "",
+        ...((group.members || []).map((member) => `- ${member.relativePath} — ${member.fileSha256 || ""}`)),
+        ""
+      );
+    }
+    for (const relation of snapshot.duplicates.relations || []) {
+      lines.push(
+        `### ${duplicateKindLabel(relation.kind)}`,
+        "",
+        `- A: ${relation.left?.relativePath || "—"}`,
+        `- B: ${relation.right?.relativePath || "—"}`,
+        `- Shared resources: ${relation.sharedResources ?? 0}`,
+        ""
+      );
+    }
+  }
+
+  lines.push("## Conflicts", "");
+  if (!snapshot.conflicts) {
+    lines.push(t("reportNotAnalyzed"), "");
+  } else {
+    const cs = snapshot.conflicts.stats || {};
+    lines.push(
+      `Pairs: ${cs.packagePairs ?? 0} · Visual: ${cs.visualOverrides ?? 0} · Catalog: ${cs.catalogOverrides ?? 0} · Gameplay: ${cs.gameplayOverrides ?? 0} · Script: ${cs.scriptConflicts ?? 0}`,
+      ""
+    );
+    for (const finding of snapshot.conflicts.findings || []) {
+      lines.push(
+        `### ${finding.reviewDecision === "intentional" ? t("savedIntentionalOverride") : conflictKindLabel(finding.kind)}`,
+        "",
+        `- A: ${finding.left?.relativePath || "—"}`,
+        `- B: ${finding.right?.relativePath || "—"}`,
+        `- Decision key: ${finding.decisionKey || "—"}`,
+        `- ${t("reportDecision")}: ${finding.reviewDecision || "—"}`,
+        `- Shared TGIs: ${finding.sharedResourceCount ?? 0}`,
+        `- Different payloads: ${finding.differentPayloadCount ?? 0}`,
+        `- Load order: ${finding.loadOrderStatus || "—"}`,
+        ""
+      );
+    }
+  }
+
+  lines.push("## Saved Conflict Decisions", "");
+  if (!snapshot.persistentConflictDecisions?.length) {
+    lines.push("—", "");
+  } else {
+    for (const decision of snapshot.persistentConflictDecisions) {
+      lines.push(
+        `- ${decision.mark}: ${decision.leftRelativePath} ↔ ${decision.rightRelativePath} (${decision.decisionKey})`
+      );
+    }
+    lines.push("");
+  }
+
+  lines.push("## Performance", "");
+  if (snapshot.performance.scan != null) {
+    lines.push(`- Scan: ${formatMs(snapshot.performance.scan)}`);
+  }
+  if (snapshot.performance.duplicates?.totalMs != null) {
+    lines.push(`- Duplicates: ${formatMs(snapshot.performance.duplicates.totalMs)}`);
+  }
+  if (snapshot.performance.conflicts?.totalMs != null) {
+    lines.push(`- Conflicts: ${formatMs(snapshot.performance.conflicts.totalMs)}`);
+  }
+  lines.push("");
+
+  return lines.join("\n");
+}
+
+async function exportAuditReport() {
+  if (!state.folder || state.auditBusy) return;
+  state.auditBusy = true;
+  state.auditError = "";
+  renderAuditPanel();
+
+  try {
+    const snapshot = buildAuditSnapshot();
+    const result = await invoke("save_audit_report", {
+      folder: state.folder,
+      markdown: buildAuditMarkdown(snapshot),
+      jsonContent: JSON.stringify(snapshot, null, 2),
+    });
+    state.lastAuditReport = result;
+  } catch (error) {
+    state.auditError = String(error);
+  } finally {
+    state.auditBusy = false;
+    renderAuditPanel();
+  }
+}
+
+function renderAuditPanel() {
+  if (!el.auditStatus) return;
+  el.auditStatusDot.className =
+    "utility-dot " + (state.auditBusy ? "busy" : state.auditError ? "error" : state.lastAuditReport ? "ready" : "");
+  if (state.auditBusy) {
+    el.auditStatus.textContent = t("exportingAuditReport");
+  } else if (state.auditError) {
+    el.auditStatus.textContent = `${t("auditReportFailed")}: ${state.auditError}`;
+  } else if (state.lastAuditReport) {
+    el.auditStatus.textContent =
+      `${t("auditReportSaved")}: ${state.lastAuditReport.markdownPath}`;
+  } else {
+    el.auditStatus.textContent = t("auditReportHint");
+  }
+  el.exportAuditBtn.disabled = !state.folder || state.auditBusy;
+  el.openReportFolderBtn.disabled = !state.lastAuditReport?.directory;
+}
+
 function t(key) {
   return I18N[state.language]?.[key] ?? I18N.en[key] ?? key;
 }
