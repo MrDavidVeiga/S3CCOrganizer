@@ -58,6 +58,28 @@ const I18N = {
     reviewBeforeMove: "Review every change before organizing.",
     close: "Close",
     cancel: "Cancel",
+    cancelAnalysis: "Cancel",
+    cancelling: "Cancelling…",
+    cancelled: "Analysis cancelled",
+    technicalDetails: "Technical Details",
+    technicalDetailsLoading: "Reading package resources…",
+    technicalDetailsError: "Could not load technical details",
+    fileSha256: "File SHA-256",
+    dbpfVersion: "DBPF version",
+    compression: "Compression",
+    diskSize: "Disk size",
+    memorySize: "Memory size",
+    payloadHash: "Payload SHA-256",
+    resourceTechnicalDetails: "Resource details",
+    cacheReused: "Cache reused",
+    cacheUpdated: "Cache updated",
+    restoreHistory: "Restore History",
+    restoreHistoryHint: "Manifests previously created for the selected Mods folder.",
+    refreshHistory: "Refresh",
+    noRestoreHistory: "No restore manifests were found for this Mods folder.",
+    invalidManifest: "Invalid manifest",
+    manifestFiles: "files",
+    differentRoot: "Different Mods root",
     organizeSelected: "Organize Selected",
     alreadyOrganized: "Already organized",
     collisionSame: "Same file exists",
@@ -242,6 +264,28 @@ const I18N = {
     reviewBeforeMove: "Revise todas as alterações antes de organizar.",
     close: "Fechar",
     cancel: "Cancelar",
+    cancelAnalysis: "Cancelar",
+    cancelling: "Cancelando…",
+    cancelled: "Análise cancelada",
+    technicalDetails: "Detalhes Técnicos",
+    technicalDetailsLoading: "Lendo resources do package…",
+    technicalDetailsError: "Não foi possível carregar os detalhes técnicos",
+    fileSha256: "SHA-256 do arquivo",
+    dbpfVersion: "Versão DBPF",
+    compression: "Compressão",
+    diskSize: "Tamanho no disco",
+    memorySize: "Tamanho em memória",
+    payloadHash: "SHA-256 do payload",
+    resourceTechnicalDetails: "Detalhes dos resources",
+    cacheReused: "Cache reutilizado",
+    cacheUpdated: "Cache atualizado",
+    restoreHistory: "Histórico de Restauração",
+    restoreHistoryHint: "Manifestos criados anteriormente para a pasta de Mods selecionada.",
+    refreshHistory: "Atualizar",
+    noRestoreHistory: "Nenhum manifesto de restauração foi encontrado para esta pasta de Mods.",
+    invalidManifest: "Manifesto inválido",
+    manifestFiles: "arquivos",
+    differentRoot: "Outra pasta de Mods",
     organizeSelected: "Organizar Selecionados",
     alreadyOrganized: "Já organizado",
     collisionSame: "Arquivo idêntico já existe",
@@ -425,6 +469,28 @@ const I18N = {
     reviewBeforeMove: "Revisa todos los cambios antes de organizar.",
     close: "Cerrar",
     cancel: "Cancelar",
+    cancelAnalysis: "Cancelar",
+    cancelling: "Cancelando…",
+    cancelled: "Análisis cancelado",
+    technicalDetails: "Detalles Técnicos",
+    technicalDetailsLoading: "Leyendo resources del package…",
+    technicalDetailsError: "No se pudieron cargar los detalles técnicos",
+    fileSha256: "SHA-256 del archivo",
+    dbpfVersion: "Versión DBPF",
+    compression: "Compresión",
+    diskSize: "Tamaño en disco",
+    memorySize: "Tamaño en memoria",
+    payloadHash: "SHA-256 del payload",
+    resourceTechnicalDetails: "Detalles de los resources",
+    cacheReused: "Caché reutilizada",
+    cacheUpdated: "Caché actualizada",
+    restoreHistory: "Historial de Restauración",
+    restoreHistoryHint: "Manifiestos creados anteriormente para la carpeta de Mods seleccionada.",
+    refreshHistory: "Actualizar",
+    noRestoreHistory: "No se encontraron manifiestos de restauración para esta carpeta de Mods.",
+    invalidManifest: "Manifiesto inválido",
+    manifestFiles: "archivos",
+    differentRoot: "Otra carpeta de Mods",
     organizeSelected: "Organizar Seleccionados",
     alreadyOrganized: "Ya organizado",
     collisionSame: "Ya existe un archivo idéntico",
@@ -592,6 +658,13 @@ const state = {
   conflictsSearch: "",
   conflictsFilter: "all",
   conflictSelectedId: "",
+  operations: { scan: null, duplicates: null, conflicts: null },
+  technicalDetails: {},
+  technicalDetailsLoading: "",
+  technicalDetailsError: "",
+  restoreHistory: [],
+  restoreHistoryLoading: false,
+  restoreHistoryError: "",
   pendingAction: "",
 };
 
@@ -679,6 +752,20 @@ const el = {
   confStatScript: document.querySelector("#conf-stat-script"),
   confStatPotential: document.querySelector("#conf-stat-potential"),
   confStatShared: document.querySelector("#conf-stat-shared"),
+  scanProgress: document.querySelector("#scan-progress"),
+  scanProgressBar: document.querySelector("#scan-progress-bar"),
+  scanProgressText: document.querySelector("#scan-progress-text"),
+  scanCancelBtn: document.querySelector("#scan-cancel-btn"),
+  duplicatesProgress: document.querySelector("#duplicates-progress"),
+  duplicatesProgressBar: document.querySelector("#duplicates-progress-bar"),
+  duplicatesProgressText: document.querySelector("#duplicates-progress-text"),
+  duplicatesCancelBtn: document.querySelector("#duplicates-cancel-btn"),
+  conflictsProgress: document.querySelector("#conflicts-progress"),
+  conflictsProgressBar: document.querySelector("#conflicts-progress-bar"),
+  conflictsProgressText: document.querySelector("#conflicts-progress-text"),
+  conflictsCancelBtn: document.querySelector("#conflicts-cancel-btn"),
+  restoreHistoryList: document.querySelector("#restore-history-list"),
+  refreshRestoreHistoryBtn: document.querySelector("#refresh-restore-history-btn"),
 };
 
 function t(key) {
@@ -968,6 +1055,8 @@ function renderDuplicates() {
     if (unreadable) {
       parts.push(`${t("unreadablePackages")}: ${unreadable}`);
     }
+    if (stats.cacheHits) parts.push(`${t("cacheReused")}: ${stats.cacheHits}`);
+    if (stats.cacheMisses) parts.push(`${t("cacheUpdated")}: ${stats.cacheMisses}`);
     if (stats.variantAnalysisTruncated) {
       parts.push(t("variantAnalysisTruncated"));
     }
@@ -1312,6 +1401,8 @@ function renderConflicts() {
     if (stats.unreadablePackages) {
       parts.push(`${t("unreadablePackages")}: ${stats.unreadablePackages}`);
     }
+    if (stats.cacheHits) parts.push(`${t("cacheReused")}: ${stats.cacheHits}`);
+    if (stats.cacheMisses) parts.push(`${t("cacheUpdated")}: ${stats.cacheMisses}`);
     if (stats.analysisTruncated) {
       parts.push(t("conflictAnalysisTruncated"));
     }
@@ -1377,6 +1468,249 @@ function renderConflicts() {
   }
 
   renderConflictsPreview();
+}
+
+
+function operationBusy(kind) {
+  return kind === "scan"
+    ? state.scanning
+    : kind === "duplicates"
+      ? state.duplicatesBusy
+      : state.conflictsBusy;
+}
+
+function operationUi(kind) {
+  return {
+    scan: [el.scanProgress, el.scanProgressBar, el.scanProgressText, el.scanCancelBtn],
+    duplicates: [el.duplicatesProgress, el.duplicatesProgressBar, el.duplicatesProgressText, el.duplicatesCancelBtn],
+    conflicts: [el.conflictsProgress, el.conflictsProgressBar, el.conflictsProgressText, el.conflictsCancelBtn],
+  }[kind];
+}
+
+function renderOperationProgress(kind) {
+  const ui = operationUi(kind);
+  if (!ui) return;
+  const [container, bar, text, cancelButton] = ui;
+  const status = state.operations[kind];
+  const visible = operationBusy(kind) || status?.running || status?.phase === "cancelling";
+  container.classList.toggle("hidden", !visible);
+  if (!visible) return;
+
+  const total = status?.total || 0;
+  const processed = Math.min(status?.processed || 0, total || Number.MAX_SAFE_INTEGER);
+  const percent = total > 0 ? Math.max(0, Math.min(100, (processed / total) * 100)) : 0;
+  bar.style.width = `${percent}%`;
+
+  const pieces = [];
+  if (total > 0) pieces.push(`${processed}/${total}`);
+  if (status?.current) pieces.push(status.current);
+  else if (status?.phase) pieces.push(status.phase);
+  text.textContent = pieces.join(" · ");
+
+  cancelButton.disabled = !!status?.cancelRequested;
+  cancelButton.textContent = status?.cancelRequested ? t("cancelling") : t("cancelAnalysis");
+}
+
+function renderAllOperationProgress() {
+  renderOperationProgress("scan");
+  renderOperationProgress("duplicates");
+  renderOperationProgress("conflicts");
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function monitorOperation(kind) {
+  while (operationBusy(kind)) {
+    try {
+      state.operations[kind] = await invoke("get_operation_status", { kind });
+      renderOperationProgress(kind);
+    } catch (_) {
+      // The primary operation result remains authoritative.
+    }
+    await sleep(180);
+  }
+
+  try {
+    state.operations[kind] = await invoke("get_operation_status", { kind });
+  } catch (_) {}
+  renderOperationProgress(kind);
+}
+
+async function cancelAnalysis(kind) {
+  try {
+    await invoke("cancel_operation", { kind });
+    state.operations[kind] = await invoke("get_operation_status", { kind });
+    renderOperationProgress(kind);
+  } catch (_) {}
+}
+
+function bytesLabel(value) {
+  const bytes = Number(value || 0);
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function renderRestoreHistory() {
+  if (!el.restoreHistoryList) return;
+  el.restoreHistoryList.innerHTML = "";
+
+  if (state.restoreHistoryLoading) {
+    const line = document.createElement("div");
+    line.className = "restore-history-empty";
+    line.textContent = t("restorePreviewing");
+    el.restoreHistoryList.appendChild(line);
+    return;
+  }
+
+  if (!state.restoreHistory.length) {
+    const line = document.createElement("div");
+    line.className = "restore-history-empty";
+    line.textContent = state.restoreHistoryError || t("noRestoreHistory");
+    el.restoreHistoryList.appendChild(line);
+    return;
+  }
+
+  for (const item of state.restoreHistory) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className =
+      "restore-history-item" +
+      (item.path === state.restoreManifest ? " active" : "") +
+      (!item.valid || !item.matchesSelectedRoot ? " unavailable" : "");
+    button.disabled = !item.valid || !item.matchesSelectedRoot;
+
+    const main = document.createElement("div");
+    const name = document.createElement("strong");
+    name.textContent = item.fileName;
+    const meta = document.createElement("span");
+    meta.textContent = item.valid
+      ? `${item.status} · ${item.files} ${t("manifestFiles")}`
+      : t("invalidManifest");
+    main.append(name, meta);
+
+    const badge = document.createElement("span");
+    badge.className = "restore-history-status";
+    badge.textContent = item.matchesSelectedRoot ? item.status : t("differentRoot");
+
+    button.append(main, badge);
+    button.addEventListener("click", async () => {
+      state.restoreManifest = item.path;
+      state.restorePlan = null;
+      state.restoreError = "";
+      state.restoreNotice = "";
+      render();
+      await previewRestore();
+    });
+    el.restoreHistoryList.appendChild(button);
+  }
+}
+
+async function loadRestoreHistory() {
+  if (!state.folder) {
+    state.restoreHistory = [];
+    renderRestoreHistory();
+    return;
+  }
+  state.restoreHistoryLoading = true;
+  state.restoreHistoryError = "";
+  renderRestoreHistory();
+  try {
+    state.restoreHistory = await invoke("list_restore_history", { folder: state.folder });
+  } catch (error) {
+    state.restoreHistory = [];
+    state.restoreHistoryError = String(error);
+  } finally {
+    state.restoreHistoryLoading = false;
+    renderRestoreHistory();
+  }
+}
+
+async function loadTechnicalDetails(item) {
+  if (!item || !state.folder || state.technicalDetailsLoading) return;
+  state.technicalDetailsLoading = item.path;
+  state.technicalDetailsError = "";
+  renderPreview();
+
+  try {
+    state.technicalDetails[item.path] = await invoke("get_package_technical_details", {
+      folder: state.folder,
+      packagePath: item.path,
+    });
+  } catch (error) {
+    state.technicalDetailsError = String(error);
+  } finally {
+    state.technicalDetailsLoading = "";
+    renderPreview();
+  }
+}
+
+function renderTechnicalDetails(container, item) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "secondary-btn technical-details-btn";
+  button.textContent = t("technicalDetails");
+  button.disabled = state.technicalDetailsLoading === item.path;
+  button.addEventListener("click", () => loadTechnicalDetails(item));
+  container.appendChild(button);
+
+  if (state.technicalDetailsLoading === item.path) {
+    const loading = document.createElement("div");
+    loading.className = "technical-details-state";
+    loading.textContent = t("technicalDetailsLoading");
+    container.appendChild(loading);
+    return;
+  }
+
+  if (state.technicalDetailsError && !state.technicalDetails[item.path]) {
+    const error = document.createElement("div");
+    error.className = "technical-details-state error";
+    error.textContent = `${t("technicalDetailsError")}: ${state.technicalDetailsError}`;
+    container.appendChild(error);
+  }
+
+  const details = state.technicalDetails[item.path];
+  if (!details) return;
+
+  const summary = document.createElement("div");
+  summary.className = "technical-summary";
+  appendMeta(summary, t("fileSha256"), details.fileSha256);
+  appendMeta(summary, t("dbpfVersion"), details.dbpfMajor == null ? "—" : `${details.dbpfMajor}.${details.dbpfMinor ?? 0}`);
+  appendMeta(summary, t("resources"), details.resourceCount);
+  appendMeta(summary, t("cacheReused"), details.cacheHit ? "✓" : "—");
+  container.appendChild(summary);
+
+  const title = document.createElement("h4");
+  title.className = "technical-details-title";
+  title.textContent = t("resourceTechnicalDetails");
+  container.appendChild(title);
+
+  const list = document.createElement("div");
+  list.className = "technical-resource-list";
+  for (const resource of details.resources || []) {
+    const row = document.createElement("article");
+    row.className = "technical-resource";
+    const top = document.createElement("div");
+    const label = document.createElement("strong");
+    label.textContent = resource.typeLabel;
+    const compression = document.createElement("span");
+    compression.textContent = resource.compression;
+    top.append(label, compression);
+
+    const tgi = document.createElement("code");
+    tgi.textContent = resource.tgi;
+
+    const meta = document.createElement("small");
+    meta.textContent =
+      `${t("diskSize")}: ${bytesLabel(resource.diskSize)} · ${t("memorySize")}: ${bytesLabel(resource.memorySize)}`;
+
+    const hash = document.createElement("code");
+    hash.textContent = `${t("payloadHash")}: ${resource.payloadSha256}`;
+
+    row.append(top, tgi, meta, hash);
+    list.appendChild(row);
+  }
+  container.appendChild(list);
 }
 
 function renderTabs() {
@@ -1501,6 +1835,11 @@ function renderPreview() {
     warnings.append(title, list);
     el.previewCard.appendChild(warnings);
   }
+
+  const technical = document.createElement("div");
+  technical.className = "technical-details";
+  renderTechnicalDetails(technical, item);
+  el.previewCard.appendChild(technical);
 }
 
 function setPlanSelection(id, checked) {
@@ -1806,6 +2145,8 @@ function render() {
   renderRestore();
   renderDuplicates();
   renderConflicts();
+  renderRestoreHistory();
+  renderAllOperationProgress();
 
   el.folderPath.textContent = state.folder || t("noFolder");
   el.folderPath.title = state.folder;
@@ -1868,8 +2209,13 @@ async function chooseFolder() {
   state.conflictsSearch = "";
   state.conflictsFilter = "all";
   state.conflictSelectedId = "";
+  state.technicalDetails = {};
+  state.technicalDetailsLoading = "";
+  state.technicalDetailsError = "";
+  state.restoreHistory = [];
   closePlanModal();
   render();
+  await loadRestoreHistory();
 }
 
 async function scanFolder(preserveSelection = false, preserveNotice = false) {
@@ -1879,6 +2225,8 @@ async function scanFolder(preserveSelection = false, preserveNotice = false) {
   const previousNotice = state.notice;
 
   state.scanning = true;
+  state.operations.scan = null;
+  void monitorOperation("scan");
   state.error = "";
   state.planError = "";
   state.plan = null;
@@ -1911,7 +2259,13 @@ async function scanFolder(preserveSelection = false, preserveNotice = false) {
     state.selectedId = visibleItems()[0]?.id || "";
     if (preserveNotice) state.notice = previousNotice;
   } catch (error) {
-    state.error = String(error);
+    const message = String(error);
+    if (message.includes("__S3CC_OPERATION_CANCELLED__")) {
+      state.notice = t("cancelled");
+      state.error = "";
+    } else {
+      state.error = message;
+    }
     state.items = [];
     state.stats = null;
     state.selectedForPlan.clear();
@@ -1981,6 +2335,7 @@ async function executeOrganization() {
 
   if (!state.planError) {
     await scanFolder(false, true);
+    await loadRestoreHistory();
   }
 }
 
@@ -2057,6 +2412,7 @@ async function executeRestore() {
   if (!state.restoreError) {
     await previewRestore();
     if (state.restorePlan) state.restoreNotice = t("restoreComplete");
+    await loadRestoreHistory();
     render();
   }
 }
@@ -2065,6 +2421,8 @@ async function analyzeDuplicates() {
   if (!state.folder || state.duplicatesBusy) return;
 
   state.duplicatesBusy = true;
+  state.operations.duplicates = null;
+  void monitorOperation("duplicates");
   state.duplicatesError = "";
   state.duplicatesAnalysis = null;
   state.duplicateSelectedId = "";
@@ -2077,7 +2435,8 @@ async function analyzeDuplicates() {
     const first = flattenedDuplicateFindings()[0];
     state.duplicateSelectedId = first?.id || "";
   } catch (error) {
-    state.duplicatesError = String(error);
+    const message = String(error);
+    state.duplicatesError = message.includes("__S3CC_OPERATION_CANCELLED__") ? "" : message;
   } finally {
     state.duplicatesBusy = false;
     render();
@@ -2088,6 +2447,8 @@ async function analyzeConflicts() {
   if (!state.folder || state.conflictsBusy) return;
 
   state.conflictsBusy = true;
+  state.operations.conflicts = null;
+  void monitorOperation("conflicts");
   state.conflictsError = "";
   state.conflictsAnalysis = null;
   state.conflictSelectedId = "";
@@ -2099,7 +2460,8 @@ async function analyzeConflicts() {
     });
     state.conflictSelectedId = state.conflictsAnalysis?.findings?.[0]?.id || "";
   } catch (error) {
-    state.conflictsError = String(error);
+    const message = String(error);
+    state.conflictsError = message.includes("__S3CC_OPERATION_CANCELLED__") ? "" : message;
   } finally {
     state.conflictsBusy = false;
     render();
@@ -2128,6 +2490,7 @@ for (const button of el.tabs) {
   button.addEventListener("click", () => {
     state.tab = button.dataset.tab || "organizer";
     render();
+    if (state.tab === "restore" && state.folder) void loadRestoreHistory();
   });
 }
 
@@ -2172,6 +2535,10 @@ document.addEventListener("keydown", (event) => {
 });
 
 el.chooseFolderBtn.addEventListener("click", chooseFolder);
+el.scanCancelBtn.addEventListener("click", () => cancelAnalysis("scan"));
+el.duplicatesCancelBtn.addEventListener("click", () => cancelAnalysis("duplicates"));
+el.conflictsCancelBtn.addEventListener("click", () => cancelAnalysis("conflicts"));
+el.refreshRestoreHistoryBtn.addEventListener("click", loadRestoreHistory);
 el.scanBtn.addEventListener("click", () => scanFolder(false));
 el.planBtn.addEventListener("click", buildPlan);
 el.selectAllBtn.addEventListener("click", selectAllVisible);
