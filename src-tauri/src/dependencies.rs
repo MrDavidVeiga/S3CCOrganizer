@@ -16,6 +16,13 @@ const TYPE_VPXY: u32 = 0x7368_84F1;
 const TYPE_OBJK: u32 = 0x02DC_343F;
 const TYPE_MODL: u32 = 0x0166_1233;
 const TYPE_MLOD: u32 = 0x01D1_0F34;
+// Avoid decoding/scanning enormous payloads in a quadratic-looking byte loop.
+const MAX_REFERENCE_PAYLOAD: usize = 16 * 1024 * 1024;
+
+fn oversized_reference_resource(raw: u32, decoded: u32) -> bool {
+    (raw as usize) > MAX_REFERENCE_PAYLOAD || (decoded as usize) > MAX_REFERENCE_PAYLOAD
+}
+
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -45,6 +52,7 @@ pub struct DependencyAnalysis {
     pub suggested_groups: Vec<SuggestedDependencyGroup>,
     pub scanned_packages: usize,
     pub scanned_reference_resources: usize,
+    pub skipped_large_reference_resources: usize,
     pub truncated: bool,
 }
 
@@ -245,15 +253,24 @@ pub fn analyze_dependencies(folder: String) -> Result<DependencyAnalysis, String
     let mut findings = Vec::new();
     let mut seen = HashSet::new();
     let mut reference_resources = 0usize;
+    let mut skipped_large_reference_resources = 0usize;
     let mut truncated = false;
 
     'packages: for (source_idx, (source_path, source_rel, pkg)) in packages.iter().enumerate() {
         for r in &pkg.entries {
             if is_reference_type(r.type_id) {
+                if oversized_reference_resource(r.file_size, r.mem_size) {
+                    skipped_large_reference_resources += 1;
+                    continue;
+                }
                 let Ok(data) = pkg.data(r) else {
                     continue;
                 };
                 reference_resources += 1;
+                if data.len() > MAX_REFERENCE_PAYLOAD {
+                    skipped_large_reference_resources += 1;
+                    continue;
+                }
                 if data.len() >= 16 {
                     for offset in 0..=data.len() - 16 {
                         let mut key = [0u8; 16];
@@ -298,10 +315,18 @@ pub fn analyze_dependencies(folder: String) -> Result<DependencyAnalysis, String
             }
 
             if r.type_id == TYPE_STBL {
+                if oversized_reference_resource(r.file_size, r.mem_size) {
+                    skipped_large_reference_resources += 1;
+                    continue;
+                }
                 let Ok(data) = pkg.data(r) else {
                     continue;
                 };
                 reference_resources += 1;
+                if data.len() > MAX_REFERENCE_PAYLOAD {
+                    skipped_large_reference_resources += 1;
+                    continue;
+                }
 
                 for key in stbl_keys(&data) {
                     let Some(matches) = slider_instance_targets.get(&key) else {
@@ -360,6 +385,7 @@ pub fn analyze_dependencies(folder: String) -> Result<DependencyAnalysis, String
         suggested_groups,
         scanned_packages: packages.len(),
         scanned_reference_resources: reference_resources,
+        skipped_large_reference_resources,
         truncated,
     })
 }
@@ -384,6 +410,13 @@ mod tests {
         }
 
         assert_eq!(stbl_keys(&data), vec![key]);
+    }
+
+    #[test]
+    fn skip_large_dependency_payloads_before_decompression() {
+        assert!(oversized_reference_resource((MAX_REFERENCE_PAYLOAD + 1) as u32, 0));
+        assert!(oversized_reference_resource(100, (MAX_REFERENCE_PAYLOAD + 1) as u32));
+        assert!(!oversized_reference_resource(128, 512));
     }
 
     #[test]
