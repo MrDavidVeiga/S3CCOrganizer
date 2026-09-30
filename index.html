@@ -70,6 +70,18 @@
             <div id="diagnostics-content" class="diagnostics-content"></div>
           </details>
 
+          <section id="audit-panel" class="sidebar-utility">
+            <div class="sidebar-utility-header">
+              <strong data-i18n="auditReport">Audit Report</strong>
+              <span id="audit-status-dot" class="utility-dot"></span>
+            </div>
+            <div id="audit-status" class="sidebar-utility-summary" data-i18n="auditReportHint">Export classifications, duplicate findings, conflicts and review decisions.</div>
+            <div class="sidebar-utility-actions">
+              <button id="export-audit-btn" class="secondary-btn compact-btn" type="button" disabled data-i18n="exportAuditReport">Export Report</button>
+              <button id="open-report-folder-btn" class="secondary-btn compact-btn" type="button" disabled data-i18n="openReportFolder">Open Reports</button>
+            </div>
+          </section>
+
           <div class="sidebar-note">
             <i class="fa-solid fa-shield-halved" aria-hidden="true"></i>
             <span data-i18n="readOnlyStage">This stage only analyzes files. Nothing is moved.</span>
