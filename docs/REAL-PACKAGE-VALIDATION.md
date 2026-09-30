@@ -132,6 +132,38 @@ canExecute expectation: true
 
 The eight non-classified auxiliaries remain untouched because they are not eligible for automatic organization.
 
+### Organization/Restore copy simulation
+
+A disposable extracted copy of the real Sliders corpus was used to simulate the Planner/execution/Restore file transaction without compiling the application.
+
+Baseline identity was recorded as relative path + SHA-256 + size for all 299 packages.
+
+Organization result:
+
+```text
+planned classified packages: 291
+moved to CAS\Sliders: 291
+conservative auxiliaries left in place: 8
+total packages after organization: 299
+destination overwrites: 0
+hash/size verification failures: 0
+```
+
+Restore result:
+
+```text
+restored packages: 299
+final relative-path match vs baseline: exact
+final SHA-256 match vs baseline: exact
+final size match vs baseline: exact
+temporary CAS\Sliders directory remaining: no
+temporary CAS directory remaining: no
+```
+
+The two non-package files in the supplied folder (`desktop.ini` and `lista_arquivos.txt`) were not moved or modified.
+
+This validates the real corpus and transaction model, but the same scenario must still be repeated through the compiled Tauri commands after the first build.
+
 ### Duplicates validation
 
 Using decompressed resource payload hashes and the same normalized fingerprint rules as the Duplicates analyzer:
