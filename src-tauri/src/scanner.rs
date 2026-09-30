@@ -350,7 +350,7 @@ fn slider_folder_label(language: AppLanguage, key: &str) -> &'static str {
         (AppLanguage::En, "height_posture") => "Height & Posture",
         (AppLanguage::Pt, "height_posture") => "Altura e Postura",
         (AppLanguage::Es, "height_posture") => "Altura y Postura",
-        _ => key,
+        _ => "Unknown",
     }
 }
 
