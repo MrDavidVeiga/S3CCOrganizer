@@ -3472,6 +3472,7 @@ function render() {
   renderCachePanel();
   renderDiagnostics();
   renderAuditPanel();
+  renderStructure();
   applySidebarWidth();
 
   el.folderPath.textContent = state.folder || t("noFolder");
@@ -3481,12 +3482,14 @@ function render() {
     state.scanning ||
     state.duplicatesBusy ||
     state.conflictsBusy ||
+    state.structureBusy ||
     state.planning ||
     state.executing;
   el.chooseFolderBtn.disabled =
     state.scanning ||
     state.duplicatesBusy ||
     state.conflictsBusy ||
+    state.structureBusy ||
     state.planning ||
     state.executing;
 
@@ -3553,12 +3556,21 @@ async function chooseFolder() {
   state.restoreHistory = [];
   state.auditError = "";
   state.lastAuditReport = null;
+  state.structureListing = null;
+  state.structureCurrent = "";
+  state.structureSelectedPath = "";
+  state.structureDirectories = [];
+  state.structureError = "";
+  state.structureNotice = "";
+  state.manualOperations = [];
   closePlanModal();
   render();
   await Promise.all([
     loadRestoreHistory(),
     refreshCacheInfo(),
     refreshConflictDecisions(),
+    refreshManualOperations(),
+    loadStructure(""),
   ]);
 }
 
@@ -3872,6 +3884,9 @@ for (const button of el.tabs) {
     persistPreferences();
     render();
     if (state.tab === "restore" && state.folder) void loadRestoreHistory();
+    if (state.tab === "structure" && state.folder && !state.structureListing) {
+      void loadStructure(state.structureCurrent || "");
+    }
   });
 }
 
@@ -3912,7 +3927,8 @@ document.addEventListener("click", (event) => {
 
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
-  if (!el.confirmModal.classList.contains("hidden")) closeConfirm();
+  if (!el.structureModal.classList.contains("hidden")) closeStructureModal();
+  else if (!el.confirmModal.classList.contains("hidden")) closeConfirm();
   else if (!el.planModal.classList.contains("hidden")) closePlanModal();
 });
 
@@ -3953,6 +3969,21 @@ el.exportAuditBtn.addEventListener("click", exportAuditReport);
 el.openReportFolderBtn.addEventListener("click", () =>
   openDirectorySafe(state.lastAuditReport?.directory)
 );
+el.structureUpBtn.addEventListener("click", () => {
+  const parent = state.structureListing?.parentRelativePath;
+  if (parent != null) loadStructure(parent);
+});
+el.structureRefreshBtn.addEventListener("click", () =>
+  loadStructure(state.structureCurrent || "")
+);
+el.structureCreateBtn.addEventListener("click", () => openStructureModal("create"));
+el.structureMoveBtn.addEventListener("click", () => openStructureModal("move"));
+el.structureRenameBtn.addEventListener("click", () => openStructureModal("rename"));
+el.structureModalCancelBtn.addEventListener("click", closeStructureModal);
+el.structureModalActionBtn.addEventListener("click", executeStructureAction);
+el.structureModal.addEventListener("click", (event) => {
+  if (event.target === el.structureModal) closeStructureModal();
+});
 el.scanBtn.addEventListener("click", () => scanFolder(false));
 el.planBtn.addEventListener("click", buildPlan);
 el.selectAllBtn.addEventListener("click", selectAllVisible);
@@ -4029,6 +4060,8 @@ if (state.folder) {
   void loadRestoreHistory();
   void refreshCacheInfo();
   void refreshConflictDecisions();
+  void refreshManualOperations();
+  void loadStructure("");
 }
 
 render();
