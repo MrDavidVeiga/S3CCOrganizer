@@ -1686,7 +1686,7 @@ function buildAuditSnapshot() {
     : null;
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     generatedAt: new Date().toISOString(),
     root: state.folder,
     language: state.language,
@@ -3901,7 +3901,12 @@ function renderHistoryTools() {
       openButton.type = "button";
       openButton.className = "secondary-btn compact-btn";
       openButton.textContent = t("openStructureLocation");
-      openButton.addEventListener("click", () => revealSafe(item.destination));
+      openButton.addEventListener("click", () => {
+        const destination = item.kind === "manual" && state.folder
+          ? `${state.folder.replace(/[\\/]+$/, "")}\\${String(item.destination).replace(/^[\\/]+/, "")}`
+          : item.destination;
+        revealSafe(destination);
+      });
       row.appendChild(openButton);
     }
     el.toolsOperationHistory.appendChild(row);
