@@ -20,6 +20,7 @@ pub struct PlanItem {
     pub destination_path: Option<String>,
     pub destination_relative_path: Option<String>,
     pub classification_status: String,
+    pub classification_reason: Option<String>,
     pub plan_status: String,
     pub sha256: Option<String>,
     pub size: u64,
@@ -167,6 +168,7 @@ fn make_blocked(item: &ScanPackageItem, reason: String) -> PlanItem {
         destination_path: None,
         destination_relative_path: None,
         classification_status: item.status.clone(),
+        classification_reason: item.classification_reason.clone(),
         plan_status: "blocked".to_string(),
         sha256: None,
         size: item.file_size,
@@ -293,6 +295,7 @@ pub fn build_organization_plan(
                 destination_path: Some(destination.to_string_lossy().to_string()),
                 destination_relative_path: Some(destination_relative_text),
                 classification_status: item.status.clone(),
+                classification_reason: item.classification_reason.clone(),
                 plan_status: "already_organized".to_string(),
                 sha256: Some(hash),
                 size,
@@ -323,6 +326,7 @@ pub fn build_organization_plan(
                 destination_path: Some(destination.to_string_lossy().to_string()),
                 destination_relative_path: Some(destination_relative_text),
                 classification_status: item.status.clone(),
+                classification_reason: item.classification_reason.clone(),
                 plan_status: if same {
                     "collision_same_content".to_string()
                 } else {
@@ -349,6 +353,7 @@ pub fn build_organization_plan(
             destination_path: Some(destination.to_string_lossy().to_string()),
             destination_relative_path: Some(destination_relative_text),
             classification_status: item.status.clone(),
+            classification_reason: item.classification_reason.clone(),
             plan_status: "ready".to_string(),
             sha256: Some(source_hash),
             size: source_size,
@@ -400,6 +405,7 @@ mod tests {
             destination_path: Some("C:\\Mods\\CAS\\Hair\\x.package".into()),
             destination_relative_path: Some("CAS\\Hair\\x.package".into()),
             classification_status: "classified".into(),
+            classification_reason: Some("CASP clothingType=0x00000005 => CAS\\Hair".into()),
             plan_status: "ready".into(),
             sha256: Some("ABC".into()),
             size: 123,
