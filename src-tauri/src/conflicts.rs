@@ -527,8 +527,14 @@ pub fn analyze_conflicts_core(
 
     let mut pairs = HashMap::<(usize, usize), PairAccumulator>::new();
     let mut truncated = false;
+    let mut comparisons = 0usize;
 
     'resources: for occurrences in resource_index.values() {
+        if let Some(kind) = operation_kind {
+            if operation::is_cancelled(kind) {
+                return Err(CANCELLED_ERROR.to_string());
+            }
+        }
         let mut per_package = BTreeMap::<usize, &ResourceOccurrence>::new();
         for occurrence in occurrences {
             per_package.entry(occurrence.package_index).or_insert(occurrence);
@@ -541,6 +547,19 @@ pub fn analyze_conflicts_core(
 
         for left_pos in 0..unique.len() {
             for right_pos in (left_pos + 1)..unique.len() {
+                comparisons += 1;
+                if comparisons % 512 == 0 {
+                    if let Some(kind) = operation_kind {
+                        if operation::is_cancelled(kind) {
+                            return Err(CANCELLED_ERROR.to_string());
+                        }
+                        operation::set_message(
+                            kind,
+                            Some(format!("Compared {comparisons} shared-resource pair(s)")),
+                        );
+                    }
+                }
+
                 let left = unique[left_pos];
                 let right = unique[right_pos];
                 let key = (
