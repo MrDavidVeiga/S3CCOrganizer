@@ -1,5 +1,6 @@
 use chrono::Local;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeMap,
     fs,
@@ -84,6 +85,26 @@ fn save_store(root: &Path, store: &ConflictDecisionStore) -> Result<(), String> 
         .map_err(|error| format!("Could not commit review store {}: {error}", path.display()))
 }
 
+fn normalized_hash_pair(left: &str, right: &str) -> Result<[String; 2], String> {
+    for hash in [left, right] {
+        if hash.len() != 64 || !hash.chars().all(|ch| ch.is_ascii_hexdigit()) {
+            return Err("Conflict decision contains an invalid SHA-256.".to_string());
+        }
+    }
+    let mut hashes = [left.to_ascii_uppercase(), right.to_ascii_uppercase()];
+    hashes.sort();
+    Ok(hashes)
+}
+
+fn expected_decision_key(left: &str, right: &str) -> Result<String, String> {
+    let hashes = normalized_hash_pair(left, right)?;
+    let digest = format!(
+        "{:X}",
+        Sha256::digest(format!("{}|{}", hashes[0], hashes[1]).as_bytes())
+    );
+    Ok(format!("decision:{}", &digest[..24]))
+}
+
 fn canonical_root(folder: &str) -> Result<PathBuf, String> {
     let root = PathBuf::from(folder.trim())
         .canonicalize()
@@ -122,8 +143,11 @@ pub fn set_conflict_decision(
             store.decisions.remove(&decision_key);
         }
         Some(INTENTIONAL_MARK) => {
-            let mut hashes = [left_sha256, right_sha256];
-            hashes.sort();
+            let expected_key = expected_decision_key(&left_sha256, &right_sha256)?;
+            if decision_key != expected_key {
+                return Err("Conflict decision key does not match the package hashes.".to_string());
+            }
+            let hashes = normalized_hash_pair(&left_sha256, &right_sha256)?;
             let mut paths = [left_relative_path, right_relative_path];
             paths.sort();
 
