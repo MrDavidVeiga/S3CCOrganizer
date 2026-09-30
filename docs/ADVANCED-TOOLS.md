@@ -253,3 +253,49 @@ Audit JSON/Markdown now also captures the available state for:
 No feature in this phase automatically deletes a .package.
 
 The only delete-like action is explicit removal of a folder that is verified empty immediately before removal.
+
+
+## Manual Review classifications
+
+Unknown, Mixed and Needs Review packages can be assigned an explicit destination from the package preview.
+
+The decision:
+
+- is stored by whole-file SHA-256;
+- never writes into the package;
+- survives rename/move while the package content remains identical;
+- is invalidated naturally when package bytes change;
+- is identified as `ManualReview` evidence in later scans;
+- never overrides a later authoritative automatic classification.
+
+Manual destinations are validated against traversal and Windows-invalid/reserved folder names before being stored.
+
+## Dependency group suggestions
+
+Dependency analysis now aggregates connected evidence into suggested Keep Together groups.
+
+Suggestions are never created automatically. The user reviews the suggested member list and explicitly saves it through the existing Keep Together workflow.
+
+This is intentionally conservative because binary TGI evidence can still contain false positives.
+
+## Reversible Duplicate Quarantine
+
+Exact/content duplicate selections can now move to:
+
+```text
+<Packages parent>\S3CC Organizer\Quarantine\<session>\...
+```
+
+Execution requires a fresh preflight and:
+
+- respects read-only mode;
+- never overwrites an existing destination;
+- re-verifies source SHA-256 + size immediately before moving;
+- verifies the quarantined file after every move;
+- rolls back completed moves if any later move fails;
+- writes a JSON quarantine manifest with transaction status;
+- appears in Unified History.
+
+A completed quarantine can be restored from History. Restore verifies the original Mods root, refuses occupied original destinations, verifies quarantined SHA-256 + size, restores transactionally, and marks the manifest `RESTORED`.
+
+No quarantine action deletes a package.
