@@ -2,6 +2,7 @@ use crate::{
     catalog::{classify_resource, CatalogClassification, TYPE_CASP, TYPE_OBJD},
     dbpf::Package,
     i18n::AppLanguage,
+    operation::{self, CANCELLED_ERROR},
     package_family::{
         classify_package_family, PackageFamilyClassification, PackageFamilyResult, TYPE_BBLN,
         TYPE_BGEO, TYPE_BONE_DELTA, TYPE_FACE, TYPE_FBLN, TYPE_HAIR_TONE, TYPE_S3SA,
@@ -365,8 +366,11 @@ fn scan_one(root: &Path, path: &Path, language: AppLanguage) -> ScanPackageItem 
     }
 }
 
-#[tauri::command]
-pub fn scan_packages(folder: String, language: AppLanguage) -> Result<ScanResult, String> {
+pub fn scan_packages_core(
+    folder: String,
+    language: AppLanguage,
+    operation_kind: Option<&str>,
+) -> Result<ScanResult, String> {
     let root = PathBuf::from(folder.trim());
     if folder.trim().is_empty() {
         return Err("No folder was selected.".to_string());
@@ -384,11 +388,28 @@ pub fn scan_packages(folder: String, language: AppLanguage) -> Result<ScanResult
         .collect::<Vec<_>>();
     package_paths.sort_by_key(|path| path.to_string_lossy().to_ascii_lowercase());
 
+    if let Some(kind) = operation_kind {
+        operation::set_total(kind, package_paths.len());
+        operation::update(kind, 0, None, "scanning");
+    }
+
     let mut stats = ScanStats::default();
     let mut items = Vec::with_capacity(package_paths.len());
 
-    for path in package_paths {
-        let item = scan_one(&root, &path, language);
+    for (index, path) in package_paths.iter().enumerate() {
+        if let Some(kind) = operation_kind {
+            if operation::is_cancelled(kind) {
+                return Err(CANCELLED_ERROR.to_string());
+            }
+            operation::update(
+                kind,
+                index,
+                path.file_name().map(|value| value.to_string_lossy().to_string()),
+                "scanning",
+            );
+        }
+
+        let item = scan_one(&root, path, language);
         stats.packages += 1;
         stats.casp_resources += item
             .classifications
@@ -410,6 +431,15 @@ pub fn scan_packages(folder: String, language: AppLanguage) -> Result<ScanResult
         }
 
         items.push(item);
+
+        if let Some(kind) = operation_kind {
+            operation::update(
+                kind,
+                index + 1,
+                path.file_name().map(|value| value.to_string_lossy().to_string()),
+                "scanning",
+            );
+        }
     }
 
     Ok(ScanResult {
@@ -417,6 +447,26 @@ pub fn scan_packages(folder: String, language: AppLanguage) -> Result<ScanResult
         items,
         stats,
     })
+}
+
+#[tauri::command]
+pub async fn scan_packages(folder: String, language: AppLanguage) -> Result<ScanResult, String> {
+    const KIND: &str = "scan";
+    operation::begin(KIND, "starting");
+
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        scan_packages_core(folder, language, Some(KIND))
+    })
+    .await
+    .map_err(|error| format!("Scanner worker failed: {error}"))?;
+
+    match &result {
+        Ok(_) => operation::finish(KIND, "complete", None),
+        Err(error) if error == CANCELLED_ERROR => operation::mark_cancelled(KIND),
+        Err(error) => operation::finish(KIND, "error", Some(error.clone())),
+    }
+
+    result
 }
 
 #[cfg(test)]
