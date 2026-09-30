@@ -1,5 +1,5 @@
 use crate::{
-    cache::{get_or_build, load_cache, retain_existing, save_cache, CachedPackage, FingerprintCache},
+    cache::{get_or_build_with_metrics, load_cache, retain_existing, save_cache, CacheBuildMetrics, FingerprintCache},
     catalog::{TYPE_CASP, TYPE_OBJD},
     operation::{self, CANCELLED_ERROR},
 };
@@ -8,6 +8,7 @@ use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     path::{Path, PathBuf},
+    time::Instant,
 };
 use walkdir::WalkDir;
 
@@ -117,6 +118,11 @@ pub struct DuplicateStats {
     pub variant_analysis_truncated: bool,
     pub cache_hits: usize,
     pub cache_misses: usize,
+    pub hashing_ms: u128,
+    pub dbpf_load_ms: u128,
+    pub resource_decode_ms: u128,
+    pub comparison_ms: u128,
+    pub total_ms: u128,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -240,8 +246,8 @@ fn build_package_fingerprint(
     root: &Path,
     path: &Path,
     cache: &mut FingerprintCache,
-) -> Result<(PackageFingerprint, bool), String> {
-    let (cached, cache_hit) = get_or_build(path, cache)?;
+) -> Result<(PackageFingerprint, CacheBuildMetrics), String> {
+    let (cached, metrics) = get_or_build_with_metrics(path, cache)?;
 
     let relative_path = path
         .strip_prefix(root)
@@ -327,7 +333,7 @@ fn build_package_fingerprint(
             resources,
             parse_error: cached.parse_error,
         },
-        cache_hit,
+        metrics,
     ))
 }
 
@@ -582,6 +588,7 @@ pub fn analyze_duplicates_core(
     folder: String,
     operation_kind: Option<&str>,
 ) -> Result<DuplicateAnalysis, String> {
+    let total_started = Instant::now();
     let root_input = PathBuf::from(folder.trim());
     if folder.trim().is_empty() {
         return Err("No folder was selected.".to_string());
@@ -615,6 +622,9 @@ pub fn analyze_duplicates_core(
     let mut errors = Vec::new();
     let mut cache_hits = 0usize;
     let mut cache_misses = 0usize;
+    let mut hashing_ms = 0u128;
+    let mut dbpf_load_ms = 0u128;
+    let mut resource_decode_ms = 0u128;
 
     for (index, path) in paths.iter().enumerate() {
         if let Some(kind) = operation_kind {
@@ -631,12 +641,15 @@ pub fn analyze_duplicates_core(
         }
 
         match build_package_fingerprint(&root, path, &mut cache) {
-            Ok((package, cache_hit)) => {
-                if cache_hit {
+            Ok((package, metrics)) => {
+                if metrics.cache_hit {
                     cache_hits += 1;
                 } else {
                     cache_misses += 1;
                 }
+                hashing_ms += metrics.hash_ms;
+                dbpf_load_ms += metrics.dbpf_load_ms;
+                resource_decode_ms += metrics.resource_decode_ms;
 
                 if let Some(error) = &package.parse_error {
                     errors.push(format!(
@@ -676,6 +689,9 @@ pub fn analyze_duplicates_core(
             .count(),
         cache_hits,
         cache_misses,
+        hashing_ms,
+        dbpf_load_ms,
+        resource_decode_ms,
         ..DuplicateStats::default()
     };
 
@@ -750,9 +766,11 @@ pub fn analyze_duplicates_core(
         operation::update(kind, packages.len(), None, "comparing");
     }
 
+    let comparison_started = Instant::now();
     let mut relations = Vec::new();
     let variant_analysis_truncated =
         add_variant_candidates(&packages, &mut relations, operation_kind)?;
+    stats.comparison_ms = comparison_started.elapsed().as_millis();
     stats.variant_analysis_truncated = variant_analysis_truncated;
     relations.sort_by_key(|relation| {
         (
@@ -772,6 +790,8 @@ pub fn analyze_duplicates_core(
     }
 
     groups.sort_by_key(|group| (group.kind.clone(), group.id.clone()));
+
+    stats.total_ms = total_started.elapsed().as_millis();
 
     Ok(DuplicateAnalysis {
         root: root.to_string_lossy().to_string(),
