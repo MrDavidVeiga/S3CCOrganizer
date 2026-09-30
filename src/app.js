@@ -2286,7 +2286,8 @@ function renderDuplicates() {
     state.duplicatesBusy ||
     state.scanning ||
     state.conflictsBusy ||
-    state.structureBusy;
+    state.structureBusy ||
+    state.toolsBusy;
 
   const stats = state.duplicatesAnalysis?.stats || {};
   el.dupStatPackages.textContent = stats.packagesScanned ?? 0;
@@ -2682,7 +2683,8 @@ function renderConflicts() {
     state.conflictsBusy ||
     state.scanning ||
     state.duplicatesBusy ||
-    state.structureBusy;
+    state.structureBusy ||
+    state.toolsBusy;
 
   const analysis = state.conflictsAnalysis;
   const stats = analysis?.stats || {};
@@ -3067,6 +3069,7 @@ function structureLocked() {
     state.restoreBusy ||
     state.auditBusy ||
     state.reviewBusy ||
+    state.toolsBusy ||
     !!state.technicalDetailsLoading
   );
 }
@@ -3430,6 +3433,22 @@ async function executeStructureAction() {
     el.structureModalActionBtn.disabled = false;
     render();
   }
+}
+
+function toolsOperationLocked() {
+  return (
+    state.toolsBusy ||
+    state.scanning ||
+    state.duplicatesBusy ||
+    state.conflictsBusy ||
+    state.structureBusy ||
+    state.toolsBusy ||
+    state.planning ||
+    state.executing ||
+    state.restoreBusy ||
+    state.quarantineBusy ||
+    !!state.technicalDetailsLoading
+  );
 }
 
 function workspaceReadOnly() {
@@ -3932,7 +3951,7 @@ async function addCustomRule() {
 }
 
 async function analyzeHealth() {
-  if (!state.folder || state.toolsBusy) return;
+  if (!state.folder || toolsOperationLocked()) return;
   state.toolsBusy = true; state.toolsError = "";
   renderTools();
   try {
@@ -3942,7 +3961,7 @@ async function analyzeHealth() {
 }
 
 async function createSnapshotTool() {
-  if (!state.folder || state.toolsBusy) return;
+  if (!state.folder || toolsOperationLocked()) return;
   state.toolsBusy = true; renderTools();
   try {
     await invoke("create_snapshot", { folder: state.folder });
@@ -3962,7 +3981,7 @@ async function chooseCompareRoot() {
 }
 
 async function compareRootsTool() {
-  if (!state.folder || !state.compareRoot || state.toolsBusy) return;
+  if (!state.folder || !state.compareRoot || toolsOperationLocked()) return;
   state.toolsBusy = true; renderTools();
   try {
     state.snapshotDiff = await invoke("compare_mods_roots", {
@@ -3983,7 +4002,7 @@ async function chooseInboxFolder() {
 }
 
 async function scanInboxTool() {
-  if (!state.inboxFolder || state.toolsBusy) return;
+  if (!state.inboxFolder || toolsOperationLocked()) return;
   state.toolsBusy = true; renderTools();
   try {
     state.inboxScan = await invoke("scan_inbox", {
@@ -3996,7 +4015,7 @@ async function scanInboxTool() {
 }
 
 async function previewInboxImport() {
-  if (!state.folder || !state.inboxFolder || !state.inboxSelected.size) return;
+  if (!state.folder || !state.inboxFolder || !state.inboxSelected.size || toolsOperationLocked()) return;
   state.toolsBusy = true; renderTools();
   try {
     state.inboxPlan = await invoke("build_inbox_import_plan", {
@@ -4009,7 +4028,7 @@ async function previewInboxImport() {
 }
 
 async function executeInboxImport() {
-  if (!state.inboxPlan?.canExecute || workspaceReadOnly()) return;
+  if (!state.inboxPlan?.canExecute || workspaceReadOnly() || toolsOperationLocked()) return;
   state.toolsBusy = true; renderTools();
   try {
     const result = await invoke("execute_inbox_import", {
@@ -4026,7 +4045,7 @@ async function executeInboxImport() {
 
 async function savePackageMetadataTool() {
   const packagePath = el.toolsMetadataPackage.value;
-  if (!state.folder || !packagePath) return;
+  if (!state.folder || !packagePath || toolsOperationLocked()) return;
   state.toolsBusy = true; renderTools();
   try {
     state.workspaceStore = await invoke("set_package_metadata", {
@@ -4042,7 +4061,7 @@ async function savePackageMetadataTool() {
 }
 
 async function saveGroupTool() {
-  if (!state.folder || !state.metadataGroupSelected.size) return;
+  if (!state.folder || !state.metadataGroupSelected.size || toolsOperationLocked()) return;
   state.toolsBusy = true; renderTools();
   try {
     state.workspaceStore = await invoke("save_package_group", {
@@ -4059,7 +4078,7 @@ async function saveGroupTool() {
 }
 
 async function runTechnicalSearch() {
-  if (!state.folder || !el.toolsTechQuery.value.trim()) return;
+  if (!state.folder || !el.toolsTechQuery.value.trim() || toolsOperationLocked()) return;
   state.toolsBusy = true; renderTools();
   try {
     state.technicalResults = await invoke("technical_search", {
@@ -4110,7 +4129,7 @@ async function exportTechnicalSelection(format) {
 async function comparePackagesTool() {
   const leftPath = el.toolsCompareLeft.value;
   const rightPath = el.toolsCompareRight.value;
-  if (!leftPath || !rightPath || leftPath === rightPath) return;
+  if (!leftPath || !rightPath || leftPath === rightPath || toolsOperationLocked()) return;
   state.toolsBusy = true; renderTools();
   try {
     state.packageCompare = await invoke("compare_packages", {
@@ -4121,7 +4140,7 @@ async function comparePackagesTool() {
 }
 
 async function analyzeDependenciesTool() {
-  if (!state.folder || state.toolsBusy) return;
+  if (!state.folder || toolsOperationLocked()) return;
   state.toolsBusy = true; renderTools();
   try {
     state.dependenciesAnalysis = await invoke("analyze_dependencies", { folder: state.folder });
@@ -4711,6 +4730,7 @@ function render() {
     state.duplicatesBusy ||
     state.conflictsBusy ||
     state.structureBusy ||
+    state.toolsBusy ||
     state.planning ||
     state.executing;
   el.chooseFolderBtn.disabled =
@@ -4809,7 +4829,8 @@ async function scanFolder(preserveSelection = false, preserveNotice = false) {
     state.scanning ||
     state.planning ||
     state.executing ||
-    state.structureBusy
+    state.structureBusy ||
+    state.toolsBusy
   ) return;
 
   const previousSelection = new Set(state.selectedForPlan);
@@ -5023,7 +5044,7 @@ async function executeRestore() {
 }
 
 async function analyzeDuplicates() {
-  if (!state.folder || state.duplicatesBusy || state.structureBusy) return;
+  if (!state.folder || state.duplicatesBusy || state.structureBusy || state.toolsBusy) return;
 
   const previousAnalysis = state.duplicatesAnalysis;
   const previousSelectedId = state.duplicateSelectedId;
@@ -5063,7 +5084,7 @@ async function analyzeDuplicates() {
 }
 
 async function analyzeConflicts() {
-  if (!state.folder || state.conflictsBusy || state.structureBusy) return;
+  if (!state.folder || state.conflictsBusy || state.structureBusy || state.toolsBusy) return;
 
   const previousAnalysis = state.conflictsAnalysis;
   const previousSelectedId = state.conflictSelectedId;
