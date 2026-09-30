@@ -397,8 +397,8 @@ mod tests {
             protected_folders: vec!["NRaas".to_string()],
             ..OrganizationProfile::default()
         };
-        assert!(is_protected("NRaas\MasterController.package", &profile));
-        assert!(!is_protected("CAS\Hair.package", &profile));
+        assert!(is_protected(r"NRaas\MasterController.package", &profile));
+        assert!(!is_protected(r"CAS\Hair.package", &profile));
     }
 
     #[test]
@@ -410,7 +410,7 @@ mod tests {
                 enabled: true,
                 category: Some("CAS".into()),
                 sub_category: Some("Hair".into()),
-                destination: "Creators\Hair".into(),
+                destination: r"Creators\Hair".into(),
                 ..CustomRule::default()
             }],
             ..OrganizationProfile::default()
