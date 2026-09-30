@@ -1,4 +1,4 @@
-use crate::{i18n::AppLanguage,manifest::sha256_file,scanner::{scan_packages_core,ScanResult},workspace::ensure_writable};
+use crate::{dbpf::Package,i18n::AppLanguage,manifest::sha256_file,scanner::{scan_packages_core,ScanResult},workspace::ensure_writable};
 use chrono::Local;
 use serde::Serialize;
 use std::{fs,path::{Path,PathBuf}};
@@ -55,7 +55,13 @@ pub fn build_inbox_import_plan(folder:String,source_folder:String,selected_paths
         let rel=source.strip_prefix(&source_root).unwrap_or(&source);
         let destination=destination_root.join(rel);
         let (sha,size)=sha256_file(&source).map_err(|e|format!("Could not hash {}: {e}",source.display()))?;
-        let status=if destination.exists(){"collision"}else{"ready"}.to_string();
+        let status=if destination.exists(){
+            "collision"
+        }else if Package::load(&source).is_err(){
+            "invalid"
+        }else{
+            "ready"
+        }.to_string();
         if status=="ready"{ready+=1}else{blocked+=1}
         items.push(InboxPlanItem{
             source_path:source.to_string_lossy().to_string(),
