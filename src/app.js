@@ -2131,6 +2131,7 @@ function renderPreview() {
   appendMeta(meta, t("resources"), `${item.resourceCount} · ${(item.resourceTypes || []).join(", ")}`);
   appendMeta(meta, t("originalPath"), item.relativePath);
   appendMeta(meta, t("suggestedDestination"), item.destinationPath || t("noDestination"));
+  appendMeta(meta, t("classificationReason"), item.classificationReason);
 
   if (!item.destinationPath && item.candidateDestinations?.length) {
     appendMeta(meta, t("possibleDestinations"), item.candidateDestinations);
@@ -2140,6 +2141,16 @@ function renderPreview() {
   }
 
   el.previewCard.append(header, meta);
+
+  const previewActions = document.createElement("div");
+  previewActions.className = "preview-actions";
+  const revealButton = document.createElement("button");
+  revealButton.type = "button";
+  revealButton.className = "secondary-btn";
+  revealButton.textContent = t("openPackageLocation");
+  revealButton.addEventListener("click", () => revealSafe(item.path));
+  previewActions.appendChild(revealButton);
+  el.previewCard.appendChild(previewActions);
 
   if (item.warnings?.length) {
     const warnings = document.createElement("div");
@@ -2310,6 +2321,17 @@ function renderPlan() {
 
     card.append(top, paths);
 
+    if (item.classificationReason) {
+      const reason = document.createElement("div");
+      reason.className = "plan-reason";
+      const label = document.createElement("span");
+      label.textContent = t("classificationReason");
+      const code = document.createElement("code");
+      code.textContent = item.classificationReason;
+      reason.append(label, code);
+      card.appendChild(reason);
+    }
+
     if (item.warnings?.length) {
       const note = document.createElement("div");
       note.className = "plan-warning";
@@ -2342,6 +2364,20 @@ function renderRestore() {
   el.restoreManifestPath.title = state.restoreManifest;
   el.previewRestoreBtn.disabled = !state.restoreManifest || state.restoreBusy;
   el.executeRestoreBtn.disabled = !plan?.canExecute || state.restoreBusy;
+  el.openManifestFolderBtn.disabled = !state.restoreManifest;
+
+  if (plan) {
+    el.restoreRootCheck.classList.remove("hidden", "match", "mismatch");
+    el.restoreRootCheck.classList.add(plan.rootMatchesSelected ? "match" : "mismatch");
+    el.restoreManifestRoot.textContent = plan.root || "—";
+    el.restoreManifestRoot.title = plan.root || "";
+    el.restoreSelectedRoot.textContent = plan.selectedRoot || state.folder || "—";
+    el.restoreSelectedRoot.title = plan.selectedRoot || state.folder || "";
+    el.restoreRootStatus.textContent = plan.rootMatchesSelected ? t("rootMatch") : t("rootMismatch");
+  } else {
+    el.restoreRootCheck.classList.add("hidden");
+    el.restoreRootCheck.classList.remove("match", "mismatch");
+  }
 
   const stats = plan?.stats || {};
   el.restoreStatTracked.textContent = stats.tracked ?? 0;
@@ -2442,6 +2478,10 @@ function openConfirm(action) {
     el.confirmTitle.textContent = t("confirmOrganizeTitle");
     el.confirmMessage.textContent = t("confirmOrganizeMessage");
     el.confirmActionBtn.textContent = t("organizeSelected");
+  } else if (action === "clear_cache") {
+    el.confirmTitle.textContent = t("confirmClearCacheTitle");
+    el.confirmMessage.textContent = t("confirmClearCacheMessage");
+    el.confirmActionBtn.textContent = t("clearCache");
   } else {
     el.confirmTitle.textContent = t("confirmRestoreTitle");
     el.confirmMessage.textContent = t("confirmRestoreMessage");
@@ -2467,6 +2507,9 @@ function render() {
   renderConflicts();
   renderRestoreHistory();
   renderAllOperationProgress();
+  renderCachePanel();
+  renderDiagnostics();
+  applySidebarWidth();
 
   el.folderPath.textContent = state.folder || t("noFolder");
   el.folderPath.title = state.folder;
@@ -2520,6 +2563,7 @@ async function chooseFolder() {
   if (!selected || Array.isArray(selected)) return;
 
   state.folder = selected;
+  persistPreferences();
   state.items = [];
   state.stats = null;
   state.selectedId = "";
@@ -2546,7 +2590,7 @@ async function chooseFolder() {
   state.restoreHistory = [];
   closePlanModal();
   render();
-  await loadRestoreHistory();
+  await Promise.all([loadRestoreHistory(), refreshCacheInfo()]);
 }
 
 async function scanFolder(preserveSelection = false, preserveNotice = false) {
@@ -2706,6 +2750,7 @@ async function previewRestore() {
     state.restorePlan = await invoke("preview_restore", {
       manifestPath: state.restoreManifest,
       currentLanguage: state.language,
+      expectedRoot: state.folder || null,
     });
   } catch (error) {
     state.restoreError = String(error);
@@ -2727,6 +2772,7 @@ async function executeRestore() {
     const result = await invoke("execute_restore", {
       manifestPath: state.restoreManifest,
       currentLanguage: state.language,
+      expectedRoot: state.folder || null,
     });
 
     if (result.status === "RESTORED") {
@@ -2789,6 +2835,7 @@ async function analyzeDuplicates() {
   } finally {
     state.duplicatesBusy = false;
     render();
+    await refreshCacheInfo();
   }
 }
 
@@ -2825,6 +2872,7 @@ async function analyzeConflicts() {
   } finally {
     state.conflictsBusy = false;
     render();
+    await refreshCacheInfo();
   }
 }
 
@@ -2849,6 +2897,7 @@ function selectNoneVisible() {
 for (const button of el.tabs) {
   button.addEventListener("click", () => {
     state.tab = button.dataset.tab || "organizer";
+    persistPreferences();
     render();
     if (state.tab === "restore" && state.folder) void loadRestoreHistory();
   });
@@ -2874,6 +2923,7 @@ for (const button of el.languageMenuItems) {
 
     state.language = nextLanguage;
     localStorage.setItem("s3cc-organizer-language", state.language);
+    persistPreferences();
     render();
 
     if (state.folder && state.stats) await scanFolder(true);
@@ -2899,6 +2949,9 @@ el.scanCancelBtn.addEventListener("click", () => cancelAnalysis("scan"));
 el.duplicatesCancelBtn.addEventListener("click", () => cancelAnalysis("duplicates"));
 el.conflictsCancelBtn.addEventListener("click", () => cancelAnalysis("conflicts"));
 el.refreshRestoreHistoryBtn.addEventListener("click", loadRestoreHistory);
+el.openManifestFolderBtn.addEventListener("click", () => revealSafe(state.restoreManifest));
+el.openCacheBtn.addEventListener("click", () => revealSafe(state.cacheInfo?.path));
+el.clearCacheBtn.addEventListener("click", () => openConfirm("clear_cache"));
 el.scanBtn.addEventListener("click", () => scanFolder(false));
 el.planBtn.addEventListener("click", buildPlan);
 el.selectAllBtn.addEventListener("click", selectAllVisible);
@@ -2915,18 +2968,22 @@ el.analyzeDuplicatesBtn.addEventListener("click", analyzeDuplicates);
 el.analyzeConflictsBtn.addEventListener("click", analyzeConflicts);
 el.conflictsSearch.addEventListener("input", (event) => {
   state.conflictsSearch = event.currentTarget.value;
+  persistPreferences();
   renderConflicts();
 });
 el.conflictsFilter.addEventListener("change", (event) => {
   state.conflictsFilter = event.currentTarget.value;
+  persistPreferences();
   renderConflicts();
 });
 el.duplicatesSearch.addEventListener("input", (event) => {
   state.duplicatesSearch = event.currentTarget.value;
+  persistPreferences();
   renderDuplicates();
 });
 el.duplicatesFilter.addEventListener("change", (event) => {
   state.duplicatesFilter = event.currentTarget.value;
+  persistPreferences();
   renderDuplicates();
 });
 
@@ -2938,6 +2995,12 @@ el.confirmCancelBtn.addEventListener("click", closeConfirm);
 el.confirmActionBtn.addEventListener("click", async () => {
   if (state.pendingAction === "organize") await executeOrganization();
   else if (state.pendingAction === "restore") await executeRestore();
+  else if (state.pendingAction === "clear_cache") {
+    await clearAnalysisCache();
+    state.pendingAction = "";
+    el.confirmModal.classList.add("hidden");
+    render();
+  }
 });
 
 el.confirmModal.addEventListener("click", (event) => {
@@ -2946,12 +3009,24 @@ el.confirmModal.addEventListener("click", (event) => {
 
 el.searchInput.addEventListener("input", (event) => {
   state.search = event.currentTarget.value;
+  persistPreferences();
   renderResults();
 });
 
 el.statusFilter.addEventListener("change", (event) => {
   state.status = event.currentTarget.value;
+  persistPreferences();
   renderResults();
 });
+
+el.searchInput.value = state.search;
+el.duplicatesSearch.value = state.duplicatesSearch;
+el.conflictsSearch.value = state.conflictsSearch;
+applySidebarWidth();
+
+if (state.folder) {
+  void loadRestoreHistory();
+  void refreshCacheInfo();
+}
 
 render();
