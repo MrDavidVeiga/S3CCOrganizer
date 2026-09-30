@@ -836,9 +836,15 @@ const state = {
   cacheError: "",
   sidebarWidth: clampSidebarWidth(preferences.sidebarWidth),
   conflictMarks: {},
+  persistentConflictMarks: {},
+  persistentConflictRecords: [],
+  reviewBusy: false,
   quarantineSelected: new Set(),
   quarantinePlan: null,
   quarantineBusy: false,
+  auditBusy: false,
+  auditError: "",
+  lastAuditReport: null,
   pendingAction: "",
 };
 
@@ -953,6 +959,10 @@ const el = {
   restoreManifestRoot: document.querySelector("#restore-manifest-root"),
   restoreSelectedRoot: document.querySelector("#restore-selected-root"),
   restoreRootStatus: document.querySelector("#restore-root-status"),
+  auditStatusDot: document.querySelector("#audit-status-dot"),
+  auditStatus: document.querySelector("#audit-status"),
+  exportAuditBtn: document.querySelector("#export-audit-btn"),
+  openReportFolderBtn: document.querySelector("#open-report-folder-btn"),
 };
 
 function persistPreferences() {
