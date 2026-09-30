@@ -2640,6 +2640,344 @@ function renderTechnicalDetails(container, item) {
   }
 }
 
+function selectedStructureEntry() {
+  return (state.structureListing?.entries || []).find(
+    (entry) => entry.relativePath === state.structureSelectedPath
+  ) || null;
+}
+
+async function refreshManualOperations() {
+  if (!state.folder) {
+    state.manualOperations = [];
+    return;
+  }
+  try {
+    state.manualOperations = await invoke("list_manual_operations", {
+      folder: state.folder,
+    });
+  } catch (_) {
+    state.manualOperations = [];
+  }
+}
+
+function invalidateAnalysesAfterStructureChange() {
+  state.items = [];
+  state.stats = null;
+  state.selectedId = "";
+  state.selectedForPlan.clear();
+  state.plan = null;
+  state.planError = "";
+  state.error = "";
+  state.duplicatesAnalysis = null;
+  state.duplicatesError = "";
+  state.duplicatesNotice = "";
+  state.duplicateSelectedId = "";
+  state.conflictsAnalysis = null;
+  state.conflictsError = "";
+  state.conflictsNotice = "";
+  state.conflictSelectedId = "";
+  state.conflictMarks = {};
+  state.technicalDetails = {};
+  state.technicalDetailsErrors = {};
+  state.restorePlan = null;
+  state.quarantineSelected.clear();
+  state.quarantinePlan = null;
+  state.lastAuditReport = null;
+  state.auditError = "";
+}
+
+async function loadStructure(relativePath = state.structureCurrent) {
+  if (!state.folder || state.structureBusy) return;
+  state.structureBusy = true;
+  state.structureError = "";
+  renderStructure();
+
+  try {
+    state.structureListing = await invoke("list_structure", {
+      folder: state.folder,
+      relativePath: relativePath || "",
+    });
+    state.structureCurrent = state.structureListing?.currentRelativePath || "";
+    state.structureSelectedPath = "";
+  } catch (error) {
+    state.structureError = String(error);
+    state.structureListing = null;
+    if (relativePath) state.structureCurrent = "";
+  } finally {
+    state.structureBusy = false;
+    renderStructure();
+  }
+}
+
+async function loadStructureDirectories() {
+  if (!state.folder) {
+    state.structureDirectories = [];
+    return;
+  }
+  state.structureDirectories = await invoke("list_structure_directories", {
+    folder: state.folder,
+  });
+}
+
+function renderStructurePreview() {
+  if (!el.structurePreview) return;
+  const entry = selectedStructureEntry();
+  el.structurePreview.innerHTML = "";
+
+  if (!entry) {
+    const empty = document.createElement("div");
+    empty.className = "preview-empty";
+    empty.textContent = t("selectStructureItem");
+    el.structurePreview.appendChild(empty);
+    return;
+  }
+
+  const header = document.createElement("div");
+  header.className = "preview-header";
+  const name = document.createElement("h3");
+  name.textContent = entry.name;
+  const badge = document.createElement("span");
+  badge.className = "status-badge status-classified";
+  badge.textContent = entry.isDirectory ? t("folderType") : t("fileType");
+  header.append(name, badge);
+
+  const meta = document.createElement("div");
+  meta.className = "preview-meta";
+  appendMeta(meta, t("itemType"), entry.isDirectory ? t("folderType") : t("fileType"));
+  appendMeta(meta, t("structurePath"), entry.relativePath);
+  if (!entry.isDirectory) appendMeta(meta, t("structureSize"), bytesLabel(entry.size));
+
+  const actions = document.createElement("div");
+  actions.className = "preview-actions";
+  const openButton = document.createElement("button");
+  openButton.type = "button";
+  openButton.className = "secondary-btn";
+  openButton.textContent = t("openStructureLocation");
+  openButton.addEventListener("click", () => revealSafe(entry.path));
+  actions.appendChild(openButton);
+
+  if (entry.isDirectory) {
+    const enterButton = document.createElement("button");
+    enterButton.type = "button";
+    enterButton.className = "secondary-btn";
+    enterButton.textContent = t("currentFolder");
+    enterButton.addEventListener("click", () => loadStructure(entry.relativePath));
+    actions.appendChild(enterButton);
+  }
+
+  el.structurePreview.append(header, meta, actions);
+}
+
+function renderStructure() {
+  if (!el.structureState) return;
+
+  const hasRoot = !!state.folder;
+  const listing = state.structureListing;
+  el.structureEmpty.classList.toggle("hidden", hasRoot);
+  el.structureResults.classList.toggle("hidden", !hasRoot || !listing);
+
+  el.structureCurrentPath.textContent =
+    listing?.currentRelativePath ? `\\${listing.currentRelativePath}` : "\\";
+  el.structureCurrentPath.title = el.structureCurrentPath.textContent;
+
+  el.structureUpBtn.disabled =
+    !hasRoot || state.structureBusy || !listing?.parentRelativePath;
+  el.structureRefreshBtn.disabled = !hasRoot || state.structureBusy;
+  el.structureCreateBtn.disabled = !hasRoot || state.structureBusy;
+
+  const selected = selectedStructureEntry();
+  el.structureMoveBtn.disabled = !selected || state.structureBusy;
+  el.structureRenameBtn.disabled =
+    !selected || !selected.isDirectory || state.structureBusy;
+
+  if (state.structureBusy) {
+    el.structureState.textContent = t("scanning");
+    el.structureState.className = "scan-state busy";
+  } else if (state.structureError) {
+    el.structureState.textContent = `${t("structureFailed")}: ${state.structureError}`;
+    el.structureState.className = "scan-state error";
+  } else if (state.structureNotice) {
+    el.structureState.textContent = state.structureNotice;
+    el.structureState.className = "scan-state success";
+  } else {
+    el.structureState.textContent = "";
+    el.structureState.className = "scan-state";
+  }
+
+  if (!listing) {
+    renderStructurePreview();
+    return;
+  }
+
+  el.structureList.innerHTML = "";
+  if (!(listing.entries || []).length) {
+    const empty = document.createElement("div");
+    empty.className = "list-empty";
+    empty.textContent = t("structureNoItems");
+    el.structureList.appendChild(empty);
+  } else {
+    for (const entry of listing.entries || []) {
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className =
+        "structure-row" +
+        (entry.relativePath === state.structureSelectedPath ? " active" : "");
+
+      const icon = document.createElement("i");
+      icon.className = entry.isDirectory
+        ? "fa-solid fa-folder"
+        : "fa-solid fa-file";
+
+      const main = document.createElement("div");
+      main.className = "structure-row-main";
+      const name = document.createElement("strong");
+      name.textContent = entry.name;
+      const meta = document.createElement("span");
+      meta.textContent = entry.isDirectory
+        ? t("folderType")
+        : `${t("fileType")} · ${bytesLabel(entry.size)}`;
+      main.append(name, meta);
+
+      row.append(icon, main);
+      row.addEventListener("click", () => {
+        state.structureSelectedPath = entry.relativePath;
+        renderStructure();
+      });
+      row.addEventListener("dblclick", () => {
+        if (entry.isDirectory) loadStructure(entry.relativePath);
+      });
+      el.structureList.appendChild(row);
+    }
+  }
+
+  renderStructurePreview();
+}
+
+function closeStructureModal() {
+  state.structureModalAction = "";
+  el.structureModal.classList.add("hidden");
+  el.structureModal.setAttribute("aria-hidden", "true");
+  el.structureInput.value = "";
+}
+
+async function openStructureModal(action) {
+  const selected = selectedStructureEntry();
+  if (!state.folder || state.structureBusy) return;
+  if ((action === "move" || action === "rename") && !selected) return;
+  if (action === "rename" && !selected?.isDirectory) return;
+
+  state.structureModalAction = action;
+  el.structureInputWrap.classList.toggle("hidden", action === "move");
+  el.structureTargetWrap.classList.toggle("hidden", action !== "move");
+
+  if (action === "create") {
+    el.structureModalTitle.textContent = t("createFolderTitle");
+    el.structureModalMessage.textContent = `${t("createFolderMessage")} ${t("newFolderPathHint")}`;
+    el.structureInputLabel.textContent = t("newFolderPath");
+    el.structureInput.value = "";
+    el.structureModalActionBtn.textContent = t("createFolder");
+  } else if (action === "rename") {
+    el.structureModalTitle.textContent = t("renameFolderTitle");
+    el.structureModalMessage.textContent = t("renameFolderMessage");
+    el.structureInputLabel.textContent = t("newFolderName");
+    el.structureInput.value = selected?.name || "";
+    el.structureModalActionBtn.textContent = t("renameFolder");
+  } else {
+    el.structureModalTitle.textContent = t("moveTitle");
+    el.structureModalMessage.textContent = t("moveMessage");
+    el.structureModalActionBtn.textContent = t("moveSelected");
+
+    try {
+      await loadStructureDirectories();
+    } catch (error) {
+      state.structureError = String(error);
+      renderStructure();
+      return;
+    }
+
+    const source = selected?.relativePath || "";
+    const sourcePrefix = source ? `${source}\\` : "";
+    const sourceParent =
+      source.includes("\\") ? source.slice(0, source.lastIndexOf("\\")) : "";
+
+    el.structureTargetSelect.innerHTML = "";
+    for (const directory of state.structureDirectories) {
+      if (
+        selected?.isDirectory &&
+        (directory.relativePath === source ||
+          (sourcePrefix && directory.relativePath.startsWith(sourcePrefix)))
+      ) {
+        continue;
+      }
+      if (directory.relativePath === sourceParent) continue;
+
+      const option = document.createElement("option");
+      option.value = directory.relativePath;
+      option.textContent =
+        directory.relativePath
+          ? `${"  ".repeat(directory.depth)}${directory.relativePath}`
+          : "\\";
+      el.structureTargetSelect.appendChild(option);
+    }
+  }
+
+  el.structureModal.classList.remove("hidden");
+  el.structureModal.setAttribute("aria-hidden", "false");
+  if (action !== "move") {
+    requestAnimationFrame(() => el.structureInput.focus());
+  }
+}
+
+async function executeStructureAction() {
+  const action = state.structureModalAction;
+  const selected = selectedStructureEntry();
+  if (!action || state.structureBusy) return;
+
+  state.structureBusy = true;
+  state.structureError = "";
+  el.structureModalActionBtn.disabled = true;
+
+  try {
+    let result;
+    if (action === "create") {
+      result = await invoke("create_structure_folder", {
+        folder: state.folder,
+        parentRelativePath: state.structureCurrent || "",
+        nestedPath: el.structureInput.value,
+      });
+    } else if (action === "rename") {
+      result = await invoke("rename_structure_folder", {
+        folder: state.folder,
+        sourceRelativePath: selected?.relativePath || "",
+        newName: el.structureInput.value,
+      });
+    } else if (action === "move") {
+      result = await invoke("move_structure_path", {
+        folder: state.folder,
+        sourceRelativePath: selected?.relativePath || "",
+        targetParentRelativePath: el.structureTargetSelect.value,
+      });
+    }
+
+    state.structureNotice =
+      `${t("structureComplete")}: ${result?.destinationRelativePath || ""}`;
+    closeStructureModal();
+    invalidateAnalysesAfterStructureChange();
+    await Promise.all([
+      refreshManualOperations(),
+      refreshCacheInfo(),
+      refreshConflictDecisions(),
+    ]);
+    await loadStructure(state.structureCurrent);
+  } catch (error) {
+    state.structureError = String(error);
+  } finally {
+    state.structureBusy = false;
+    el.structureModalActionBtn.disabled = false;
+    render();
+  }
+}
+
 function renderTabs() {
   for (const button of el.tabs) {
     button.classList.toggle("active", button.dataset.tab === state.tab);
