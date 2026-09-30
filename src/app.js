@@ -3079,6 +3079,8 @@ async function chooseFolder() {
   state.technicalDetailsLoading = "";
   state.technicalDetailsErrors = {};
   state.restoreHistory = [];
+  state.auditError = "";
+  state.lastAuditReport = null;
   closePlanModal();
   render();
   await Promise.all([
