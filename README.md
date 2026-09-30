@@ -4,12 +4,13 @@ A Windows desktop tool for **The Sims 3** to analyze, classify and organize cust
 
 ## Goals
 
-The Organizer is designed around five independent views:
+The Organizer is designed around six independent views:
 
 - **Organizer** — classify packages from their actual game resources and propose a folder structure.
 - **Duplicates** — distinguish exact copies, content duplicates, related variants/retextures and files that only share resources.
 - **Conflicts** — compare resource definitions and avoid treating every shared TGI/pattern as a real conflict.
-- **Structure** — manually create nested folders, move files/folders and rename folders inside the selected Mods root.
+- **Structure** — manually create nested folders, move files/folders, rename folders and safely undo recent manual structure actions.
+- **Tools** — profiles/rules, protected folders, package metadata, health/Resource.cfg, snapshots, folder comparison, Inbox/New CC, groups, technical search, side-by-side comparison, conservative dependencies and unified history.
 - **Restore** — preview and execute transactional restoration from Organizer manifests.
 
 The application is implemented in **Rust + Tauri 2 + Vite**, following the same desktop stack used by Veiga's S3CC Packer/Splitter. S3PI is used only as technical reference for known The Sims 3 resource/category information; S3PI code is not embedded as a dependency.
@@ -125,6 +126,14 @@ The Structure tab can create nested folders, move files or folders between folde
 
 See [docs/MANUAL-STRUCTURE-MANAGER.md](docs/MANUAL-STRUCTURE-MANAGER.md).
 
+## Advanced tools
+
+The Tools workspace adds profiles and custom organization rules, protected folders, per-package tags/test status/favorites, Keep Together groups, read-only mode, before/after plan visualization, manual undo, empty-folder reporting, Resource.cfg coverage/load-order inspection, Mods snapshots, two-root comparison, safe New CC Inbox import, technical TGI/SHA search, package comparison, conservative dependency evidence, selection export and unified operation history.
+
+Free-form package notes are intentionally not included in this phase.
+
+See [docs/ADVANCED-TOOLS.md](docs/ADVANCED-TOOLS.md).
+
 ## Status
 
 The repository is organized around four layers:
@@ -136,7 +145,8 @@ UI
      ├─ resource/classification engine
      ├─ duplicate + conflict analyzers
      ├─ planner + organization + restore/manifest engine
-     └─ manual Structure + review/audit persistence
+     ├─ manual Structure + review/audit persistence
+     └─ advanced Tools workspace + local workspace metadata
 ```
 
 Implemented in code:
@@ -150,7 +160,19 @@ Implemented in code:
 - transactional Restore with rollback and preservation of later-added packages;
 - manual Structure management for nested folder creation, file/folder moves and folder renaming;
 - persistent Intentional Override decisions keyed by package SHA-256 pairs;
-- Markdown + JSON audit reports including manual Structure history.
+- Markdown + JSON audit reports including manual Structure history;
+- profiles, rules and protected folders;
+- tags, favorites and test status stored by SHA-256;
+- Keep Together package groups;
+- global read-only protection for the selected Mods tree;
+- manual Structure undo and empty-folder detection/removal;
+- Resource.cfg coverage and load-order inspection;
+- Mods snapshots and two-folder comparison;
+- safe Inbox/New CC scanning and verified copy import;
+- advanced TGI/SHA technical search and TXT/CSV/JSON selection export;
+- side-by-side normalized package comparison;
+- conservative package dependency evidence;
+- unified visual operation history.
 
 Still pending before release:
 
