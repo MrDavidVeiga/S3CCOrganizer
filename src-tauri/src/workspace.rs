@@ -236,7 +236,7 @@ pub fn matching_rule<'a>(
 
 pub fn split_destination(value: &str) -> Vec<String> {
     value
-        .replace('/', "\")
+        .replace('/', "\\")
         .split('\')
         .map(str::trim)
         .filter(|part| !part.is_empty())
@@ -311,7 +311,7 @@ pub fn set_package_metadata(
                 .strip_prefix(&root)
                 .unwrap_or(&path)
                 .to_string_lossy()
-                .replace('/', "\"),
+                .replace('/', "\\"),
             tags: normalized_tags,
             test_status: test_status.trim().to_string(),
             favorite,
