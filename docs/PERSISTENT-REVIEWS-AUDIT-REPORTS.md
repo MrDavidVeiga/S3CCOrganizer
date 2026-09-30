@@ -73,6 +73,7 @@ The human-readable Markdown report includes, when available:
 - Conflicts findings;
 - saved/temporary review decision shown for each conflict;
 - persistent Intentional Override records, including records that are not present in the current conflict result;
+- manual Structure operations recorded by the Organizer;
 - available performance timings.
 
 If Scan, Duplicates or Conflicts has not been run in the current session, the section is explicitly marked as not analyzed.
@@ -89,6 +90,7 @@ It contains:
 - Duplicates analysis;
 - Conflicts analysis;
 - review decisions;
+- manual Structure operation history;
 - Restore preview, when present;
 - quarantine preview, when present;
 - cache information;
