@@ -1330,6 +1330,23 @@ function renderDuplicatesPreview() {
       });
       actions.append(previewButton, clearButton);
       el.duplicatesPreview.appendChild(actions);
+
+      if (state.quarantinePlan) {
+        const preview = document.createElement("div");
+        preview.className = "quarantine-preview";
+        const title = document.createElement("h4");
+        title.textContent = t("quarantinePreviewOnly");
+        const destination = document.createElement("code");
+        destination.textContent =
+          `${t("quarantineRoot")}: ${state.quarantinePlan.quarantineRoot}`;
+        const stats = document.createElement("p");
+        stats.textContent =
+          `${t("quarantineReady")}: ${state.quarantinePlan.stats?.ready ?? 0} · ${t("blocked")}: ${state.quarantinePlan.stats?.blocked ?? 0}`;
+        const manifest = document.createElement("pre");
+        manifest.textContent = state.quarantinePlan.manifestPreview || "";
+        preview.append(title, destination, stats, manifest);
+        el.duplicatesPreview.appendChild(preview);
+      }
     }
   } else {
     const pair = document.createElement("div");
