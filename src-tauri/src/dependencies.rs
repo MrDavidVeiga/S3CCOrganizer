@@ -31,9 +31,18 @@ pub struct DependencyEvidence {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct SuggestedDependencyGroup {
+    pub id: String,
+    pub package_paths: Vec<String>,
+    pub evidence_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DependencyAnalysis {
     pub root: String,
     pub findings: Vec<DependencyEvidence>,
+    pub suggested_groups: Vec<SuggestedDependencyGroup>,
     pub scanned_packages: usize,
     pub scanned_reference_resources: usize,
     pub truncated: bool,
@@ -115,6 +124,80 @@ fn stbl_keys(data: &[u8]) -> Vec<u64> {
     }
 
     keys
+}
+
+fn suggested_groups(findings: &[DependencyEvidence]) -> Vec<SuggestedDependencyGroup> {
+    let mut adjacency = HashMap::<String, HashSet<String>>::new();
+    let mut edge_counts = HashMap::<(String, String), usize>::new();
+
+    for finding in findings {
+        let left = finding.source_relative_path.clone();
+        let right = finding.target_relative_path.clone();
+        if left == right {
+            continue;
+        }
+        adjacency.entry(left.clone()).or_default().insert(right.clone());
+        adjacency.entry(right.clone()).or_default().insert(left.clone());
+        let mut pair = [left, right];
+        pair.sort();
+        *edge_counts.entry((pair[0].clone(), pair[1].clone())).or_default() += 1;
+    }
+
+    let mut visited = HashSet::<String>::new();
+    let mut groups = Vec::new();
+
+    for start in adjacency.keys() {
+        if !visited.insert(start.clone()) {
+            continue;
+        }
+
+        let mut stack = vec![start.clone()];
+        let mut members = Vec::new();
+        while let Some(current) = stack.pop() {
+            members.push(current.clone());
+            if let Some(neighbors) = adjacency.get(&current) {
+                for neighbor in neighbors {
+                    if visited.insert(neighbor.clone()) {
+                        stack.push(neighbor.clone());
+                    }
+                }
+            }
+        }
+
+        if members.len() < 2 {
+            continue;
+        }
+        members.sort_by_key(|value| value.to_ascii_lowercase());
+
+        let member_set = members.iter().cloned().collect::<HashSet<_>>();
+        let evidence_count = edge_counts
+            .iter()
+            .filter(|((left, right), _)| member_set.contains(left) && member_set.contains(right))
+            .map(|(_, count)| *count)
+            .sum::<usize>();
+
+        let id = format!(
+            "dependency-group-{:016X}",
+            members.iter().fold(0xcbf29ce484222325u64, |hash, value| {
+                value.as_bytes().iter().fold(hash, |h, byte| {
+                    (h ^ *byte as u64).wrapping_mul(0x100000001b3)
+                })
+            })
+        );
+        groups.push(SuggestedDependencyGroup {
+            id,
+            package_paths: members,
+            evidence_count,
+        });
+    }
+
+    groups.sort_by(|a, b| {
+        b.package_paths.len()
+            .cmp(&a.package_paths.len())
+            .then_with(|| b.evidence_count.cmp(&a.evidence_count))
+            .then_with(|| a.id.cmp(&b.id))
+    });
+    groups
 }
 
 #[tauri::command]
@@ -269,9 +352,12 @@ pub fn analyze_dependencies(folder: String) -> Result<DependencyAnalysis, String
         )
     });
 
+    let suggested_groups = suggested_groups(&findings);
+
     Ok(DependencyAnalysis {
         root: root.to_string_lossy().to_string(),
         findings,
+        suggested_groups,
         scanned_packages: packages.len(),
         scanned_reference_resources: reference_resources,
         truncated,
@@ -306,5 +392,26 @@ mod tests {
         assert!(is_slider_reference_target(TYPE_FBLN));
         assert!(is_slider_reference_target(TYPE_BGEO));
         assert!(!is_slider_reference_target(TYPE_STBL));
+    }
+
+
+    #[test]
+    fn dependency_edges_become_reviewable_keep_together_suggestions() {
+        let finding = |source: &str, target: &str| DependencyEvidence {
+            source_package: source.into(),
+            source_relative_path: source.into(),
+            source_resource: "A".into(),
+            target_package: target.into(),
+            target_relative_path: target.into(),
+            target_resource: "B".into(),
+            evidence: "exact".into(),
+        };
+        let groups = suggested_groups(&[
+            finding("A.package", "B.package"),
+            finding("B.package", "C.package"),
+        ]);
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].package_paths.len(), 3);
+        assert_eq!(groups[0].evidence_count, 2);
     }
 }
