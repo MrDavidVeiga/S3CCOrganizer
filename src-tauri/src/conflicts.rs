@@ -462,7 +462,7 @@ pub fn analyze_conflicts_core(
         let load_priority = priority.as_ref().map(|value| value.priority);
         let load_rule = priority.map(|value| value.rule);
 
-        let (cached, cache_hit) = match get_or_build(path, &mut cache) {
+        let (cached, metrics) = match get_or_build_with_metrics(path, &mut cache) {
             Ok(value) => value,
             Err(error) => {
                 packages.push(PackageInfo {
@@ -478,11 +478,14 @@ pub fn analyze_conflicts_core(
             }
         };
 
-        if cache_hit {
+        if metrics.cache_hit {
             cache_hits += 1;
         } else {
             cache_misses += 1;
         }
+        hashing_ms += metrics.hash_ms;
+        dbpf_load_ms += metrics.dbpf_load_ms;
+        resource_decode_ms += metrics.resource_decode_ms;
 
         let readable = cached.parse_error.is_none();
         if let Some(error) = &cached.parse_error {
