@@ -119,6 +119,8 @@ const I18N = {
     quarantineComplete: "Quarantine completed",
     restoreQuarantine: "Restore Quarantine",
     quarantineRestored: "Quarantine restored",
+    recoverQuarantine: "Recover interrupted Quarantine",
+    quarantineRecovered: "Quarantine recovery completed",
     manualReview: "Manual Review",
     manualDestination: "Approved destination",
     saveManualReview: "Save Review",
@@ -499,6 +501,8 @@ const I18N = {
     quarantineComplete: "Quarentena concluída",
     restoreQuarantine: "Restaurar Quarentena",
     quarantineRestored: "Quarentena restaurada",
+    recoverQuarantine: "Recuperar Quarentena interrompida",
+    quarantineRecovered: "Recuperação da Quarentena concluída",
     manualReview: "Revisão Manual",
     manualDestination: "Destino aprovado",
     saveManualReview: "Salvar Revisão",
@@ -878,6 +882,8 @@ const I18N = {
     quarantineComplete: "Cuarentena completada",
     restoreQuarantine: "Restaurar Cuarentena",
     quarantineRestored: "Cuarentena restaurada",
+    recoverQuarantine: "Recuperar Cuarentena interrumpida",
+    quarantineRecovered: "Recuperación de la Cuarentena completada",
     manualReview: "Revisión Manual",
     manualDestination: "Destino aprobado",
     saveManualReview: "Guardar Revisión",
@@ -2185,6 +2191,7 @@ async function executeQuarantine() {
     const result = await invoke("execute_quarantine", {
       folder: state.folder,
       selectedPaths: [...state.quarantineSelected],
+      plannedQuarantineRoot: state.quarantinePlan.quarantineRoot,
     });
     state.duplicatesNotice = `${t("quarantineComplete")}: ${result.moved}`;
     state.quarantineSelected.clear();
@@ -4049,6 +4056,31 @@ async function restoreQuarantineFromHistory(item) {
   }
 }
 
+async function recoverQuarantineFromHistory(item) {
+  if (!state.folder || !item?.destination || workspaceReadOnly() || state.toolsBusy) return;
+  state.toolsBusy = true;
+  state.toolsError = "";
+  renderTools();
+  try {
+    const result = await invoke("recover_quarantine", {
+      folder: state.folder,
+      manifestPath: item.destination,
+    });
+    state.toolsNotice = `${t("quarantineRecovered")}: ${result.status} · ${result.moved}`;
+    state.duplicatesAnalysis = null;
+    state.quarantinePlan = null;
+    state.quarantineSelected.clear();
+    state.toolsBusy = false;
+    await Promise.all([refreshOperationHistory(), refreshCacheInfo()]);
+    await scanFolder(false, true);
+  } catch (error) {
+    state.toolsError = String(error);
+  } finally {
+    state.toolsBusy = false;
+    render();
+  }
+}
+
 function renderHistoryTools() {
   el.toolsHistoryUndo.disabled = !state.folder || workspaceReadOnly() || state.toolsBusy || state.structureBusy;
   el.toolsOperationHistory.innerHTML = "";
@@ -4069,6 +4101,16 @@ function renderHistoryTools() {
         revealSafe(destination);
       });
       row.appendChild(openButton);
+
+      if (item.kind === "quarantine" && ["PENDING", "ROLLBACK_INCOMPLETE", "RESTORE_PENDING", "RESTORE_INCOMPLETE"].includes(item.status)) {
+        const recover = document.createElement("button");
+        recover.type = "button";
+        recover.className = "secondary-btn compact-btn";
+        recover.textContent = t("recoverQuarantine");
+        recover.disabled = workspaceReadOnly() || state.toolsBusy;
+        recover.addEventListener("click", () => recoverQuarantineFromHistory(item));
+        row.appendChild(recover);
+      }
 
       if (item.kind === "quarantine" && item.status === "COMPLETE") {
         const restore = document.createElement("button");
