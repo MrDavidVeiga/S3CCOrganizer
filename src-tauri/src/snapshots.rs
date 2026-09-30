@@ -1,7 +1,7 @@
 use crate::manifest::sha256_file;
 use chrono::Local;
 use serde::{Deserialize, Serialize};
-use std::{collections::{BTreeMap, HashMap}, fs, path::{Path, PathBuf}};
+use std::{collections::HashMap, fs, path::{Path, PathBuf}};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -73,18 +73,32 @@ fn diff_entries(old:&[SnapshotEntry],new:&[SnapshotEntry])->SnapshotDiff{
     for (key,e) in &old_by_path{
         if !new_by_path.contains_key(key){diff.removed.push((*e).clone());}
     }
-    let removed_by_hash=diff.removed.iter().map(|e|(e.sha256.clone(),e.relative_path.clone())).collect::<BTreeMap<_,_>>();
-    let added_by_hash=diff.added.iter().map(|e|(e.sha256.clone(),e.relative_path.clone())).collect::<BTreeMap<_,_>>();
+    let mut removed_by_hash=HashMap::<String,Vec<String>>::new();
+    let mut added_by_hash=HashMap::<String,Vec<String>>::new();
+    for entry in &diff.removed{
+        removed_by_hash.entry(entry.sha256.clone()).or_default().push(entry.relative_path.clone());
+    }
+    for entry in &diff.added{
+        added_by_hash.entry(entry.sha256.clone()).or_default().push(entry.relative_path.clone());
+    }
+
     let mut moved=Vec::new();
-    for (hash,old_path) in removed_by_hash{
-        if let Some(new_path)=added_by_hash.get(&hash){
-            moved.push(SnapshotMove{sha256:hash,old_path,new_path:new_path.clone()});
+    for (hash,old_paths) in &removed_by_hash{
+        let Some(new_paths)=added_by_hash.get(hash) else{continue;};
+        if old_paths.len()==1 && new_paths.len()==1{
+            moved.push(SnapshotMove{
+                sha256:hash.clone(),
+                old_path:old_paths[0].clone(),
+                new_path:new_paths[0].clone(),
+            });
         }
     }
     if !moved.is_empty(){
-        let hashes=moved.iter().map(|m|m.sha256.clone()).collect::<std::collections::HashSet<_>>();
-        diff.removed.retain(|e|!hashes.contains(&e.sha256));
-        diff.added.retain(|e|!hashes.contains(&e.sha256));
+        let moved_pairs=moved.iter()
+            .map(|m|(m.sha256.clone(),m.old_path.to_ascii_lowercase(),m.new_path.to_ascii_lowercase()))
+            .collect::<std::collections::HashSet<_>>();
+        diff.removed.retain(|e|!moved_pairs.iter().any(|(hash,old,_)|hash==&e.sha256&&old==&e.relative_path.to_ascii_lowercase()));
+        diff.added.retain(|e|!moved_pairs.iter().any(|(hash,_,new)|hash==&e.sha256&&new==&e.relative_path.to_ascii_lowercase()));
         diff.moved=moved;
     }
     diff
