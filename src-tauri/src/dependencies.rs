@@ -52,7 +52,7 @@ pub fn analyze_dependencies(folder:String)->Result<DependencyAnalysis,String>{
         if !e.file_type().is_file()||!is_package(e.path()){continue;}
         if let Ok(pkg)=Package::load(e.path()){
             let idx=packages.len();
-            let rel=e.path().strip_prefix(&root).unwrap_or(e.path()).to_string_lossy().replace('/',"\");
+            let rel=e.path().strip_prefix(&root).unwrap_or(e.path()).to_string_lossy().replace('/',"\\");
             for r in &pkg.entries{
                 targets.entry(tgi_bytes(r.type_id,r.group,r.instance)).or_default().push((idx,r.key_string()));
             }
