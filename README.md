@@ -114,6 +114,8 @@ The application now persists UI preferences, supports a resizable sidebar, expos
 
 See [docs/PREBUILD-HARDENING.md](docs/PREBUILD-HARDENING.md).
 
+Interrupted Quarantine and Restore operations now expose a cautious recovery action in History. The ZIP corpus census is available as a read-only local tool; see [docs/CORPUS-VALIDATION-PLAN.md](docs/CORPUS-VALIDATION-PLAN.md).
+
 ## Persistent reviews and audit reports
 
 Intentional Conflict overrides can now be saved locally using content-stable package SHA-256 decision keys, while `Ignored This Session` remains temporary. The app can also export a complete Markdown + JSON audit snapshot covering classifications, duplicates, conflicts and review decisions.
@@ -171,7 +173,7 @@ Implemented in code:
 - safe Inbox/New CC scanning and verified copy import;
 - SHA-256-stable manual review destinations for unresolved packages;
 - dependency-based Keep Together group suggestions requiring explicit approval;
-- reversible duplicate Quarantine with manifest, rollback and History restore;
+- reversible duplicate Quarantine with a durable manifest, no-overwrite transfer, rollback, History restore and interrupted-transaction recovery;
 - advanced TGI/SHA technical search and TXT/CSV/JSON selection export;
 - side-by-side normalized package comparison;
 - conservative package dependency evidence;
@@ -181,6 +183,8 @@ Still pending before release:
 
 - successful Rust/Tauri build in an available execution environment;
 - runtime validation of write actions through the compiled Tauri application;
+- running the added Rust/ZIP audit regression suites in an available execution environment;
+- analyzing the already-supplied Store and mixed ZIPs at the resource/payload level;
 - large mixed Mods-folder performance testing;
 - additional authoritative package-family classifiers only when real samples prove safe resource-level rules;
 - portable/release workflows after runtime validation.
