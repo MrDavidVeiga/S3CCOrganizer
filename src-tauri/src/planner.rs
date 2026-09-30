@@ -513,7 +513,8 @@ pub fn build_organization_plan(
         directories_to_create: directories.into_iter().collect(),
         stats,
         items,
-        can_execute: stats.ready > 0
+        can_execute: !workspace.read_only
+            && stats.ready > 0
             && stats.blocked == 0
             && stats.collision_same_content == 0
             && stats.collision_different_content == 0,
