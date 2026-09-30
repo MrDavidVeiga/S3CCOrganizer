@@ -384,6 +384,7 @@ pub fn analyze_conflicts_core(
     folder: String,
     operation_kind: Option<&str>,
 ) -> Result<ConflictAnalysis, String> {
+    let total_started = Instant::now();
     if folder.trim().is_empty() {
         return Err("No folder was selected.".to_string());
     }
@@ -426,6 +427,9 @@ pub fn analyze_conflicts_core(
     let mut errors = Vec::new();
     let mut cache_hits = 0usize;
     let mut cache_misses = 0usize;
+    let mut hashing_ms = 0u128;
+    let mut dbpf_load_ms = 0u128;
+    let mut resource_decode_ms = 0u128;
 
     for (index, path) in paths.iter().enumerate() {
         if let Some(kind) = operation_kind {
