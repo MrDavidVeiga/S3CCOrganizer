@@ -1,7 +1,7 @@
 use crate::{
+    cache::{get_or_build, load_cache, retain_existing, save_cache, CachedPackage, FingerprintCache},
     catalog::{TYPE_CASP, TYPE_OBJD},
-    dbpf::Package,
-    manifest::sha256_file,
+    operation::{self, CANCELLED_ERROR},
 };
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -115,6 +115,8 @@ pub struct DuplicateStats {
     pub recategorized_relations: usize,
     pub related_variant_relations: usize,
     pub variant_analysis_truncated: bool,
+    pub cache_hits: usize,
+    pub cache_misses: usize,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -234,9 +236,12 @@ fn package_member(package: &PackageFingerprint) -> DuplicateMember {
     }
 }
 
-fn build_package_fingerprint(root: &Path, path: &Path) -> Result<PackageFingerprint, String> {
-    let (file_hash, size) =
-        sha256_file(path).map_err(|error| format!("Could not hash {}: {error}", path.display()))?;
+fn build_package_fingerprint(
+    root: &Path,
+    path: &Path,
+    cache: &mut FingerprintCache,
+) -> Result<(PackageFingerprint, bool), String> {
+    let (cached, cache_hit) = get_or_build(path, cache)?;
 
     let relative_path = path
         .strip_prefix(root)
@@ -248,57 +253,17 @@ fn build_package_fingerprint(root: &Path, path: &Path) -> Result<PackageFingerpr
         .unwrap_or("package")
         .to_string();
 
-    let package = match Package::load(path) {
-        Ok(package) => package,
-        Err(error) => {
-            return Ok(PackageFingerprint {
-                path: path.to_path_buf(),
-                relative_path,
-                name,
-                size,
-                file_hash,
-                content_fingerprint: None,
-                structural_signature: None,
-                texture_signature: None,
-                catalog_signature: None,
-                substantive_without_catalog_signature: None,
-                resources: Vec::new(),
-                parse_error: Some(error.to_string()),
-            });
-        }
-    };
-
-    let mut resources = Vec::with_capacity(package.entries.len());
-    for entry in &package.entries {
-        let data = match package.data(entry) {
-            Ok(data) => data,
-            Err(error) => {
-                return Ok(PackageFingerprint {
-                    path: path.to_path_buf(),
-                    relative_path,
-                    name,
-                    size,
-                    file_hash,
-                    content_fingerprint: None,
-                    structural_signature: None,
-                    texture_signature: None,
-                    catalog_signature: None,
-                    substantive_without_catalog_signature: None,
-                    resources,
-                    parse_error: Some(format!("{}: {error}", entry.key_string())),
-                });
-            }
-        };
-
-        let payload_hash = format!("{:X}", Sha256::digest(&data));
-        resources.push(ResourceFingerprint {
-            type_id: entry.type_id,
-            group: entry.group,
-            instance: entry.instance,
-            payload_hash,
-            payload_size: data.len(),
-        });
-    }
+    let resources = cached
+        .resources
+        .iter()
+        .map(|resource| ResourceFingerprint {
+            type_id: resource.type_id,
+            group: resource.group,
+            instance: resource.instance,
+            payload_hash: resource.payload_sha256.clone(),
+            payload_size: resource.payload_size,
+        })
+        .collect::<Vec<_>>();
 
     let content_fingerprint = hash_parts(resources.iter().map(full_resource_key));
     let structural_signature = hash_parts(
@@ -328,20 +293,23 @@ fn build_package_fingerprint(root: &Path, path: &Path) -> Result<PackageFingerpr
             .map(semantic_resource_key),
     );
 
-    Ok(PackageFingerprint {
-        path: path.to_path_buf(),
-        relative_path,
-        name,
-        size,
-        file_hash,
-        content_fingerprint,
-        structural_signature,
-        texture_signature,
-        catalog_signature,
-        substantive_without_catalog_signature,
-        resources,
-        parse_error: None,
-    })
+    Ok((
+        PackageFingerprint {
+            path: path.to_path_buf(),
+            relative_path,
+            name,
+            size: cached.size,
+            file_hash: cached.file_sha256,
+            content_fingerprint,
+            structural_signature,
+            texture_signature,
+            catalog_signature,
+            substantive_without_catalog_signature,
+            resources,
+            parse_error: cached.parse_error,
+        },
+        cache_hit,
+    ))
 }
 
 fn group_id(kind: &str, value: &str) -> String {
@@ -576,8 +544,10 @@ fn add_variant_candidates(
     false
 }
 
-#[tauri::command]
-pub fn analyze_duplicates(folder: String) -> Result<DuplicateAnalysis, String> {
+pub fn analyze_duplicates_core(
+    folder: String,
+    operation_kind: Option<&str>,
+) -> Result<DuplicateAnalysis, String> {
     let root_input = PathBuf::from(folder.trim());
     if folder.trim().is_empty() {
         return Err("No folder was selected.".to_string());
@@ -599,12 +569,41 @@ pub fn analyze_duplicates(folder: String) -> Result<DuplicateAnalysis, String> {
         .collect::<Vec<_>>();
     paths.sort_by_key(|path| path.to_string_lossy().to_ascii_lowercase());
 
+    if let Some(kind) = operation_kind {
+        operation::set_total(kind, paths.len());
+        operation::update(kind, 0, None, "fingerprinting");
+    }
+
+    let mut cache = load_cache(&root);
+    retain_existing(&mut cache, &paths);
+
     let mut packages = Vec::with_capacity(paths.len());
     let mut errors = Vec::new();
+    let mut cache_hits = 0usize;
+    let mut cache_misses = 0usize;
 
-    for path in paths {
-        match build_package_fingerprint(&root, &path) {
-            Ok(package) => {
+    for (index, path) in paths.iter().enumerate() {
+        if let Some(kind) = operation_kind {
+            if operation::is_cancelled(kind) {
+                let _ = save_cache(&root, &cache);
+                return Err(CANCELLED_ERROR.to_string());
+            }
+            operation::update(
+                kind,
+                index,
+                path.file_name().map(|value| value.to_string_lossy().to_string()),
+                "fingerprinting",
+            );
+        }
+
+        match build_package_fingerprint(&root, path, &mut cache) {
+            Ok((package, cache_hit)) => {
+                if cache_hit {
+                    cache_hits += 1;
+                } else {
+                    cache_misses += 1;
+                }
+
                 if let Some(error) = &package.parse_error {
                     errors.push(format!(
                         "{}: {}",
@@ -616,6 +615,19 @@ pub fn analyze_duplicates(folder: String) -> Result<DuplicateAnalysis, String> {
             }
             Err(error) => errors.push(error),
         }
+
+        if let Some(kind) = operation_kind {
+            operation::update(
+                kind,
+                index + 1,
+                path.file_name().map(|value| value.to_string_lossy().to_string()),
+                "fingerprinting",
+            );
+        }
+    }
+
+    if let Err(error) = save_cache(&root, &cache) {
+        errors.push(error);
     }
 
     let mut stats = DuplicateStats {
@@ -628,6 +640,8 @@ pub fn analyze_duplicates(folder: String) -> Result<DuplicateAnalysis, String> {
             .iter()
             .filter(|package| package.parse_error.is_some())
             .count(),
+        cache_hits,
+        cache_misses,
         ..DuplicateStats::default()
     };
 
@@ -695,6 +709,13 @@ pub fn analyze_duplicates(folder: String) -> Result<DuplicateAnalysis, String> {
         });
     }
 
+    if let Some(kind) = operation_kind {
+        if operation::is_cancelled(kind) {
+            return Err(CANCELLED_ERROR.to_string());
+        }
+        operation::update(kind, packages.len(), None, "comparing");
+    }
+
     let mut relations = Vec::new();
     let variant_analysis_truncated = add_variant_candidates(&packages, &mut relations);
     stats.variant_analysis_truncated = variant_analysis_truncated;
@@ -724,6 +745,26 @@ pub fn analyze_duplicates(folder: String) -> Result<DuplicateAnalysis, String> {
         stats,
         errors,
     })
+}
+
+#[tauri::command]
+pub async fn analyze_duplicates(folder: String) -> Result<DuplicateAnalysis, String> {
+    const KIND: &str = "duplicates";
+    operation::begin(KIND, "starting");
+
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        analyze_duplicates_core(folder, Some(KIND))
+    })
+    .await
+    .map_err(|error| format!("Duplicates worker failed: {error}"))?;
+
+    match &result {
+        Ok(_) => operation::finish(KIND, "complete", None),
+        Err(error) if error == CANCELLED_ERROR => operation::mark_cancelled(KIND),
+        Err(error) => operation::finish(KIND, "error", Some(error.clone())),
+    }
+
+    result
 }
 
 #[cfg(test)]
