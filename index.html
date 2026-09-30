@@ -14,6 +14,7 @@
           <button class="mode-btn" data-tab="duplicates" data-i18n="duplicates" type="button">Duplicates</button>
           <button class="mode-btn" data-tab="conflicts" data-i18n="conflicts" type="button">Conflicts</button>
           <button class="mode-btn" data-tab="structure" data-i18n="structure" type="button">Structure</button>
+          <button class="mode-btn" data-tab="tools" data-i18n="tools" type="button">Tools</button>
           <button class="mode-btn" data-tab="restore" data-i18n="restore" type="button">Restore</button>
         </div>
         <div class="language language-switcher">
@@ -254,6 +255,10 @@
                 <i class="fa-solid fa-pen" aria-hidden="true"></i>
                 <span data-i18n="renameFolder">Rename Folder</span>
               </button>
+              <button id="structure-undo-btn" class="secondary-btn" type="button" disabled>
+                <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>
+                <span data-i18n="undoLast">Undo Last</span>
+              </button>
             </div>
 
             <div class="structure-breadcrumb">
@@ -270,6 +275,144 @@
               <aside id="structure-preview" class="structure-preview">
                 <div class="preview-empty" data-i18n="selectStructureItem">Select a file or folder.</div>
               </aside>
+            </div>
+          </section>
+
+          <section id="page-tools" class="tool-page hidden tools-page">
+            <div class="hero">
+              <div>
+                <h2 data-i18n="tools">Tools</h2>
+                <p data-i18n="toolsIntro">Profiles, health, snapshots, Inbox, metadata, dependencies and technical diagnostics.</p>
+              </div>
+              <div id="tools-state" class="scan-state"></div>
+            </div>
+
+            <div class="tools-subtabs" role="tablist">
+              <button class="secondary-btn tools-subtab active" data-tools-tab="profiles" data-i18n="profilesRules" type="button">Profiles & Rules</button>
+              <button class="secondary-btn tools-subtab" data-tools-tab="health" data-i18n="healthResourceCfg" type="button">Health & Resource.cfg</button>
+              <button class="secondary-btn tools-subtab" data-tools-tab="snapshots" data-i18n="snapshotsCompare" type="button">Snapshots</button>
+              <button class="secondary-btn tools-subtab" data-tools-tab="inbox" data-i18n="inboxNewCc" type="button">Inbox / New CC</button>
+              <button class="secondary-btn tools-subtab" data-tools-tab="metadata" data-i18n="metadataGroups" type="button">Metadata & Groups</button>
+              <button class="secondary-btn tools-subtab" data-tools-tab="technical" data-i18n="technicalLab" type="button">Technical</button>
+              <button class="secondary-btn tools-subtab" data-tools-tab="history" data-i18n="operationHistory" type="button">History</button>
+            </div>
+
+            <div id="tools-profiles" class="tools-panel">
+              <div class="tools-grid two">
+                <section class="tools-card">
+                  <h3 data-i18n="workspaceSettings">Workspace Settings</h3>
+                  <label class="tool-check"><input id="tools-readonly" type="checkbox" /><span data-i18n="readOnlyMode">Read-only mode</span></label>
+                  <label><span data-i18n="activeProfile">Active profile</span><select id="tools-profile-select" class="text-input"></select></label>
+                  <div class="tool-inline">
+                    <input id="tools-profile-name" class="text-input" type="text" data-i18n-placeholder="profileName" />
+                    <button id="tools-add-profile" class="secondary-btn" type="button" data-i18n="addProfile">Add Profile</button>
+                  </div>
+                  <label><span data-i18n="destinationPrefix">Destination prefix</span><input id="tools-profile-prefix" class="text-input" type="text" /></label>
+                  <label class="tool-check"><input id="tools-profile-collapse" type="checkbox" /><span data-i18n="collapseCategory">Collapse to main category</span></label>
+                  <button id="tools-save-profile" class="primary-btn" type="button" data-i18n="saveProfile">Save Profile</button>
+                </section>
+                <section class="tools-card">
+                  <h3 data-i18n="protectedFolders">Protected Folders</h3>
+                  <div class="tool-inline"><input id="tools-protected-input" class="text-input" type="text" placeholder="NRaas" /><button id="tools-add-protected" class="secondary-btn" type="button" data-i18n="add">Add</button></div>
+                  <div id="tools-protected-list" class="tools-list"></div>
+                  <h3 data-i18n="customRules">Custom Rules</h3>
+                  <div class="tools-rule-form">
+                    <input id="rule-name" class="text-input" type="text" data-i18n-placeholder="ruleName" />
+                    <input id="rule-category" class="text-input" type="text" data-i18n-placeholder="category" />
+                    <input id="rule-subcategory" class="text-input" type="text" data-i18n-placeholder="subCategory" />
+                    <input id="rule-detected" class="text-input" type="text" placeholder="CASP / OBJD / S3SA" />
+                    <input id="rule-name-contains" class="text-input" type="text" data-i18n-placeholder="nameContains" />
+                    <input id="rule-path-contains" class="text-input" type="text" data-i18n-placeholder="pathContains" />
+                    <input id="rule-destination" class="text-input" type="text" data-i18n-placeholder="destination" />
+                    <button id="tools-add-rule" class="secondary-btn" type="button" data-i18n="addRule">Add Rule</button>
+                  </div>
+                  <div id="tools-rules-list" class="tools-list"></div>
+                </section>
+              </div>
+            </div>
+
+            <div id="tools-health" class="tools-panel hidden">
+              <div class="tool-actions"><button id="tools-health-run" class="primary-btn" type="button" data-i18n="analyzeHealth">Analyze Health</button></div>
+              <div id="tools-health-summary" class="stats tools-stats"></div>
+              <div class="tools-grid two">
+                <section class="tools-card"><h3 data-i18n="resourceCfgViewer">Resource.cfg Viewer / Load Order</h3><div id="tools-resourcecfg"></div></section>
+                <section class="tools-card"><h3 data-i18n="healthFindings">Health Findings</h3><div id="tools-health-findings" class="tools-list"></div></section>
+              </div>
+            </div>
+
+            <div id="tools-snapshots" class="tools-panel hidden">
+              <div class="tool-actions">
+                <button id="tools-create-snapshot" class="primary-btn" type="button" data-i18n="createSnapshot">Create Snapshot</button>
+                <button id="tools-refresh-snapshots" class="secondary-btn" type="button" data-i18n="refreshHistory">Refresh</button>
+              </div>
+              <div class="tools-grid two">
+                <section class="tools-card"><h3 data-i18n="snapshots">Snapshots</h3><div id="tools-snapshot-list" class="tools-list"></div></section>
+                <section class="tools-card">
+                  <h3 data-i18n="compareFolders">Compare Two Mods Folders</h3>
+                  <div class="tool-inline"><input id="tools-compare-root" class="text-input" type="text" readonly /><button id="tools-choose-compare-root" class="secondary-btn" type="button" data-i18n="chooseFolder">Choose Folder</button></div>
+                  <button id="tools-compare-roots" class="secondary-btn" type="button" data-i18n="compare">Compare</button>
+                  <div id="tools-snapshot-diff" class="tools-list"></div>
+                </section>
+              </div>
+            </div>
+
+            <div id="tools-inbox" class="tools-panel hidden">
+              <div class="tool-actions">
+                <button id="tools-choose-inbox" class="secondary-btn" type="button" data-i18n="chooseInbox">Choose Inbox Folder</button>
+                <span id="tools-inbox-path" class="path-label"></span>
+                <button id="tools-scan-inbox" class="primary-btn" type="button" data-i18n="analyzeInbox">Analyze Inbox</button>
+                <button id="tools-preview-import" class="secondary-btn" type="button" data-i18n="previewImport">Preview Import</button>
+                <button id="tools-execute-import" class="primary-btn" type="button" disabled data-i18n="importNewCc">Import to New CC</button>
+              </div>
+              <div id="tools-inbox-results" class="tools-list selectable"></div>
+              <div id="tools-inbox-plan" class="tools-card hidden"></div>
+            </div>
+
+            <div id="tools-metadata" class="tools-panel hidden">
+              <div class="tools-grid two">
+                <section class="tools-card">
+                  <h3 data-i18n="packageMetadata">Package Metadata</h3>
+                  <select id="tools-metadata-package" class="text-input"></select>
+                  <label><span data-i18n="tags">Tags</span><input id="tools-tags" class="text-input" type="text" placeholder="favorite, creator-x, test" /></label>
+                  <label><span data-i18n="testStatus">Test status</span><select id="tools-test-status" class="text-input"><option value="">—</option><option value="untested">Untested</option><option value="working">Working</option><option value="problem">Problem</option><option value="removed">Removed</option></select></label>
+                  <label class="tool-check"><input id="tools-favorite" type="checkbox" /><span data-i18n="favorite">Favorite</span></label>
+                  <button id="tools-save-metadata" class="primary-btn" type="button" data-i18n="saveMetadata">Save Metadata</button>
+                </section>
+                <section class="tools-card">
+                  <h3 data-i18n="keepTogetherGroups">Keep Together Groups</h3>
+                  <input id="tools-group-name" class="text-input" type="text" data-i18n-placeholder="groupName" />
+                  <div id="tools-group-package-list" class="tools-list selectable compact"></div>
+                  <button id="tools-save-group" class="secondary-btn" type="button" data-i18n="createGroup">Create Group</button>
+                  <div id="tools-groups-list" class="tools-list"></div>
+                </section>
+              </div>
+            </div>
+
+            <div id="tools-technical" class="tools-panel hidden">
+              <div class="tools-grid two">
+                <section class="tools-card">
+                  <h3 data-i18n="advancedSearch">Advanced Technical Search</h3>
+                  <div class="tool-inline"><input id="tools-tech-query" class="text-input" type="text" placeholder="type:034AEECB / instance:... / sha:..."/><button id="tools-tech-search" class="primary-btn" type="button" data-i18n="search">Search</button></div>
+                  <div class="tool-actions"><button id="tools-export-txt" class="secondary-btn" type="button">TXT</button><button id="tools-export-csv" class="secondary-btn" type="button">CSV</button><button id="tools-export-json" class="secondary-btn" type="button">JSON</button></div>
+                  <div id="tools-tech-results" class="tools-list selectable"></div>
+                </section>
+                <section class="tools-card">
+                  <h3 data-i18n="sideBySideCompare">Side-by-side Package Compare</h3>
+                  <select id="tools-compare-left" class="text-input"></select>
+                  <select id="tools-compare-right" class="text-input"></select>
+                  <button id="tools-compare-packages" class="secondary-btn" type="button" data-i18n="compare">Compare</button>
+                  <div id="tools-package-compare" class="tools-list"></div>
+                </section>
+              </div>
+              <div class="tools-card">
+                <div class="tool-actions"><button id="tools-dependencies" class="secondary-btn" type="button" data-i18n="analyzeDependencies">Analyze Dependencies</button></div>
+                <div id="tools-dependency-results" class="tools-list"></div>
+              </div>
+            </div>
+
+            <div id="tools-history" class="tools-panel hidden">
+              <div class="tool-actions"><button id="tools-refresh-history" class="secondary-btn" type="button" data-i18n="refreshHistory">Refresh</button></div>
+              <div id="tools-operation-history" class="tools-list"></div>
             </div>
           </section>
 
@@ -365,6 +508,10 @@
               <div id="plan-directories" class="planner-scroll-list"></div>
             </div>
 
+            <div class="planner-section">
+              <h3 data-i18n="beforeAfterTree">Before → After</h3>
+              <div id="plan-tree" class="planner-scroll-list"></div>
+            </div>
             <details class="manifest-preview">
               <summary data-i18n="manifestPreview">Restore manifest preview</summary>
               <pre id="manifest-preview-text"></pre>
