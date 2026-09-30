@@ -3,14 +3,14 @@ use crate::{
     workspace::{ensure_writable, load_workspace_for_root},
 };
 use chrono::Local;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{
     collections::HashSet,
     fs,
     path::{Path, PathBuf},
 };
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QuarantinePlanItem {
     pub source_path: String,
@@ -60,6 +60,16 @@ struct QuarantineManifest<'a> {
     root: &'a str,
     quarantine_root: &'a str,
     items: &'a [QuarantinePlanItem],
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct StoredQuarantineManifest {
+    version: u32,
+    created_at: String,
+    status: String,
+    root: String,
+    quarantine_root: String,
+    items: Vec<QuarantinePlanItem>,
 }
 
 fn within_root(root: &Path, candidate: &Path) -> bool {
@@ -353,6 +363,153 @@ pub fn execute_quarantine(
         quarantine_root: plan.quarantine_root,
         manifest_path: manifest_path.to_string_lossy().to_string(),
         status: "COMPLETE".to_string(),
+    })
+}
+
+#[tauri::command]
+pub fn restore_quarantine(
+    folder: String,
+    manifest_path: String,
+) -> Result<QuarantineResult, String> {
+    let root = PathBuf::from(folder.trim())
+        .canonicalize()
+        .map_err(|error| format!("Could not resolve Mods root: {error}"))?;
+    ensure_writable(&root)?;
+
+    let manifest_path_buf = PathBuf::from(manifest_path.trim())
+        .canonicalize()
+        .map_err(|error| format!("Could not resolve quarantine manifest: {error}"))?;
+    let manifest_dir = root
+        .parent()
+        .unwrap_or(&root)
+        .join("S3CC Organizer")
+        .join("Quarantine Manifests")
+        .canonicalize()
+        .map_err(|error| format!("Could not resolve quarantine manifest directory: {error}"))?;
+
+    if !manifest_path_buf.starts_with(&manifest_dir) || !manifest_path_buf.is_file() {
+        return Err("Quarantine manifest is outside the selected Mods workspace.".to_string());
+    }
+
+    let text = fs::read_to_string(&manifest_path_buf)
+        .map_err(|error| format!("Could not read quarantine manifest: {error}"))?;
+    let mut manifest: StoredQuarantineManifest = serde_json::from_str(&text)
+        .map_err(|error| format!("Invalid quarantine manifest: {error}"))?;
+
+    if manifest.version != 1 {
+        return Err(format!("Unsupported quarantine manifest version {}.", manifest.version));
+    }
+    if manifest.status != "COMPLETE" {
+        return Err(format!(
+            "Only COMPLETE quarantine manifests can be restored. Current status: {}",
+            manifest.status
+        ));
+    }
+
+    let manifest_root = PathBuf::from(&manifest.root)
+        .canonicalize()
+        .map_err(|error| format!("Could not resolve manifest Mods root: {error}"))?;
+    if manifest_root != root {
+        return Err("Quarantine manifest belongs to a different Mods root.".to_string());
+    }
+
+    let quarantine_root = PathBuf::from(&manifest.quarantine_root)
+        .canonicalize()
+        .map_err(|error| format!("Could not resolve quarantine root: {error}"))?;
+    let expected_quarantine_parent = root
+        .parent()
+        .unwrap_or(&root)
+        .join("S3CC Organizer")
+        .join("Quarantine")
+        .canonicalize()
+        .map_err(|error| format!("Could not resolve quarantine parent: {error}"))?;
+    if !quarantine_root.starts_with(&expected_quarantine_parent) {
+        return Err("Quarantine root is outside the selected Mods workspace.".to_string());
+    }
+
+    for item in &manifest.items {
+        let source = root.join(&item.source_relative_path);
+        let quarantined = quarantine_root.join(&item.destination_relative_path);
+        if source.exists() {
+            return Err(format!("Restore destination already exists: {}", source.display()));
+        }
+        if !quarantined.is_file() {
+            return Err(format!("Quarantined file is missing: {}", quarantined.display()));
+        }
+        let (hash, size) = sha256_file(&quarantined)
+            .map_err(|error| format!("Could not verify quarantined file: {error}"))?;
+        if !hash.eq_ignore_ascii_case(&item.sha256) || size != item.size {
+            return Err(format!("Quarantined file changed: {}", quarantined.display()));
+        }
+    }
+
+    let mut restored = Vec::<(PathBuf, PathBuf, String, u64)>::new();
+    for item in &manifest.items {
+        let destination = root.join(&item.source_relative_path);
+        let quarantined = quarantine_root.join(&item.destination_relative_path);
+        if let Some(parent) = destination.parent() {
+            if let Err(error) = fs::create_dir_all(parent) {
+                for (restored_path, quarantine_path, _, _) in restored.iter().rev() {
+                    let _ = fs::rename(restored_path, quarantine_path);
+                }
+                return Err(format!("Could not recreate original folder: {error}"));
+            }
+        }
+
+        if let Err(error) = fs::rename(&quarantined, &destination) {
+            for (restored_path, quarantine_path, _, _) in restored.iter().rev() {
+                let _ = fs::rename(restored_path, quarantine_path);
+            }
+            return Err(format!("Could not restore {}: {error}", destination.display()));
+        }
+
+        let verified = sha256_file(&destination)
+            .map(|(hash, size)| hash.eq_ignore_ascii_case(&item.sha256) && size == item.size)
+            .unwrap_or(false);
+        if !verified {
+            restored.push((
+                destination.clone(),
+                quarantined.clone(),
+                item.sha256.clone(),
+                item.size,
+            ));
+            for (restored_path, quarantine_path, _, _) in restored.iter().rev() {
+                let _ = fs::rename(restored_path, quarantine_path);
+            }
+            return Err(format!("Restored file failed verification: {}", destination.display()));
+        }
+
+        restored.push((
+            destination,
+            quarantined,
+            item.sha256.clone(),
+            item.size,
+        ));
+    }
+
+    manifest.status = "RESTORED".to_string();
+    manifest.created_at = Local::now().to_rfc3339();
+    let data = serde_json::to_vec_pretty(&manifest)
+        .map_err(|error| format!("Could not serialize restored quarantine manifest: {error}"))?;
+    write_manifest_atomic(&manifest_path_buf, &data)?;
+
+    for entry in walkdir::WalkDir::new(&quarantine_root)
+        .contents_first(true)
+        .min_depth(1)
+        .into_iter()
+        .filter_map(Result::ok)
+    {
+        if entry.file_type().is_dir() {
+            let _ = fs::remove_dir(entry.path());
+        }
+    }
+    let _ = fs::remove_dir(&quarantine_root);
+
+    Ok(QuarantineResult {
+        moved: restored.len(),
+        quarantine_root: quarantine_root.to_string_lossy().to_string(),
+        manifest_path: manifest_path_buf.to_string_lossy().to_string(),
+        status: "RESTORED".to_string(),
     })
 }
 
