@@ -2640,6 +2640,21 @@ function renderTechnicalDetails(container, item) {
   }
 }
 
+function structureLocked() {
+  return (
+    state.structureBusy ||
+    state.scanning ||
+    state.duplicatesBusy ||
+    state.conflictsBusy ||
+    state.planning ||
+    state.executing ||
+    state.restoreBusy ||
+    state.auditBusy ||
+    state.reviewBusy ||
+    !!state.technicalDetailsLoading
+  );
+}
+
 function selectedStructureEntry() {
   return (state.structureListing?.entries || []).find(
     (entry) => entry.relativePath === state.structureSelectedPath
@@ -2687,7 +2702,7 @@ function invalidateAnalysesAfterStructureChange() {
 }
 
 async function loadStructure(relativePath = state.structureCurrent) {
-  if (!state.folder || state.structureBusy) return;
+  if (!state.folder || structureLocked()) return;
   state.structureBusy = true;
   state.structureError = "";
   renderStructure();
@@ -2780,15 +2795,16 @@ function renderStructure() {
     listing?.currentRelativePath ? `\\${listing.currentRelativePath}` : "\\";
   el.structureCurrentPath.title = el.structureCurrentPath.textContent;
 
+  const locked = structureLocked();
   el.structureUpBtn.disabled =
-    !hasRoot || state.structureBusy || !listing?.parentRelativePath;
-  el.structureRefreshBtn.disabled = !hasRoot || state.structureBusy;
-  el.structureCreateBtn.disabled = !hasRoot || state.structureBusy;
+    !hasRoot || locked || !listing?.parentRelativePath;
+  el.structureRefreshBtn.disabled = !hasRoot || locked;
+  el.structureCreateBtn.disabled = !hasRoot || locked;
 
   const selected = selectedStructureEntry();
-  el.structureMoveBtn.disabled = !selected || state.structureBusy;
+  el.structureMoveBtn.disabled = !selected || locked;
   el.structureRenameBtn.disabled =
-    !selected || !selected.isDirectory || state.structureBusy;
+    !selected || !selected.isDirectory || locked;
 
   if (state.structureBusy) {
     el.structureState.textContent = t("scanning");
@@ -2931,7 +2947,7 @@ async function openStructureModal(action) {
 async function executeStructureAction() {
   const action = state.structureModalAction;
   const selected = selectedStructureEntry();
-  if (!action || state.structureBusy) return;
+  if (!action || structureLocked()) return;
 
   state.structureBusy = true;
   state.structureError = "";
@@ -2968,6 +2984,7 @@ async function executeStructureAction() {
       refreshCacheInfo(),
       refreshConflictDecisions(),
     ]);
+    state.structureBusy = false;
     await loadStructure(state.structureCurrent);
   } catch (error) {
     state.structureError = String(error);
