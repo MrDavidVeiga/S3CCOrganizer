@@ -1,0 +1,133 @@
+use crate::manifest::sha256_file;
+use chrono::Local;
+use serde::{Deserialize, Serialize};
+use std::{collections::{BTreeMap, HashMap}, fs, path::{Path, PathBuf}};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SnapshotEntry {
+    pub relative_path: String,
+    pub size: u64,
+    pub sha256: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModsSnapshot {
+    pub id: String,
+    pub created_at: String,
+    pub root: String,
+    pub entries: Vec<SnapshotEntry>,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct SnapshotDiff {
+    pub added: Vec<SnapshotEntry>,
+    pub removed: Vec<SnapshotEntry>,
+    pub modified: Vec<SnapshotEntry>,
+    pub moved: Vec<SnapshotMove>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SnapshotMove {
+    pub sha256: String,
+    pub old_path: String,
+    pub new_path: String,
+}
+
+fn canonical_root(folder:&str)->Result<PathBuf,String>{
+    let root=PathBuf::from(folder.trim()).canonicalize().map_err(|e|format!("Could not resolve root: {e}"))?;
+    if !root.is_dir(){return Err("Selected root is not a directory.".into());}
+    Ok(root)
+}
+fn snapshots_dir(root:&Path)->PathBuf{
+    root.parent().unwrap_or(root).join("S3CC Organizer").join("Snapshots")
+}
+fn package_path(path:&Path)->bool{
+    path.extension().and_then(|v|v.to_str()).map(|v|v.eq_ignore_ascii_case("package")).unwrap_or(false)
+}
+fn capture(root:&Path)->Result<Vec<SnapshotEntry>,String>{
+    let mut entries=Vec::new();
+    for entry in walkdir::WalkDir::new(root).follow_links(false).into_iter().filter_map(Result::ok){
+        if !entry.file_type().is_file() || !package_path(entry.path()){continue;}
+        let (sha256,size)=sha256_file(entry.path()).map_err(|e|format!("Could not hash {}: {e}",entry.path().display()))?;
+        let rel=entry.path().strip_prefix(root).unwrap_or(entry.path()).to_string_lossy().replace('/',"\");
+        entries.push(SnapshotEntry{relative_path:rel,size,sha256});
+    }
+    entries.sort_by_key(|e|e.relative_path.to_ascii_lowercase());
+    Ok(entries)
+}
+fn diff_entries(old:&[SnapshotEntry],new:&[SnapshotEntry])->SnapshotDiff{
+    let old_by_path=old.iter().map(|e|(e.relative_path.to_ascii_lowercase(),e)).collect::<HashMap<_,_>>();
+    let new_by_path=new.iter().map(|e|(e.relative_path.to_ascii_lowercase(),e)).collect::<HashMap<_,_>>();
+    let mut diff=SnapshotDiff::default();
+    for (key,e) in &new_by_path{
+        match old_by_path.get(key){
+            None=>diff.added.push((*e).clone()),
+            Some(prev) if prev.sha256!=e.sha256=>diff.modified.push((*e).clone()),
+            _=>{}
+        }
+    }
+    for (key,e) in &old_by_path{
+        if !new_by_path.contains_key(key){diff.removed.push((*e).clone());}
+    }
+    let removed_by_hash=diff.removed.iter().map(|e|(e.sha256.clone(),e.relative_path.clone())).collect::<BTreeMap<_,_>>();
+    let added_by_hash=diff.added.iter().map(|e|(e.sha256.clone(),e.relative_path.clone())).collect::<BTreeMap<_,_>>();
+    let mut moved=Vec::new();
+    for (hash,old_path) in removed_by_hash{
+        if let Some(new_path)=added_by_hash.get(&hash){
+            moved.push(SnapshotMove{sha256:hash,old_path,new_path:new_path.clone()});
+        }
+    }
+    if !moved.is_empty(){
+        let hashes=moved.iter().map(|m|m.sha256.clone()).collect::<std::collections::HashSet<_>>();
+        diff.removed.retain(|e|!hashes.contains(&e.sha256));
+        diff.added.retain(|e|!hashes.contains(&e.sha256));
+        diff.moved=moved;
+    }
+    diff
+}
+fn load_snapshot(path:&Path)->Result<ModsSnapshot,String>{
+    let text=fs::read_to_string(path).map_err(|e|format!("Could not read snapshot: {e}"))?;
+    serde_json::from_str(&text).map_err(|e|format!("Invalid snapshot: {e}"))
+}
+#[tauri::command]
+pub fn create_snapshot(folder:String)->Result<ModsSnapshot,String>{
+    let root=canonical_root(&folder)?;
+    let id=Local::now().format("%Y%m%d-%H%M%S").to_string();
+    let snapshot=ModsSnapshot{id:id.clone(),created_at:Local::now().to_rfc3339(),root:root.to_string_lossy().to_string(),entries:capture(&root)?};
+    let dir=snapshots_dir(&root); fs::create_dir_all(&dir).map_err(|e|format!("Could not create snapshot directory: {e}"))?;
+    let mut path=dir.join(format!("snapshot-{id}.json")); let mut n=1;
+    while path.exists(){path=dir.join(format!("snapshot-{id}-{n}.json"));n+=1;}
+    fs::write(&path,serde_json::to_vec_pretty(&snapshot).unwrap()).map_err(|e|format!("Could not save snapshot: {e}"))?;
+    Ok(snapshot)
+}
+#[tauri::command]
+pub fn list_snapshots(folder:String)->Result<Vec<ModsSnapshot>,String>{
+    let root=canonical_root(&folder)?; let dir=snapshots_dir(&root);
+    if !dir.is_dir(){return Ok(Vec::new());}
+    let mut out=Vec::new();
+    for e in fs::read_dir(dir).map_err(|e|e.to_string())?.filter_map(Result::ok){
+        if e.path().extension().and_then(|v|v.to_str())==Some("json"){
+            if let Ok(s)=load_snapshot(&e.path()){out.push(s);}
+        }
+    }
+    out.sort_by(|a,b|b.created_at.cmp(&a.created_at)); Ok(out)
+}
+#[tauri::command]
+pub fn compare_snapshot_to_current(folder:String,snapshot_id:String)->Result<SnapshotDiff,String>{
+    let root=canonical_root(&folder)?; let dir=snapshots_dir(&root);
+    let mut selected=None;
+    for e in fs::read_dir(&dir).map_err(|e|e.to_string())?.filter_map(Result::ok){
+        if let Ok(s)=load_snapshot(&e.path()){if s.id==snapshot_id{selected=Some(s);break;}}
+    }
+    let snapshot=selected.ok_or_else(||"Snapshot not found.".to_string())?;
+    Ok(diff_entries(&snapshot.entries,&capture(&root)?))
+}
+#[tauri::command]
+pub fn compare_mods_roots(left_folder:String,right_folder:String)->Result<SnapshotDiff,String>{
+    let left=canonical_root(&left_folder)?; let right=canonical_root(&right_folder)?;
+    Ok(diff_entries(&capture(&left)?,&capture(&right)?))
+}
