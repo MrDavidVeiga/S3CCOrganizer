@@ -38,6 +38,24 @@ pub fn get_operation_history(folder:String)->Result<Vec<OperationHistoryItem>,St
         });
     }
     let root=PathBuf::from(folder.trim()).canonicalize().map_err(|e|format!("Could not resolve root: {e}"))?;
+    let quarantine_dir=root.parent().unwrap_or(&root).join("S3CC Organizer").join("Quarantine Manifests");
+    if quarantine_dir.is_dir(){
+        for entry in std::fs::read_dir(&quarantine_dir).map_err(|e|e.to_string())?.filter_map(Result::ok){
+            if !entry.path().is_file(){continue;}
+            let timestamp=entry.metadata().ok().and_then(|m|m.modified().ok())
+                .map(|time|DateTime::<Local>::from(time).to_rfc3339())
+                .unwrap_or_default();
+            let status=std::fs::read_to_string(entry.path()).ok()
+                .and_then(|text|serde_json::from_str::<serde_json::Value>(&text).ok())
+                .and_then(|value|value.get("status").and_then(|v|v.as_str()).map(str::to_string))
+                .unwrap_or_else(||"recorded".into());
+            out.push(OperationHistoryItem{
+                timestamp,kind:"quarantine".into(),title:entry.file_name().to_string_lossy().to_string(),
+                source:Some(root.to_string_lossy().to_string()),
+                destination:Some(entry.path().to_string_lossy().to_string()),status
+            });
+        }
+    }
     let inbox_dir=root.parent().unwrap_or(&root).join("S3CC Organizer").join("Inbox Manifests");
     if inbox_dir.is_dir(){
         for entry in std::fs::read_dir(inbox_dir).map_err(|e|e.to_string())?.filter_map(Result::ok){
