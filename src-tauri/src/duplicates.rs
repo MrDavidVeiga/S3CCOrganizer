@@ -265,33 +265,52 @@ fn build_package_fingerprint(
         })
         .collect::<Vec<_>>();
 
-    let content_fingerprint = hash_parts(resources.iter().map(full_resource_key));
-    let structural_signature = hash_parts(
-        resources
-            .iter()
-            .filter(|resource| is_structural(resource.type_id))
-            .map(semantic_resource_key),
-    );
-    let texture_signature = hash_parts(
-        resources
-            .iter()
-            .filter(|resource| is_texture_or_material(resource.type_id))
-            .map(semantic_resource_key),
-    );
-    let catalog_signature = hash_parts(
-        resources
-            .iter()
-            .filter(|resource| is_catalog(resource.type_id))
-            .map(semantic_resource_key),
-    );
-    let substantive_without_catalog_signature = hash_parts(
-        resources
-            .iter()
-            .filter(|resource| {
-                !is_catalog(resource.type_id) && !is_descriptive_metadata(resource.type_id)
-            })
-            .map(semantic_resource_key),
-    );
+    let readable = cached.parse_error.is_none();
+    let content_fingerprint = readable
+        .then(|| hash_parts(resources.iter().map(full_resource_key)))
+        .flatten();
+    let structural_signature = readable
+        .then(|| {
+            hash_parts(
+                resources
+                    .iter()
+                    .filter(|resource| is_structural(resource.type_id))
+                    .map(semantic_resource_key),
+            )
+        })
+        .flatten();
+    let texture_signature = readable
+        .then(|| {
+            hash_parts(
+                resources
+                    .iter()
+                    .filter(|resource| is_texture_or_material(resource.type_id))
+                    .map(semantic_resource_key),
+            )
+        })
+        .flatten();
+    let catalog_signature = readable
+        .then(|| {
+            hash_parts(
+                resources
+                    .iter()
+                    .filter(|resource| is_catalog(resource.type_id))
+                    .map(semantic_resource_key),
+            )
+        })
+        .flatten();
+    let substantive_without_catalog_signature = readable
+        .then(|| {
+            hash_parts(
+                resources
+                    .iter()
+                    .filter(|resource| {
+                        !is_catalog(resource.type_id) && !is_descriptive_metadata(resource.type_id)
+                    })
+                    .map(semantic_resource_key),
+            )
+        })
+        .flatten();
 
     Ok((
         PackageFingerprint {
