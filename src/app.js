@@ -3475,6 +3475,10 @@ el.refreshRestoreHistoryBtn.addEventListener("click", loadRestoreHistory);
 el.openManifestFolderBtn.addEventListener("click", () => openDirectorySafe(state.restoreManifest));
 el.openCacheBtn.addEventListener("click", () => openDirectorySafe(state.cacheInfo?.path));
 el.clearCacheBtn.addEventListener("click", () => openConfirm("clear_cache"));
+el.exportAuditBtn.addEventListener("click", exportAuditReport);
+el.openReportFolderBtn.addEventListener("click", () =>
+  openDirectorySafe(state.lastAuditReport?.directory)
+);
 el.scanBtn.addEventListener("click", () => scanFolder(false));
 el.planBtn.addEventListener("click", buildPlan);
 el.selectAllBtn.addEventListener("click", selectAllVisible);
@@ -3550,6 +3554,7 @@ applySidebarWidth();
 if (state.folder) {
   void loadRestoreHistory();
   void refreshCacheInfo();
+  void refreshConflictDecisions();
 }
 
 render();
