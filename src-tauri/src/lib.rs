@@ -21,6 +21,15 @@ pub mod review_store;
 pub mod resource_cfg;
 pub mod scanner;
 pub mod structure_manager;
+pub mod workspace;
+pub mod snapshots;
+pub mod health;
+pub mod dependencies;
+pub mod technical_search;
+pub mod package_compare;
+pub mod inbox;
+pub mod selection_export;
+pub mod history;
 pub mod taxonomy;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -48,6 +57,26 @@ pub fn run() {
             structure_manager::move_structure_path,
             structure_manager::rename_structure_folder,
             structure_manager::list_manual_operations,
+            structure_manager::undo_last_manual_operation,
+            workspace::load_workspace,
+            workspace::save_workspace,
+            workspace::set_read_only,
+            workspace::set_package_metadata,
+            workspace::save_package_group,
+            workspace::delete_package_group,
+            snapshots::create_snapshot,
+            snapshots::list_snapshots,
+            snapshots::compare_snapshot_to_current,
+            snapshots::compare_mods_roots,
+            health::analyze_mods_health,
+            dependencies::analyze_dependencies,
+            technical_search::technical_search,
+            package_compare::compare_packages,
+            inbox::scan_inbox,
+            inbox::build_inbox_import_plan,
+            inbox::execute_inbox_import,
+            selection_export::save_selection_export,
+            history::get_operation_history,
             quarantine::build_quarantine_plan,
             planner::build_organization_plan,
             executor::execute_organization,
