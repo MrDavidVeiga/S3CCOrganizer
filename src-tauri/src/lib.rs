@@ -13,6 +13,7 @@ pub mod operation;
 pub mod package_family;
 pub mod package_details;
 pub mod planner;
+pub mod quarantine;
 pub mod restore;
 pub mod restore_history;
 pub mod resource_cfg;
@@ -35,6 +36,7 @@ pub fn run() {
             navigation::reveal_path,
             package_details::get_package_technical_details,
             restore_history::list_restore_history,
+            quarantine::build_quarantine_plan,
             planner::build_organization_plan,
             executor::execute_organization,
             restore::preview_restore,
