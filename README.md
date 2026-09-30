@@ -110,6 +110,12 @@ The application now persists UI preferences, supports a resizable sidebar, expos
 
 See [docs/PREBUILD-HARDENING.md](docs/PREBUILD-HARDENING.md).
 
+## Persistent reviews and audit reports
+
+Intentional Conflict overrides can now be saved locally using content-stable package SHA-256 decision keys, while `Ignored This Session` remains temporary. The app can also export a complete Markdown + JSON audit snapshot covering classifications, duplicates, conflicts and review decisions.
+
+See [docs/PERSISTENT-REVIEWS-AUDIT-REPORTS.md](docs/PERSISTENT-REVIEWS-AUDIT-REPORTS.md).
+
 ## Status
 
 The repository is organized around four layers:
