@@ -68,6 +68,15 @@ pub struct PackageGroup {
     pub updated_at: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ManualClassification {
+    pub sha256: String,
+    pub last_path: String,
+    pub destination: String,
+    pub updated_at: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceStore {
@@ -77,6 +86,8 @@ pub struct WorkspaceStore {
     pub profiles: Vec<OrganizationProfile>,
     pub package_metadata: BTreeMap<String, PackageMetadata>,
     pub groups: Vec<PackageGroup>,
+    #[serde(default)]
+    pub manual_classifications: BTreeMap<String, ManualClassification>,
 }
 
 impl Default for WorkspaceStore {
@@ -88,6 +99,7 @@ impl Default for WorkspaceStore {
             profiles: vec![OrganizationProfile::default()],
             package_metadata: BTreeMap::new(),
             groups: Vec::new(),
+            manual_classifications: BTreeMap::new(),
         }
     }
 }
@@ -325,6 +337,51 @@ pub fn set_package_metadata(
             updated_at: Local::now().to_rfc3339(),
         },
     );
+    save_to_root(&root, &store)?;
+    Ok(store)
+}
+
+#[tauri::command]
+pub fn set_manual_classification(
+    folder: String,
+    package_path: String,
+    destination: String,
+) -> Result<WorkspaceStore, String> {
+    let root = canonical_root(&folder)?;
+    let path = PathBuf::from(package_path.trim())
+        .canonicalize()
+        .map_err(|error| format!("Could not resolve package: {error}"))?;
+    if !path.starts_with(&root) || !path.is_file() || !is_package(&path) {
+        return Err("Package is outside the selected root or is not a .package file.".to_string());
+    }
+
+    let (sha256, _) = sha256_file(&path)
+        .map_err(|error| format!("Could not hash package: {error}"))?;
+    let mut store = load_from_root(&root);
+    let destination = destination
+        .replace('/', "\\")
+        .trim_matches('\\')
+        .trim()
+        .to_string();
+
+    if destination.is_empty() {
+        store.manual_classifications.remove(&sha256);
+    } else {
+        store.manual_classifications.insert(
+            sha256.clone(),
+            ManualClassification {
+                sha256,
+                last_path: path
+                    .strip_prefix(&root)
+                    .unwrap_or(&path)
+                    .to_string_lossy()
+                    .replace('/', "\\"),
+                destination,
+                updated_at: Local::now().to_rfc3339(),
+            },
+        );
+    }
+
     save_to_root(&root, &store)?;
     Ok(store)
 }
