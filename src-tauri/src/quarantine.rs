@@ -6,8 +6,10 @@ use chrono::Local;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashSet,
-    fs,
-    path::{Path, PathBuf},
+    fs::{self, File, OpenOptions},
+    io::Write,
+    path::{Component, Path, PathBuf},
+    sync::{Mutex, OnceLock},
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -52,18 +54,8 @@ pub struct QuarantineResult {
     pub status: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
-struct QuarantineManifest<'a> {
-    version: u32,
-    created_at: String,
-    status: &'a str,
-    root: &'a str,
-    quarantine_root: &'a str,
-    items: &'a [QuarantinePlanItem],
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct StoredQuarantineManifest {
+struct QuarantineManifest {
     version: u32,
     created_at: String,
     status: String,
@@ -72,444 +64,609 @@ struct StoredQuarantineManifest {
     items: Vec<QuarantinePlanItem>,
 }
 
-fn within_root(root: &Path, candidate: &Path) -> bool {
-    candidate.starts_with(root)
+type MoveRecord = (PathBuf, PathBuf, String, u64);
+
+fn transaction_mutex() -> &'static Mutex<()> {
+    static QUARANTINE_MUTEX: OnceLock<Mutex<()>> = OnceLock::new();
+    QUARANTINE_MUTEX.get_or_init(|| Mutex::new(()))
+}
+
+fn transaction_guard() -> Result<std::sync::MutexGuard<'static, ()>, String> {
+    transaction_mutex()
+        .lock()
+        .map_err(|_| "Quarantine transaction lock is poisoned.".to_string())
+}
+
+fn workspace_base(root: &Path) -> PathBuf {
+    root.parent().unwrap_or(root).join("S3CC Organizer")
+}
+
+fn quarantine_base(root: &Path) -> PathBuf {
+    workspace_base(root).join("Quarantine")
+}
+
+fn manifest_base(root: &Path) -> PathBuf {
+    workspace_base(root).join("Quarantine Manifests")
+}
+
+fn canonical_root(folder: &str) -> Result<PathBuf, String> {
+    let root = PathBuf::from(folder.trim())
+        .canonicalize()
+        .map_err(|error| format!("Could not resolve Mods root: {error}"))?;
+    if !root.is_dir() {
+        return Err("Selected Mods root is not a directory.".into());
+    }
+    Ok(root)
 }
 
 fn relative_text(path: &Path) -> String {
     path.to_string_lossy().replace('/', "\\")
 }
 
-fn write_manifest_atomic(path: &Path, data: &[u8]) -> Result<(), String> {
-    let parent = path
-        .parent()
-        .ok_or_else(|| "Quarantine manifest has no parent directory.".to_string())?;
-    fs::create_dir_all(parent)
-        .map_err(|error| format!("Could not create quarantine manifest directory: {error}"))?;
-    let temp = path.with_extension("json.tmp");
-    fs::write(&temp, data)
-        .map_err(|error| format!("Could not write quarantine manifest temp file: {error}"))?;
-    #[cfg(windows)]
-    if path.exists() {
-        fs::remove_file(path)
-            .map_err(|error| format!("Could not replace quarantine manifest: {error}"))?;
+fn validated_relative(value: &str) -> Result<PathBuf, String> {
+    if value.is_empty() || value.starts_with('\\') || value.starts_with('/') {
+        return Err("Relative path is empty or absolute.".into());
     }
-    fs::rename(&temp, path)
-        .map_err(|error| format!("Could not commit quarantine manifest: {error}"))
+    let mut path = PathBuf::new();
+    for part in value.split(|ch| ch == '\\' || ch == '/') {
+        if part.is_empty()
+            || part == "."
+            || part == ".."
+            || part.ends_with(' ')
+            || part.ends_with('.')
+            || part.chars().any(|ch| {
+                ch < '\u{20}' || matches!(ch, '<' | '>' | ':' | '"' | '|' | '?' | '*')
+            })
+        {
+            return Err(format!("Unsafe quarantine path component: {part:?}"));
+        }
+        let stem = part.split('.').next().unwrap_or(part).to_ascii_uppercase();
+        if matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+            || (stem.len() == 4
+                && (stem.starts_with("COM") || stem.starts_with("LPT"))
+                && matches!(stem.as_bytes()[3], b'1'..=b'9'))
+        {
+            return Err(format!("Reserved Windows file name in quarantine path: {part}"));
+        }
+        path.push(part);
+    }
+    if path.as_os_str().is_empty() || path.components().any(|c| !matches!(c, Component::Normal(_))) {
+        return Err("Invalid relative quarantine path.".into());
+    }
+    Ok(path)
 }
 
-fn persist_manifest(path: &Path, plan: &QuarantinePlan, status: &str) -> Result<(), String> {
-    let manifest = QuarantineManifest {
+/// Reject existing symlink/junction components, including a redirect introduced
+/// after preflight. This is applied on BOTH sides before every move.
+fn checked_join(base: &Path, relative: &Path) -> Result<PathBuf, String> {
+    let mut cursor = base.to_path_buf();
+    for component in relative.components() {
+        let Component::Normal(name) = component else {
+            return Err("Unsafe quarantine path component.".into());
+        };
+        cursor.push(name);
+        match fs::symlink_metadata(&cursor) {
+            Ok(meta) => {
+                if meta.file_type().is_symlink() {
+                    return Err(format!("Symlink in quarantine path: {}", cursor.display()));
+                }
+                let resolved = cursor.canonicalize()
+                    .map_err(|error| format!("Could not validate path {}: {error}", cursor.display()))?;
+                if !resolved.starts_with(base) {
+                    return Err("Quarantine path escapes its expected root.".into());
+                }
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(format!("Could not inspect path: {error}")),
+        }
+    }
+    Ok(cursor)
+}
+
+fn checked_workspace(root: &Path) -> Result<(), String> {
+    let parent = root.parent().unwrap_or(root);
+    let rel = Path::new("S3CC Organizer");
+    let _ = checked_join(parent, rel)?;
+    for name in ["Quarantine", "Quarantine Manifests"] {
+        let sub = Path::new("S3CC Organizer").join(name);
+        let _ = checked_join(parent, &sub)?;
+    }
+    Ok(())
+}
+
+fn validate_session_dir(root: &Path, input: &Path) -> Result<PathBuf, String> {
+    let base = quarantine_base(root);
+    let session = input
+        .file_name()
+        .and_then(|s| s.to_str())
+        .ok_or_else(|| "Quarantine session has no valid name.".to_string())?;
+    if session.len() < 15 || !session.chars().all(|c| c.is_ascii_digit() || c == '-') {
+        return Err("Invalid quarantine session identifier.".into());
+    }
+    if input != base.join(session) {
+        return Err("Quarantine session is outside its workspace.".into());
+    }
+    checked_workspace(root)?;
+    let _ = checked_join(&base, Path::new(session))?;
+    Ok(base.join(session))
+}
+
+fn manifest_from_plan(plan: &QuarantinePlan, status: &str) -> QuarantineManifest {
+    QuarantineManifest {
         version: 1,
         created_at: Local::now().to_rfc3339(),
-        status,
-        root: &plan.root,
-        quarantine_root: &plan.quarantine_root,
-        items: &plan.items,
-    };
-    let data = serde_json::to_vec_pretty(&manifest)
-        .map_err(|error| format!("Could not serialize quarantine manifest: {error}"))?;
-    write_manifest_atomic(path, &data)
+        status: status.into(),
+        root: plan.root.clone(),
+        quarantine_root: plan.quarantine_root.clone(),
+        items: plan.items.clone(),
+    }
 }
 
-fn rollback_moves(moved: &[(PathBuf, PathBuf, String, u64)]) -> bool {
+fn write_manifest_atomic(path: &Path, manifest: &QuarantineManifest) -> Result<(), String> {
+    let parent = path.parent().ok_or("Manifest path is missing its parent.")?;
+    fs::create_dir_all(parent)
+        .map_err(|error| format!("Could not create manifest directory: {error}"))?;
+    let data = serde_json::to_vec_pretty(manifest)
+        .map_err(|error| format!("Could not encode quarantine manifest: {error}"))?;
+    let tmp = parent.join(format!(
+        ".quarantine-{}-{}-{}.tmp",
+        std::process::id(),
+        Local::now().timestamp_micros(),
+        manifest.items.len()
+    ));
+    let result = (|| -> Result<(), String> {
+        let mut output = OpenOptions::new()
+            .write(true).create_new(true).open(&tmp)
+            .map_err(|error| format!("Could not open transaction journal: {error}"))?;
+        output.write_all(&data)
+            .map_err(|error| format!("Could not write transaction journal: {error}"))?;
+        output.sync_all()
+            .map_err(|error| format!("Could not flush transaction journal: {error}"))?;
+        // std::fs::rename replaces an existing file where supported.
+        // Never remove the previous journal before installing the new one.
+        fs::rename(&tmp, path)
+            .map_err(|error| format!("Could not commit transaction journal: {error}"))?;
+        #[cfg(unix)]
+        {
+            if let Ok(directory) = File::open(parent) {
+                let _ = directory.sync_all();
+            }
+        }
+        Ok(())
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&tmp);
+    }
+    result
+}
+
+fn read_manifest(root: &Path, input: &str) -> Result<(PathBuf, QuarantineManifest, PathBuf), String> {
+    checked_workspace(root)?;
+    let parent = manifest_base(root);
+    let manifest_path = PathBuf::from(input.trim())
+        .canonicalize()
+        .map_err(|error| format!("Could not resolve quarantine manifest: {error}"))?;
+    let canonical_parent = parent
+        .canonicalize()
+        .map_err(|error| format!("Could not resolve manifest directory: {error}"))?;
+    if manifest_path.parent() != Some(canonical_parent.as_path())
+        || manifest_path.extension().and_then(|s| s.to_str()) != Some("json")
+    {
+        return Err("Quarantine manifest is outside its expected directory.".into());
+    }
+    let text = fs::read_to_string(&manifest_path)
+        .map_err(|error| format!("Could not read quarantine manifest: {error}"))?;
+    let manifest: QuarantineManifest = serde_json::from_str(&text)
+        .map_err(|error| format!("Invalid quarantine manifest: {error}"))?;
+    if manifest.version != 1 || manifest.items.is_empty() || manifest.items.len() > 100_000 {
+        return Err("Invalid quarantine manifest version or item count.".into());
+    }
+    let original_root = PathBuf::from(&manifest.root).canonicalize()
+        .map_err(|error| format!("Could not resolve manifest Mods root: {error}"))?;
+    if original_root != root {
+        return Err("Quarantine manifest belongs to a different Mods root.".into());
+    }
+    let qroot = validate_session_dir(root, Path::new(&manifest.quarantine_root))?;
+    let mut seen = HashSet::new();
+    for item in &manifest.items {
+        let src = validated_relative(&item.source_relative_path)?;
+        let dst = validated_relative(&item.destination_relative_path)?;
+        if src != dst || !seen.insert(src.clone()) {
+            return Err("Manifest has conflicting or inconsistent relative paths.".into());
+        }
+        if item.sha256.len() != 64 || !item.sha256.bytes().all(|b| b.is_ascii_hexdigit()) {
+            return Err("Manifest has an invalid SHA-256 identity.".into());
+        }
+        // Source/destination absolute paths are audit fields, never trusted as move targets.
+        let _ = checked_join(root, &src)?;
+        let _ = checked_join(&qroot, &dst)?;
+    }
+    Ok((manifest_path, manifest, qroot))
+}
+
+fn verified(path: &Path, item: &QuarantinePlanItem) -> Result<(), String> {
+    let (hash, size) = sha256_file(path)
+        .map_err(|error| format!("Could not verify {}: {error}", path.display()))?;
+    if !hash.eq_ignore_ascii_case(&item.sha256) || size != item.size {
+        return Err(format!("File differs from quarantine manifest: {}", path.display()));
+    }
+    Ok(())
+}
+
+/// Verify before moving anything back. A changed quarantined file must NOT
+/// silently replace its original location during rollback.
+fn rollback_to_sources(moved: &[MoveRecord]) -> bool {
     let mut ok = true;
     for (source, destination, hash, size) in moved.iter().rev() {
-        if !destination.exists() || source.exists() {
+        let valid = sha256_file(destination)
+            .map(|(actual, n)| actual.eq_ignore_ascii_case(hash) && n == *size)
+            .unwrap_or(false);
+        if !valid || source.exists() || fs::rename(destination, source).is_err() {
             ok = false;
             continue;
         }
-        if fs::rename(destination, source).is_err() {
+        if sha256_file(source)
+            .map(|(actual, n)| actual.eq_ignore_ascii_case(hash) && n == *size)
+            .unwrap_or(false) == false
+        {
             ok = false;
-            continue;
-        }
-        match sha256_file(source) {
-            Ok((actual_hash, actual_size))
-                if actual_hash.eq_ignore_ascii_case(hash) && actual_size == *size => {}
-            _ => ok = false,
         }
     }
     ok
 }
 
-#[tauri::command]
-pub fn build_quarantine_plan(
-    folder: String,
-    selected_paths: Vec<String>,
-) -> Result<QuarantinePlan, String> {
-    if selected_paths.is_empty() {
-        return Err("No duplicate files were selected for quarantine preview.".to_string());
-    }
-
-    let root = PathBuf::from(folder.trim())
-        .canonicalize()
-        .map_err(|error| format!("Could not resolve Mods root: {error}"))?;
-    if !root.is_dir() {
-        return Err(format!("Selected root is not a directory: {}", root.display()));
-    }
-
-    let quarantine_base = root
-        .parent()
-        .unwrap_or(&root)
-        .join("S3CC Organizer")
-        .join("Quarantine");
-    let session = Local::now().format("%Y%m%d-%H%M%S-%3f").to_string();
-    let quarantine_root = quarantine_base.join(session);
-
-    let mut unique = HashSet::<PathBuf>::new();
-    let mut items = Vec::new();
-    let mut stats = QuarantineStats::default();
-
-    for raw in selected_paths {
-        let source = PathBuf::from(&raw)
-            .canonicalize()
-            .map_err(|error| format!("Could not resolve selected package {raw}: {error}"))?;
-
-        if !within_root(&root, &source) || !source.is_file() {
-            stats.blocked += 1;
+fn rollback_to_quarantine(moved: &[MoveRecord]) -> bool {
+    // Each record is (original, quarantined, hash, size).
+    let mut ok = true;
+    for (source, destination, hash, size) in moved.iter().rev() {
+        let valid = sha256_file(source)
+            .map(|(actual, n)| actual.eq_ignore_ascii_case(hash) && n == *size)
+            .unwrap_or(false);
+        if !valid || destination.exists() || fs::rename(source, destination).is_err() {
+            ok = false;
             continue;
         }
-        if !source
-            .extension()
-            .and_then(|value| value.to_str())
-            .map(|value| value.eq_ignore_ascii_case("package"))
-            .unwrap_or(false)
+        if sha256_file(destination)
+            .map(|(actual, n)| actual.eq_ignore_ascii_case(hash) && n == *size)
+            .unwrap_or(false) == false
         {
+            ok = false;
+        }
+    }
+    ok
+}
+
+fn abort_quarantine(path: &Path, manifest: &mut QuarantineManifest,
+    moved: &[MoveRecord], reason: String) -> String {
+    let restored = rollback_to_sources(moved);
+    manifest.status = if restored { "ROLLED_BACK" } else { "ROLLBACK_INCOMPLETE" }.into();
+    if let Err(journal_error) = write_manifest_atomic(path, manifest) {
+        format!("{reason}; journal update failed: {journal_error}; recovery is required: {}", path.display())
+    } else {
+        format!("{reason}; transaction status: {}; manifest: {}", manifest.status, path.display())
+    }
+}
+
+fn abort_restore(path: &Path, manifest: &mut QuarantineManifest,
+    moved: &[MoveRecord], reason: String) -> String {
+    let restored = rollback_to_quarantine(moved);
+    manifest.status = if restored { "COMPLETE" } else { "RESTORE_INCOMPLETE" }.into();
+    if let Err(journal_error) = write_manifest_atomic(path, manifest) {
+        format!("{reason}; journal update failed: {journal_error}; recovery is required: {}", path.display())
+    } else {
+        format!("{reason}; transaction status: {}; manifest: {}", manifest.status, path.display())
+    }
+}
+
+fn require_package(path: &Path) -> bool {
+    path.extension().and_then(|s| s.to_str())
+        .map(|s| s.eq_ignore_ascii_case("package")).unwrap_or(false)
+}
+
+#[tauri::command]
+pub fn build_quarantine_plan(folder: String, selected_paths: Vec<String>) -> Result<QuarantinePlan, String> {
+    if selected_paths.is_empty() {
+        return Err("No packages selected for quarantine.".into());
+    }
+    let root = canonical_root(&folder)?;
+    checked_workspace(&root)?;
+    let session = Local::now().format("%Y%m%d-%H%M%S-%f").to_string();
+    let qroot = quarantine_base(&root).join(&session);
+    if qroot.exists() || manifest_base(&root).join(format!("Quarantine-{session}.json")).exists() {
+        return Err("Quarantine session identifier is already in use.".into());
+    }
+
+    let mut unique = HashSet::new();
+    let mut items = Vec::new();
+    let mut stats = QuarantineStats::default();
+    for raw in selected_paths {
+        let source = PathBuf::from(raw.trim()).canonicalize()
+            .map_err(|error| format!("Cannot resolve selected package: {error}"))?;
+        if !source.is_file() || !source.starts_with(&root) || !require_package(&source) {
             stats.blocked += 1;
             continue;
         }
         if !unique.insert(source.clone()) {
             continue;
         }
-
-        stats.selected += 1;
-        let relative = source
-            .strip_prefix(&root)
-            .map_err(|_| format!("Could not make relative path for {}", source.display()))?;
-        let destination = quarantine_root.join(relative);
+        let relative = source.strip_prefix(&root)
+            .map_err(|_| "Selected package is outside Mods root.".to_string())?;
+        let _ = checked_join(&root, relative)?;
+        let _ = checked_join(&qroot, relative)?;
         let (sha256, size) = sha256_file(&source)
-            .map_err(|error| format!("Could not hash {}: {error}", source.display()))?;
-
+            .map_err(|error| format!("Could not hash selected package: {error}"))?;
+        let destination = qroot.join(relative);
         let collision = destination.exists();
+        stats.selected += 1;
         if collision {
-            stats.collisions += 1;
             stats.blocked += 1;
+            stats.collisions += 1;
         } else {
             stats.ready += 1;
         }
-
         items.push(QuarantinePlanItem {
-            source_path: source.to_string_lossy().to_string(),
+            source_path: source.to_string_lossy().into_owned(),
             source_relative_path: relative_text(relative),
-            destination_path: destination.to_string_lossy().to_string(),
+            destination_path: destination.to_string_lossy().into_owned(),
             destination_relative_path: relative_text(relative),
             sha256,
             size,
-            status: if collision { "collision" } else { "ready" }.to_string(),
+            status: if collision { "collision" } else { "ready" }.into(),
             warnings: if collision {
-                vec!["Quarantine destination already exists. Execution is blocked.".to_string()]
-            } else {
-                Vec::new()
-            },
+                vec!["Quarantine destination already exists.".into()]
+            } else { vec![] },
         });
     }
-
     items.sort_by_key(|item| item.source_relative_path.to_ascii_lowercase());
-
-    let mut manifest_preview = String::new();
-    manifest_preview.push_str("S3CC ORGANIZER QUARANTINE PREVIEW\n");
-    manifest_preview.push_str("version=1\n");
-    manifest_preview.push_str("mode=PREVIEW\n");
-    manifest_preview.push_str(&format!("root={}\n", root.display()));
-    manifest_preview.push_str(&format!("quarantine_root={}\n", quarantine_root.display()));
-    manifest_preview.push_str(&format!("files={}\n\n", items.len()));
+    let mut preview = format!(
+        "S3CC ORGANIZER QUARANTINE PREVIEW\nmode=PREVIEW\nroot={}\nquarantine_root={}\nfiles={}\n",
+        root.display(), qroot.display(), items.len()
+    );
     for item in &items {
-        manifest_preview.push_str("[file]\n");
-        manifest_preview.push_str(&format!("sha256={}\n", item.sha256));
-        manifest_preview.push_str(&format!("size={}\n", item.size));
-        manifest_preview.push_str(&format!("original={}\n", item.source_relative_path));
-        manifest_preview.push_str(&format!("quarantine={}\n", item.destination_relative_path));
-        manifest_preview.push_str("[/file]\n\n");
+        preview.push_str(&format!(
+            "\n[file]\nsha256={}\nsize={}\noriginal={}\nquarantine={}\n[/file]\n",
+            item.sha256, item.size, item.source_relative_path, item.destination_relative_path
+        ));
     }
-
     let read_only = load_workspace_for_root(&root).read_only;
     Ok(QuarantinePlan {
-        root: root.to_string_lossy().to_string(),
-        quarantine_root: quarantine_root.to_string_lossy().to_string(),
+        root: root.to_string_lossy().into_owned(),
+        quarantine_root: qroot.to_string_lossy().into_owned(),
         items,
-        can_execute: !read_only
-            && stats.ready > 0
-            && stats.blocked == 0
-            && stats.collisions == 0,
+        can_execute: !read_only && stats.ready > 0 && stats.blocked == 0,
         stats,
-        manifest_preview,
+        manifest_preview: preview,
     })
+}
+
+fn preflight_plan(root: &Path, plan: &QuarantinePlan) -> Result<(), String> {
+    let qroot = validate_session_dir(root, Path::new(&plan.quarantine_root))?;
+    if qroot.exists() {
+        return Err("Quarantine session destination already exists.".into());
+    }
+    for item in &plan.items {
+        let relative = validated_relative(&item.source_relative_path)?;
+        let source = checked_join(root, &relative)?;
+        let destination = checked_join(&qroot, &relative)?;
+        if !source.is_file() || destination.exists() {
+            return Err(format!("Quarantine plan is stale for {}", source.display()));
+        }
+        verified(&source, item)?;
+    }
+    Ok(())
 }
 
 #[tauri::command]
 pub fn execute_quarantine(
     folder: String,
     selected_paths: Vec<String>,
+    planned_quarantine_root: Option<String>,
 ) -> Result<QuarantineResult, String> {
-    let root = PathBuf::from(folder.trim())
-        .canonicalize()
-        .map_err(|error| format!("Could not resolve Mods root: {error}"))?;
+    let _guard = transaction_guard()?;
+    let root = canonical_root(&folder)?;
     ensure_writable(&root)?;
-
-    let plan = build_quarantine_plan(folder, selected_paths)?;
+    let mut plan = build_quarantine_plan(folder, selected_paths)?;
     if !plan.can_execute {
-        return Err("Quarantine is blocked by the preflight plan.".to_string());
+        return Err("Quarantine is blocked by preflight checks.".into());
     }
-
-    let manifest_dir = root
-        .parent()
-        .unwrap_or(&root)
-        .join("S3CC Organizer")
-        .join("Quarantine Manifests");
-    let manifest_path = manifest_dir.join(format!(
-        "Quarantine-{}.json",
-        Local::now().format("%Y%m%d-%H%M%S-%3f")
-    ));
-    persist_manifest(&manifest_path, &plan, "PENDING")?;
-
-    let mut moved = Vec::<(PathBuf, PathBuf, String, u64)>::new();
-
+    if let Some(requested) = planned_quarantine_root {
+        let qroot = validate_session_dir(&root, Path::new(&requested))?;
+        plan.quarantine_root = qroot.to_string_lossy().into_owned();
+        for item in &mut plan.items {
+            let relative = validated_relative(&item.destination_relative_path)?;
+            item.destination_path = qroot.join(relative).to_string_lossy().into_owned();
+        }
+    }
+    preflight_plan(&root, &plan)?;
+    let qroot = PathBuf::from(&plan.quarantine_root);
+    let session = qroot.file_name().and_then(|name| name.to_str())
+        .ok_or_else(|| "Invalid quarantine session.".to_string())?;
+    let manifest_path = manifest_base(&root).join(format!("Quarantine-{session}.json"));
+    if manifest_path.exists() {
+        return Err("Quarantine manifest already exists.".into());
+    }
+    let mut journal = manifest_from_plan(&plan, "PENDING");
+    write_manifest_atomic(&manifest_path, &journal)?; // durable BEFORE any move
+    let mut moved: Vec<MoveRecord> = Vec::new();
     for item in &plan.items {
-        let source = PathBuf::from(&item.source_path);
-        let destination = PathBuf::from(&item.destination_path);
-
-        if !source.exists() || destination.exists() {
-            let rolled_back = rollback_moves(&moved);
-            let _ = persist_manifest(
-                &manifest_path,
-                &plan,
-                if rolled_back { "ROLLED_BACK" } else { "ROLLBACK_INCOMPLETE" },
-            );
-            return Err(format!(
-                "Quarantine preflight changed before execution: {}",
-                source.display()
-            ));
+        let relative = match validated_relative(&item.source_relative_path) {
+            Ok(relative) => relative,
+            Err(error) => return Err(abort_quarantine(&manifest_path, &mut journal, &moved, error)),
+        };
+        let source = match checked_join(&root, &relative) {
+            Ok(path) => path,
+            Err(error) => return Err(abort_quarantine(&manifest_path, &mut journal, &moved, error)),
+        };
+        let destination = match checked_join(&qroot, &relative) {
+            Ok(path) => path,
+            Err(error) => return Err(abort_quarantine(&manifest_path, &mut journal, &moved, error)),
+        };
+        if destination.exists() || !source.is_file() {
+            return Err(abort_quarantine(&manifest_path, &mut journal, &moved,
+                format!("Source or destination changed: {}", source.display())));
         }
-
-        let (source_hash, source_size) = sha256_file(&source)
-            .map_err(|error| format!("Could not verify source before quarantine: {error}"))?;
-        if !source_hash.eq_ignore_ascii_case(&item.sha256) || source_size != item.size {
-            let rolled_back = rollback_moves(&moved);
-            let _ = persist_manifest(
-                &manifest_path,
-                &plan,
-                if rolled_back { "ROLLED_BACK" } else { "ROLLBACK_INCOMPLETE" },
-            );
-            return Err(format!("Source changed after preview: {}", source.display()));
+        if let Err(error) = verified(&source, item) {
+            return Err(abort_quarantine(&manifest_path, &mut journal, &moved, error));
         }
-
-        let parent = destination
-            .parent()
-            .ok_or_else(|| "Quarantine destination has no parent.".to_string())?;
-        if let Err(error) = fs::create_dir_all(parent) {
-            let rolled_back = rollback_moves(&moved);
-            let _ = persist_manifest(
-                &manifest_path,
-                &plan,
-                if rolled_back { "ROLLED_BACK" } else { "ROLLBACK_INCOMPLETE" },
-            );
-            return Err(format!("Could not create quarantine folder: {error}"));
+        if let Some(parent) = destination.parent() {
+            if let Err(error) = fs::create_dir_all(parent) {
+                return Err(abort_quarantine(&manifest_path, &mut journal, &moved,
+                    format!("Could not create quarantine folder: {error}")));
+            }
         }
-
+        if let Err(error) = checked_join(&qroot, &relative) {
+            return Err(abort_quarantine(&manifest_path, &mut journal, &moved, error));
+        }
         if let Err(error) = fs::rename(&source, &destination) {
-            let rolled_back = rollback_moves(&moved);
-            let _ = persist_manifest(
-                &manifest_path,
-                &plan,
-                if rolled_back { "ROLLED_BACK" } else { "ROLLBACK_INCOMPLETE" },
-            );
-            return Err(format!("Could not quarantine {}: {error}", source.display()));
+            return Err(abort_quarantine(&manifest_path, &mut journal, &moved,
+                format!("Could not move package: {error}")));
         }
-
-        let verified = sha256_file(&destination)
-            .map(|(hash, size)| hash.eq_ignore_ascii_case(&item.sha256) && size == item.size)
-            .unwrap_or(false);
-        if !verified {
-            moved.push((
-                source.clone(),
-                destination.clone(),
-                item.sha256.clone(),
-                item.size,
-            ));
-            let rolled_back = rollback_moves(&moved);
-            let _ = persist_manifest(
-                &manifest_path,
-                &plan,
-                if rolled_back { "ROLLED_BACK" } else { "ROLLBACK_INCOMPLETE" },
-            );
-            return Err(format!(
-                "Quarantined file failed SHA-256/size verification: {}",
-                destination.display()
-            ));
+        moved.push((source, destination.clone(), item.sha256.clone(), item.size));
+        if let Err(error) = verified(&destination, item) {
+            return Err(abort_quarantine(&manifest_path, &mut journal, &moved, error));
         }
-
-        moved.push((
-            source,
-            destination,
-            item.sha256.clone(),
-            item.size,
-        ));
     }
-
-    persist_manifest(&manifest_path, &plan, "COMPLETE")?;
-
+    journal.status = "COMPLETE".into();
+    if let Err(error) = write_manifest_atomic(&manifest_path, &journal) {
+        return Err(abort_quarantine(&manifest_path, &mut journal, &moved, error));
+    }
     Ok(QuarantineResult {
         moved: moved.len(),
         quarantine_root: plan.quarantine_root,
-        manifest_path: manifest_path.to_string_lossy().to_string(),
-        status: "COMPLETE".to_string(),
+        manifest_path: manifest_path.to_string_lossy().into_owned(),
+        status: "COMPLETE".into(),
     })
 }
 
 #[tauri::command]
-pub fn restore_quarantine(
-    folder: String,
-    manifest_path: String,
-) -> Result<QuarantineResult, String> {
-    let root = PathBuf::from(folder.trim())
-        .canonicalize()
-        .map_err(|error| format!("Could not resolve Mods root: {error}"))?;
+pub fn restore_quarantine(folder: String, manifest_path: String) -> Result<QuarantineResult, String> {
+    let _guard = transaction_guard()?;
+    let root = canonical_root(&folder)?;
     ensure_writable(&root)?;
-
-    let manifest_path_buf = PathBuf::from(manifest_path.trim())
-        .canonicalize()
-        .map_err(|error| format!("Could not resolve quarantine manifest: {error}"))?;
-    let manifest_dir = root
-        .parent()
-        .unwrap_or(&root)
-        .join("S3CC Organizer")
-        .join("Quarantine Manifests")
-        .canonicalize()
-        .map_err(|error| format!("Could not resolve quarantine manifest directory: {error}"))?;
-
-    if !manifest_path_buf.starts_with(&manifest_dir) || !manifest_path_buf.is_file() {
-        return Err("Quarantine manifest is outside the selected Mods workspace.".to_string());
+    let (path, mut journal, qroot) = read_manifest(&root, &manifest_path)?;
+    if journal.status != "COMPLETE" {
+        return Err(format!("Manifest status {} requires recovery or is already restored.", journal.status));
     }
-
-    let text = fs::read_to_string(&manifest_path_buf)
-        .map_err(|error| format!("Could not read quarantine manifest: {error}"))?;
-    let mut manifest: StoredQuarantineManifest = serde_json::from_str(&text)
-        .map_err(|error| format!("Invalid quarantine manifest: {error}"))?;
-
-    if manifest.version != 1 {
-        return Err(format!("Unsupported quarantine manifest version {}.", manifest.version));
-    }
-    if manifest.status != "COMPLETE" {
-        return Err(format!(
-            "Only COMPLETE quarantine manifests can be restored. Current status: {}",
-            manifest.status
-        ));
-    }
-
-    let manifest_root = PathBuf::from(&manifest.root)
-        .canonicalize()
-        .map_err(|error| format!("Could not resolve manifest Mods root: {error}"))?;
-    if manifest_root != root {
-        return Err("Quarantine manifest belongs to a different Mods root.".to_string());
-    }
-
-    let quarantine_root = PathBuf::from(&manifest.quarantine_root)
-        .canonicalize()
-        .map_err(|error| format!("Could not resolve quarantine root: {error}"))?;
-    let expected_quarantine_parent = root
-        .parent()
-        .unwrap_or(&root)
-        .join("S3CC Organizer")
-        .join("Quarantine")
-        .canonicalize()
-        .map_err(|error| format!("Could not resolve quarantine parent: {error}"))?;
-    if !quarantine_root.starts_with(&expected_quarantine_parent) {
-        return Err("Quarantine root is outside the selected Mods workspace.".to_string());
-    }
-
-    for item in &manifest.items {
-        let source = root.join(&item.source_relative_path);
-        let quarantined = quarantine_root.join(&item.destination_relative_path);
-        if source.exists() {
-            return Err(format!("Restore destination already exists: {}", source.display()));
+    for item in &journal.items {
+        let relative = validated_relative(&item.source_relative_path)?;
+        let source = checked_join(&root, &relative)?;
+        let quarantined = checked_join(&qroot, &relative)?;
+        if source.exists() || !quarantined.is_file() {
+            return Err(format!("Restore blocked by occupied/missing file: {}", source.display()));
         }
-        if !quarantined.is_file() {
-            return Err(format!("Quarantined file is missing: {}", quarantined.display()));
-        }
-        let (hash, size) = sha256_file(&quarantined)
-            .map_err(|error| format!("Could not verify quarantined file: {error}"))?;
-        if !hash.eq_ignore_ascii_case(&item.sha256) || size != item.size {
-            return Err(format!("Quarantined file changed: {}", quarantined.display()));
-        }
+        verified(&quarantined, item)?;
     }
-
-    let mut restored = Vec::<(PathBuf, PathBuf, String, u64)>::new();
-    for item in &manifest.items {
-        let destination = root.join(&item.source_relative_path);
-        let quarantined = quarantine_root.join(&item.destination_relative_path);
-        if let Some(parent) = destination.parent() {
+    journal.status = "RESTORE_PENDING".into();
+    write_manifest_atomic(&path, &journal)?; // durable BEFORE any restore move
+    let mut restored: Vec<MoveRecord> = Vec::new();
+    let items = journal.items.clone();
+    for item in &items {
+        let relative = match validated_relative(&item.source_relative_path) {
+            Ok(relative) => relative,
+            Err(error) => return Err(abort_restore(&path, &mut journal, &restored, error)),
+        };
+        let source = match checked_join(&root, &relative) {
+            Ok(path) => path,
+            Err(error) => return Err(abort_restore(&path, &mut journal, &restored, error)),
+        };
+        let quarantined = match checked_join(&qroot, &relative) {
+            Ok(path) => path,
+            Err(error) => return Err(abort_restore(&path, &mut journal, &restored, error)),
+        };
+        if source.exists() || !quarantined.is_file() {
+            return Err(abort_restore(&path, &mut journal, &restored,
+                format!("Restore destination changed: {}", source.display())));
+        }
+        if let Err(error) = verified(&quarantined, item) {
+            return Err(abort_restore(&path, &mut journal, &restored, error));
+        }
+        if let Some(parent) = source.parent() {
             if let Err(error) = fs::create_dir_all(parent) {
-                for (restored_path, quarantine_path, _, _) in restored.iter().rev() {
-                    let _ = fs::rename(restored_path, quarantine_path);
-                }
-                return Err(format!("Could not recreate original folder: {error}"));
+                return Err(abort_restore(&path, &mut journal, &restored,
+                    format!("Could not create restore folder: {error}")));
             }
         }
-
-        if let Err(error) = fs::rename(&quarantined, &destination) {
-            for (restored_path, quarantine_path, _, _) in restored.iter().rev() {
-                let _ = fs::rename(restored_path, quarantine_path);
-            }
-            return Err(format!("Could not restore {}: {error}", destination.display()));
+        if let Err(error) = checked_join(&root, &relative) {
+            return Err(abort_restore(&path, &mut journal, &restored, error));
         }
-
-        let verified = sha256_file(&destination)
-            .map(|(hash, size)| hash.eq_ignore_ascii_case(&item.sha256) && size == item.size)
-            .unwrap_or(false);
-        if !verified {
-            restored.push((
-                destination.clone(),
-                quarantined.clone(),
-                item.sha256.clone(),
-                item.size,
-            ));
-            for (restored_path, quarantine_path, _, _) in restored.iter().rev() {
-                let _ = fs::rename(restored_path, quarantine_path);
-            }
-            return Err(format!("Restored file failed verification: {}", destination.display()));
+        if let Err(error) = fs::rename(&quarantined, &source) {
+            return Err(abort_restore(&path, &mut journal, &restored,
+                format!("Could not restore file: {error}")));
         }
-
-        restored.push((
-            destination,
-            quarantined,
-            item.sha256.clone(),
-            item.size,
-        ));
-    }
-
-    manifest.status = "RESTORED".to_string();
-    manifest.created_at = Local::now().to_rfc3339();
-    let data = serde_json::to_vec_pretty(&manifest)
-        .map_err(|error| format!("Could not serialize restored quarantine manifest: {error}"))?;
-    write_manifest_atomic(&manifest_path_buf, &data)?;
-
-    for entry in walkdir::WalkDir::new(&quarantine_root)
-        .contents_first(true)
-        .min_depth(1)
-        .into_iter()
-        .filter_map(Result::ok)
-    {
-        if entry.file_type().is_dir() {
-            let _ = fs::remove_dir(entry.path());
+        restored.push((source.clone(), quarantined, item.sha256.clone(), item.size));
+        if let Err(error) = verified(&source, item) {
+            return Err(abort_restore(&path, &mut journal, &restored, error));
         }
     }
-    let _ = fs::remove_dir(&quarantine_root);
-
+    journal.status = "RESTORED".into();
+    if let Err(error) = write_manifest_atomic(&path, &journal) {
+        return Err(abort_restore(&path, &mut journal, &restored, error));
+    }
+    // Never delete user content or unexpected files under quarantine.
     Ok(QuarantineResult {
         moved: restored.len(),
-        quarantine_root: quarantine_root.to_string_lossy().to_string(),
-        manifest_path: manifest_path_buf.to_string_lossy().to_string(),
-        status: "RESTORED".to_string(),
+        quarantine_root: qroot.to_string_lossy().into_owned(),
+        manifest_path: path.to_string_lossy().into_owned(),
+        status: "RESTORED".into(),
+    })
+}
+
+/// Recover an interrupted quarantine or restore by returning every validated
+/// file to its ORIGINAL location. Refuse ambiguity, corruption or overwrite.
+#[tauri::command]
+pub fn recover_quarantine(folder: String, manifest_path: String) -> Result<QuarantineResult, String> {
+    let _guard = transaction_guard()?;
+    let root = canonical_root(&folder)?;
+    ensure_writable(&root)?;
+    let (path, mut journal, qroot) = read_manifest(&root, &manifest_path)?;
+    let prior = journal.status.clone();
+    if !matches!(prior.as_str(),
+        "PENDING" | "ROLLBACK_INCOMPLETE" | "RESTORE_PENDING" | "RESTORE_INCOMPLETE")
+    {
+        return Err(format!("Manifest status {prior} is not an interrupted operation."));
+    }
+
+    // Entire set MUST pass preflight before recovering even the first file.
+    let mut to_restore = Vec::<(PathBuf, PathBuf, QuarantinePlanItem)>::new();
+    for item in &journal.items {
+        let relative = validated_relative(&item.source_relative_path)?;
+        let source = checked_join(&root, &relative)?;
+        let quarantined = checked_join(&qroot, &relative)?;
+        if source.is_file() && !quarantined.exists() {
+            verified(&source, item)?;
+        } else if !source.exists() && quarantined.is_file() {
+            verified(&quarantined, item)?;
+            to_restore.push((source, quarantined, item.clone()));
+        } else {
+            return Err(format!("Recovery cannot resolve missing/occupied pair: {}", source.display()));
+        }
+    }
+
+    let mut moved: Vec<MoveRecord> = Vec::new();
+    for (source, quarantined, item) in &to_restore {
+        if let Some(parent) = source.parent() {
+            if let Err(error) = fs::create_dir_all(parent) {
+                return Err(format!("Recovery stopped; retry from manifest {}: {error}", path.display()));
+            }
+        }
+        let relative = validated_relative(&item.source_relative_path)?;
+        let _ = checked_join(&root, &relative)?;
+        if source.exists() || !quarantined.is_file() {
+            return Err(format!("Recovery stopped due to a path change; manifest: {}", path.display()));
+        }
+        verified(quarantined, item)?;
+        fs::rename(quarantined, source)
+            .map_err(|error| format!("Recovery stopped; retry from manifest {}: {error}", path.display()))?;
+        moved.push((source.clone(), quarantined.clone(), item.sha256.clone(), item.size));
+        verified(source, item)?;
+    }
+    journal.status = if prior.starts_with("RESTORE") { "RESTORED" } else { "ROLLED_BACK" }.into();
+    write_manifest_atomic(&path, &journal)?;
+    Ok(QuarantineResult {
+        moved: moved.len(),
+        quarantine_root: qroot.to_string_lossy().into_owned(),
+        manifest_path: path.to_string_lossy().into_owned(),
+        status: journal.status,
     })
 }
 
@@ -518,10 +675,43 @@ mod tests {
     use super::*;
 
     #[test]
-    fn relative_paths_use_windows_style_for_manifests() {
+    fn normalize_legacy_windows_paths_and_reject_traversal() {
         assert_eq!(
-            relative_text(Path::new("CAS/Hair/test.package")),
-            "CAS\\Hair\\test.package"
+            validated_relative(r"CAS\Hair\one.package").unwrap(),
+            PathBuf::from("CAS").join("Hair").join("one.package")
         );
+        assert!(validated_relative(r"CAS\..\secret.package").is_err());
+        assert!(validated_relative(r"C:\outside.package").is_err());
+        assert!(validated_relative(r"CAS\CON\bad.package").is_err());
+        assert!(validated_relative(r"CAS\\double.package").is_err());
+    }
+
+    #[test]
+    fn transaction_journal_is_serializable_and_recoverable() {
+        let item = QuarantinePlanItem {
+            source_path: "ignored".into(),
+            source_relative_path: r"CAS\Hair\one.package".into(),
+            destination_path: "ignored".into(),
+            destination_relative_path: r"CAS\Hair\one.package".into(),
+            sha256: "a".repeat(64),
+            size: 100,
+            status: "ready".into(),
+            warnings: vec![],
+        };
+        let manifest = QuarantineManifest {
+            version: 1, created_at: "test".into(), status: "RESTORE_PENDING".into(),
+            root: "Mods".into(), quarantine_root: "Quarantine".into(),
+            items: vec![item],
+        };
+        let decoded: QuarantineManifest =
+            serde_json::from_slice(&serde_json::to_vec(&manifest).unwrap()).unwrap();
+        assert_eq!(decoded.status, "RESTORE_PENDING");
+        assert_eq!(decoded.items.len(), 1);
+    }
+
+    #[test]
+    fn session_paths_cannot_escape_workspace() {
+        let root = PathBuf::from("C:/Mods");
+        assert!(validate_session_dir(&root, Path::new("C:/evil/20260930-123456-00001")).is_err());
     }
 }
