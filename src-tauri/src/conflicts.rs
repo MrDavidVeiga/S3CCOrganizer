@@ -58,6 +58,7 @@ struct PackageInfo {
     name: String,
     path: PathBuf,
     relative_path: PathBuf,
+    file_sha256: String,
     readable: bool,
     load_priority: Option<i32>,
     load_rule: Option<String>,
@@ -69,6 +70,7 @@ pub struct ConflictPackage {
     pub name: String,
     pub path: String,
     pub relative_path: String,
+    pub file_sha256: String,
     pub load_priority: Option<i32>,
     pub load_rule: Option<String>,
 }
@@ -96,6 +98,7 @@ pub struct ConflictEvidence {
 #[serde(rename_all = "camelCase")]
 pub struct ConflictFinding {
     pub id: String,
+    pub decision_key: String,
     pub kind: String,
     pub impact_kinds: Vec<String>,
     pub severity: String,
@@ -317,6 +320,7 @@ fn package_ref(package: &PackageInfo) -> ConflictPackage {
         name: package.name.clone(),
         path: package.path.to_string_lossy().to_string(),
         relative_path: package.relative_path.to_string_lossy().to_string(),
+        file_sha256: package.file_sha256.clone(),
         load_priority: package.load_priority,
         load_rule: package.load_rule.clone(),
     }
@@ -378,6 +382,16 @@ fn pair_id(left: &PackageInfo, right: &PackageInfo) -> String {
     paths.sort();
     let digest = format!("{:X}", Sha256::digest(format!("{}|{}", paths[0], paths[1]).as_bytes()));
     format!("conflict:{}", &digest[..16])
+}
+
+fn decision_key(left: &PackageInfo, right: &PackageInfo) -> String {
+    let mut hashes = [left.file_sha256.clone(), right.file_sha256.clone()];
+    hashes.sort();
+    let digest = format!(
+        "{:X}",
+        Sha256::digest(format!("{}|{}", hashes[0], hashes[1]).as_bytes())
+    );
+    format!("decision:{}", &digest[..24])
 }
 
 pub fn analyze_conflicts_core(
@@ -469,6 +483,7 @@ pub fn analyze_conflicts_core(
                     name,
                     path: path.clone(),
                     relative_path,
+                    file_sha256: String::new(),
                     readable: false,
                     load_priority,
                     load_rule,
@@ -496,6 +511,7 @@ pub fn analyze_conflicts_core(
             name,
             path: path.clone(),
             relative_path,
+            file_sha256: cached.file_sha256.clone(),
             readable,
             load_priority,
             load_rule,
@@ -678,6 +694,7 @@ pub fn analyze_conflicts_core(
 
         findings.push(ConflictFinding {
             id: pair_id(left, right),
+            decision_key: decision_key(left, right),
             severity: severity_for(&kind).to_string(),
             explanation_key: explanation_key(&kind).to_string(),
             kind,
