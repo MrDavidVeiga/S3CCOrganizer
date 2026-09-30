@@ -1,3 +1,4 @@
+use crate::workspace::ensure_writable;
 use chrono::Local;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -296,6 +297,7 @@ pub fn create_structure_folder(
     nested_path: String,
 ) -> Result<StructureActionResult, String> {
     let root = canonical_root(&folder)?;
+    ensure_writable(&root)?;
     let parent_relative = normalize_relative(&parent_relative_path)?;
     let parent = resolve_existing(&root, &parent_relative)?;
     if !parent.is_dir() {
@@ -366,6 +368,7 @@ pub fn move_structure_path(
     target_parent_relative_path: String,
 ) -> Result<StructureActionResult, String> {
     let root = canonical_root(&folder)?;
+    ensure_writable(&root)?;
     let source_relative = normalize_relative(&source_relative_path)?;
     if source_relative.as_os_str().is_empty() {
         return Err("The selected root cannot be moved.".to_string());
@@ -418,6 +421,7 @@ pub fn rename_structure_folder(
     new_name: String,
 ) -> Result<StructureActionResult, String> {
     let root = canonical_root(&folder)?;
+    ensure_writable(&root)?;
     let source_relative = normalize_relative(&source_relative_path)?;
     if source_relative.as_os_str().is_empty() {
         return Err("The selected root cannot be renamed.".to_string());
@@ -475,6 +479,95 @@ pub fn list_manual_operations(folder: String) -> Result<Vec<ManualOperationRecor
         }
     }
     Ok(records)
+}
+
+#[tauri::command]
+pub fn undo_last_manual_operation(folder: String) -> Result<StructureActionResult, String> {
+    let root = canonical_root(&folder)?;
+    ensure_writable(&root)?;
+    let records = list_manual_operations(folder.clone())?;
+
+    let undone = records
+        .iter()
+        .filter(|record| record.operation.starts_with("undo:"))
+        .filter_map(|record| record.operation.strip_prefix("undo:"))
+        .collect::<std::collections::HashSet<_>>();
+
+    let original = records
+        .iter()
+        .rev()
+        .find(|record| {
+            !record.operation.starts_with("undo:")
+                && !undone.contains(record.created_at.as_str())
+        })
+        .cloned()
+        .ok_or_else(|| "No reversible manual operation is available.".to_string())?;
+
+    let (source_relative, destination_relative) = match original.operation.as_str() {
+        "create_folder" => {
+            let destination_relative = original
+                .destination_relative_path
+                .clone()
+                .ok_or_else(|| "Create-folder history is missing its destination.".to_string())?;
+            let destination = root.join(&destination_relative);
+            if !destination.is_dir() {
+                return Err("The created folder no longer exists.".to_string());
+            }
+            let mut entries = fs::read_dir(&destination)
+                .map_err(|error| format!("Could not inspect folder before undo: {error}"))?;
+            if entries.next().is_some() {
+                return Err("The created folder is no longer empty, so undo is blocked.".to_string());
+            }
+            fs::remove_dir(&destination)
+                .map_err(|error| format!("Could not undo folder creation: {error}"))?;
+            (Some(destination_relative.clone()), String::new())
+        }
+        "move" | "rename_folder" => {
+            let source_relative = original
+                .source_relative_path
+                .clone()
+                .ok_or_else(|| "History is missing the original path.".to_string())?;
+            let destination_relative = original
+                .destination_relative_path
+                .clone()
+                .ok_or_else(|| "History is missing the destination path.".to_string())?;
+            let current = root.join(&destination_relative);
+            let previous = root.join(&source_relative);
+            if !current.exists() {
+                return Err("The moved/renamed item no longer exists at its recorded destination.".to_string());
+            }
+            if previous.exists() {
+                return Err("The original path is occupied, so undo would overwrite content.".to_string());
+            }
+            if let Some(parent) = previous.parent() {
+                if !parent.exists() {
+                    return Err("The original parent folder no longer exists.".to_string());
+                }
+            }
+            fs::rename(&current, &previous)
+                .map_err(|error| format!("Could not undo manual operation: {error}"))?;
+            (Some(destination_relative), source_relative)
+        }
+        _ => return Err(format!("Operation '{}' is not reversible.", original.operation)),
+    };
+
+    let record = ManualOperationRecord {
+        created_at: Local::now().to_rfc3339(),
+        operation: format!("undo:{}", original.created_at),
+        source_relative_path: source_relative.clone(),
+        destination_relative_path: if destination_relative.is_empty() {
+            None
+        } else {
+            Some(destination_relative.clone())
+        },
+    };
+    let _ = append_log(&root, &record);
+
+    Ok(StructureActionResult {
+        operation: "undo".to_string(),
+        source_relative_path: source_relative,
+        destination_relative_path: destination_relative,
+    })
 }
 
 #[cfg(test)]
