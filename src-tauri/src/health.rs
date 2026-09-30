@@ -87,6 +87,15 @@ pub fn remove_empty_folder(folder:String,relative_path:String)->Result<bool,Stri
     if !canonical.starts_with(&root)||canonical==root{return Err("Target is outside the selected root.".into());}
     if fs::read_dir(&canonical).map_err(|e|e.to_string())?.next().is_some(){return Err("Folder is not empty.".into());}
     fs::remove_dir(&canonical).map_err(|e|format!("Could not remove empty folder: {e}"))?;
+    let _ = append_log(
+        &root,
+        &ManualOperationRecord {
+            created_at: chrono::Local::now().to_rfc3339(),
+            operation: "remove_empty_folder".to_string(),
+            source_relative_path: Some(relative_path),
+            destination_relative_path: None,
+        },
+    );
     Ok(true)
 }
 
