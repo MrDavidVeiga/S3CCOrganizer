@@ -1370,6 +1370,7 @@ function buildAuditSnapshot() {
     duplicates: state.duplicatesAnalysis,
     conflicts,
     persistentConflictDecisions: state.persistentConflictRecords,
+    manualOperations: state.manualOperations,
     restorePreview: state.restorePlan,
     quarantinePreview: state.quarantinePlan,
     cache: state.cacheInfo,
@@ -1477,6 +1478,20 @@ function buildAuditMarkdown(snapshot) {
     lines.push("");
   }
 
+  lines.push(`## ${t("manualOperations")}`, "");
+  if (!snapshot.manualOperations?.length) {
+    lines.push("—", "");
+  } else {
+    for (const operation of snapshot.manualOperations) {
+      const source = operation.sourceRelativePath || "—";
+      const destination = operation.destinationRelativePath || "—";
+      lines.push(
+        `- ${operation.createdAt} · ${operation.operation} · ${source} → ${destination}`
+      );
+    }
+    lines.push("");
+  }
+
   lines.push("## Performance", "");
   if (snapshot.performance.scan != null) {
     lines.push(`- Scan: ${formatMs(snapshot.performance.scan)}`);
@@ -1499,6 +1514,7 @@ async function exportAuditReport() {
   renderAuditPanel();
 
   try {
+    await refreshManualOperations();
     const snapshot = buildAuditSnapshot();
     const result = await invoke("save_audit_report", {
       folder: state.folder,
