@@ -2305,3 +2305,154 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* Manual structure manager */
+
+.structure-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0 9px;
+}
+
+.structure-toolbar .primary-btn,
+.structure-toolbar .secondary-btn {
+  width: auto;
+}
+
+.structure-breadcrumb {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+  margin-bottom: 10px;
+  padding: 9px 11px;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 11px;
+  background: rgba(0,0,0,.13);
+}
+
+.structure-breadcrumb span {
+  color: var(--muted);
+  font-size: .66rem;
+}
+
+.structure-breadcrumb code {
+  min-width: 0;
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: .68rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.structure-results {
+  display: grid;
+  grid-template-columns: minmax(360px, 1fr) minmax(280px, 350px);
+  gap: 11px;
+  min-height: 0;
+  flex: 1;
+}
+
+.structure-list,
+.structure-preview {
+  min-height: 0;
+  overflow-y: auto;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 14px;
+  background: rgba(0,0,0,.12);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,.35) transparent;
+}
+
+.structure-list {
+  padding: 8px;
+  display: grid;
+  align-content: start;
+  gap: 6px;
+}
+
+.structure-preview {
+  padding: 13px;
+}
+
+.structure-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+  padding: 9px 10px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: rgba(255,255,255,.035);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.structure-row:hover,
+.structure-row.active {
+  border-color: rgba(127,173,45,.42);
+  background: rgba(97,132,34,.13);
+}
+
+.structure-row > i {
+  color: #c8d4d8;
+  text-align: center;
+}
+
+.structure-row-main {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.structure-row-main strong,
+.structure-row-main span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.structure-row-main strong {
+  font-size: .72rem;
+}
+
+.structure-row-main span {
+  color: var(--muted);
+  font-size: .62rem;
+}
+
+.structure-action-modal {
+  width: min(520px, calc(100vw - 32px));
+}
+
+.structure-field {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  margin: 10px 0;
+  text-align: left;
+}
+
+.structure-field label {
+  color: var(--muted);
+  font-size: .68rem;
+  font-weight: 700;
+}
+
+.structure-field select {
+  max-height: 240px;
+}
+
+@media (max-width: 900px) {
+  .structure-results {
+    grid-template-columns: 1fr;
+  }
+
+  .structure-preview {
+    max-height: 320px;
+  }
+}
