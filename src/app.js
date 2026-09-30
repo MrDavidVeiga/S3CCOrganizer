@@ -1976,6 +1976,7 @@ async function monitorOperation(kind) {
     state.operations[kind] = await invoke("get_operation_status", { kind });
   } catch (_) {}
   renderOperationProgress(kind);
+  renderDiagnostics();
 }
 
 async function cancelAnalysis(kind) {
@@ -3087,6 +3088,31 @@ document.addEventListener("keydown", (event) => {
   if (!el.confirmModal.classList.contains("hidden")) closeConfirm();
   else if (!el.planModal.classList.contains("hidden")) closePlanModal();
 });
+
+let sidebarResizePointer = null;
+
+el.sidebarResizer?.addEventListener("pointerdown", (event) => {
+  sidebarResizePointer = event.pointerId;
+  el.sidebarResizer.setPointerCapture?.(event.pointerId);
+  el.sidebarResizer.classList.add("dragging");
+});
+
+el.sidebarResizer?.addEventListener("pointermove", (event) => {
+  if (sidebarResizePointer !== event.pointerId || !el.layout) return;
+  const rect = el.layout.getBoundingClientRect();
+  state.sidebarWidth = clampSidebarWidth(event.clientX - rect.left);
+  applySidebarWidth();
+});
+
+function finishSidebarResize(event) {
+  if (sidebarResizePointer !== event.pointerId) return;
+  sidebarResizePointer = null;
+  el.sidebarResizer.classList.remove("dragging");
+  persistPreferences();
+}
+
+el.sidebarResizer?.addEventListener("pointerup", finishSidebarResize);
+el.sidebarResizer?.addEventListener("pointercancel", finishSidebarResize);
 
 el.chooseFolderBtn.addEventListener("click", chooseFolder);
 el.scanCancelBtn.addEventListener("click", () => cancelAnalysis("scan"));
