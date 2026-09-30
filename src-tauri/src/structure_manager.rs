@@ -322,8 +322,24 @@ pub fn create_structure_folder(
         return Err("Destination is outside the selected root.".to_string());
     }
 
-    fs::create_dir_all(&destination)
-        .map_err(|error| format!("Could not create {}: {error}", destination.display()))?;
+    let mut current = parent.clone();
+    let mut created = Vec::<PathBuf>::new();
+    for component in nested.components() {
+        let Component::Normal(name) = component else {
+            continue;
+        };
+        current.push(name);
+        if current.exists() {
+            continue;
+        }
+        if let Err(error) = fs::create_dir(&current) {
+            for created_path in created.iter().rev() {
+                let _ = fs::remove_dir(created_path);
+            }
+            return Err(format!("Could not create {}: {error}", current.display()));
+        }
+        created.push(current.clone());
+    }
 
     let destination_relative = relative_text(destination.strip_prefix(&root).unwrap_or(&destination));
     let _ = append_log(
