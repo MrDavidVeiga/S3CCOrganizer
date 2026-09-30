@@ -11,7 +11,7 @@ use crate::{
 };
 use serde::Serialize;
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{BTreeSet, HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
     time::Instant,
@@ -72,6 +72,142 @@ fn package_extension(path: &Path) -> bool {
         .and_then(|value| value.to_str())
         .map(|value| value.eq_ignore_ascii_case("package"))
         .unwrap_or(false)
+}
+
+
+const TYPE_NMAP_LOCAL: u32 = 0x0166_038C;
+const TYPE_STBL_LOCAL: u32 = 0x2205_57DA;
+const TYPE_MANIFEST_LOCAL: u32 = 0x73E9_3EEB;
+
+fn is_slider_morph_type(type_id: u32) -> bool {
+    matches!(
+        type_id,
+        TYPE_BONE_DELTA | TYPE_FACE | TYPE_BBLN | TYPE_BGEO | TYPE_FBLN
+    )
+}
+
+fn stbl_keys(data: &[u8]) -> Vec<u64> {
+    if data.len() < 17 || &data[..4] != b"STBL" {
+        return Vec::new();
+    }
+
+    let Some(count_bytes) = data.get(7..11) else {
+        return Vec::new();
+    };
+    let count = u32::from_le_bytes(count_bytes.try_into().unwrap()) as usize;
+    let mut offset = 17usize;
+    let mut keys = Vec::with_capacity(count.min(4096));
+
+    for _ in 0..count {
+        let Some(key_bytes) = data.get(offset..offset + 8) else {
+            return Vec::new();
+        };
+        let key = u64::from_le_bytes(key_bytes.try_into().unwrap());
+        offset += 8;
+
+        let Some(length_bytes) = data.get(offset..offset + 4) else {
+            return Vec::new();
+        };
+        let char_count = u32::from_le_bytes(length_bytes.try_into().unwrap()) as usize;
+        offset += 4;
+
+        let Some(byte_count) = char_count.checked_mul(2) else {
+            return Vec::new();
+        };
+        let Some(next) = offset.checked_add(byte_count) else {
+            return Vec::new();
+        };
+        if next > data.len() {
+            return Vec::new();
+        }
+
+        keys.push(key);
+        offset = next;
+    }
+
+    keys
+}
+
+fn apply_slider_companion_classification(
+    package_paths: &[PathBuf],
+    items: &mut [ScanPackageItem],
+) {
+    let mut slider_instances = HashSet::<u64>::new();
+
+    for path in package_paths {
+        let Ok(package) = Package::load(path) else {
+            continue;
+        };
+        for entry in &package.entries {
+            if is_slider_morph_type(entry.type_id) {
+                slider_instances.insert(entry.instance);
+            }
+        }
+    }
+
+    if slider_instances.is_empty() {
+        return;
+    }
+
+    for (path, item) in package_paths.iter().zip(items.iter_mut()) {
+        let Ok(package) = Package::load(path) else {
+            continue;
+        };
+
+        let type_ids = package
+            .entries
+            .iter()
+            .map(|entry| entry.type_id)
+            .collect::<BTreeSet<_>>();
+
+        let localization_only = type_ids.contains(&TYPE_STBL_LOCAL)
+            && type_ids.iter().all(|type_id| {
+                matches!(
+                    *type_id,
+                    TYPE_STBL_LOCAL | TYPE_NMAP_LOCAL | TYPE_MANIFEST_LOCAL
+                )
+            });
+        if !localization_only {
+            continue;
+        }
+
+        let mut matched_key = None;
+        'resources: for entry in &package.entries {
+            if entry.type_id != TYPE_STBL_LOCAL {
+                continue;
+            }
+            let Ok(data) = package.data(entry) else {
+                continue;
+            };
+            for key in stbl_keys(&data) {
+                if slider_instances.contains(&key) {
+                    matched_key = Some(key);
+                    break 'resources;
+                }
+            }
+        }
+
+        let Some(key) = matched_key else {
+            continue;
+        };
+
+        item.status = "classified".to_string();
+        item.category = Some("CAS".to_string());
+        item.sub_category = Some("Sliders".to_string());
+        item.destination_parts = vec!["CAS".to_string(), "Sliders".to_string()];
+        item.destination_path = Some("CAS\\Sliders".to_string());
+        if !item
+            .detected_from
+            .iter()
+            .any(|source| source == "STBL→Slider")
+        {
+            item.detected_from.push("STBL→Slider".to_string());
+            item.detected_from.sort();
+        }
+        item.classification_reason = Some(format!(
+            "STBL entry key 0x{key:016X} matches a morph resource instance in another package from the selected set => CAS\\Sliders"
+        ));
+    }
 }
 
 fn resource_type_label(type_id: u32) -> String {
@@ -413,7 +549,6 @@ pub fn scan_packages_core(
         operation::update(kind, 0, None, "scanning");
     }
 
-    let mut stats = ScanStats::default();
     let mut items = Vec::with_capacity(package_paths.len());
 
     for (index, path) in package_paths.iter().enumerate() {
@@ -429,8 +564,23 @@ pub fn scan_packages_core(
             );
         }
 
-        let item = scan_one(&root, path, language);
-        stats.packages += 1;
+        items.push(scan_one(&root, path, language));
+
+        if let Some(kind) = operation_kind {
+            operation::update(
+                kind,
+                index + 1,
+                path.file_name().map(|value| value.to_string_lossy().to_string()),
+                "scanning",
+            );
+        }
+    }
+
+    apply_slider_companion_classification(&package_paths, &mut items);
+
+    let mut stats = ScanStats::default();
+    stats.packages = items.len();
+    for item in &items {
         stats.casp_resources += item
             .classifications
             .iter()
@@ -448,17 +598,6 @@ pub fn scan_packages_core(
             "needs_review" => stats.needs_review += 1,
             "invalid" => stats.invalid += 1,
             _ => stats.unknown += 1,
-        }
-
-        items.push(item);
-
-        if let Some(kind) = operation_kind {
-            operation::update(
-                kind,
-                index + 1,
-                path.file_name().map(|value| value.to_string_lossy().to_string()),
-                "scanning",
-            );
         }
     }
 
@@ -508,5 +647,32 @@ mod tests {
         assert!(package_extension(Path::new("Hair.package")));
         assert!(package_extension(Path::new("Hair.PACKAGE")));
         assert!(!package_extension(Path::new("Hair.sims3pack")));
+    }
+
+
+    #[test]
+    fn slider_morph_types_are_authoritative_for_companion_matching() {
+        assert!(is_slider_morph_type(TYPE_BGEO));
+        assert!(is_slider_morph_type(TYPE_FACE));
+        assert!(is_slider_morph_type(TYPE_FBLN));
+        assert!(!is_slider_morph_type(TYPE_STBL_LOCAL));
+    }
+
+    #[test]
+    fn stbl_key_parser_reads_slider_label_hashes() {
+        let key = 0x745F_376D_11D5_E6C3u64;
+        let text = "Butt".encode_utf16().collect::<Vec<_>>();
+        let mut data = Vec::new();
+        data.extend_from_slice(b"STBL");
+        data.extend_from_slice(&[2, 0, 0]);
+        data.extend_from_slice(&1u32.to_le_bytes());
+        data.extend_from_slice(&[0; 6]);
+        data.extend_from_slice(&key.to_le_bytes());
+        data.extend_from_slice(&(text.len() as u32).to_le_bytes());
+        for unit in text {
+            data.extend_from_slice(&unit.to_le_bytes());
+        }
+
+        assert_eq!(stbl_keys(&data), vec![key]);
     }
 }
