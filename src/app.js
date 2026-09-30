@@ -81,6 +81,40 @@ const I18N = {
     invalidManifest: "Invalid manifest",
     manifestFiles: "files",
     differentRoot: "Different Mods root",
+    cacheTitle: "Analysis Cache",
+    cacheNoData: "No cache information.",
+    openCacheFolder: "Open Cache",
+    clearCache: "Clear Cache",
+    confirmClearCacheTitle: "Clear analysis cache?",
+    confirmClearCacheMessage: "Only cached fingerprints will be deleted. Your packages and restore manifests will not be changed.",
+    performanceDiagnostics: "Performance",
+    scanTime: "Scan",
+    totalTime: "Total",
+    hashingTime: "Hashing",
+    dbpfReadTime: "DBPF read",
+    resourceDecodeTime: "Resource decode",
+    comparisonTime: "Comparison",
+    cacheEntries: "Cache entries",
+    cacheSize: "Cache size",
+    openPackageLocation: "Open Package Location",
+    classificationReason: "Classification evidence",
+    openManifestFolder: "Open Manifest Folder",
+    manifestRoot: "Manifest root",
+    selectedRoot: "Selected Mods root",
+    rootMatch: "Roots match",
+    rootMismatch: "Different Mods root — Restore blocked",
+    intentionalOverride: "Intentional Override",
+    markIntentional: "Mark Intentional",
+    ignoreSession: "Ignore This Session",
+    clearMark: "Clear Mark",
+    ignoredSession: "Ignored This Session",
+    selectForQuarantine: "Select for quarantine preview",
+    previewQuarantine: "Preview Quarantine",
+    quarantinePreviewOnly: "Preview only — no file will be moved until quarantine execution is validated.",
+    quarantineRoot: "Quarantine destination",
+    quarantineReady: "Ready for future quarantine",
+    clearSelection: "Clear Selection",
+    navigationFailed: "Could not open location",
     organizeSelected: "Organize Selected",
     alreadyOrganized: "Already organized",
     collisionSame: "Same file exists",
@@ -288,6 +322,40 @@ const I18N = {
     invalidManifest: "Manifesto inválido",
     manifestFiles: "arquivos",
     differentRoot: "Outra pasta de Mods",
+    cacheTitle: "Cache de Análise",
+    cacheNoData: "Sem informações de cache.",
+    openCacheFolder: "Abrir Cache",
+    clearCache: "Limpar Cache",
+    confirmClearCacheTitle: "Limpar o cache de análise?",
+    confirmClearCacheMessage: "Somente os fingerprints em cache serão apagados. Seus packages e manifestos de restauração não serão alterados.",
+    performanceDiagnostics: "Desempenho",
+    scanTime: "Análise",
+    totalTime: "Total",
+    hashingTime: "Hashing",
+    dbpfReadTime: "Leitura DBPF",
+    resourceDecodeTime: "Descompressão/resources",
+    comparisonTime: "Comparação",
+    cacheEntries: "Itens no cache",
+    cacheSize: "Tamanho do cache",
+    openPackageLocation: "Abrir Localização do Package",
+    classificationReason: "Evidência da classificação",
+    openManifestFolder: "Abrir Pasta do Manifesto",
+    manifestRoot: "Raiz do manifesto",
+    selectedRoot: "Raiz de Mods selecionada",
+    rootMatch: "Raízes correspondem",
+    rootMismatch: "Outra pasta de Mods — restauração bloqueada",
+    intentionalOverride: "Override Intencional",
+    markIntentional: "Marcar como Intencional",
+    ignoreSession: "Ignorar Nesta Sessão",
+    clearMark: "Limpar Marcação",
+    ignoredSession: "Ignorado Nesta Sessão",
+    selectForQuarantine: "Selecionar para preview de quarentena",
+    previewQuarantine: "Visualizar Quarentena",
+    quarantinePreviewOnly: "Somente preview — nenhum arquivo será movido até a execução de quarentena ser validada.",
+    quarantineRoot: "Destino da quarentena",
+    quarantineReady: "Pronto para futura quarentena",
+    clearSelection: "Limpar Seleção",
+    navigationFailed: "Não foi possível abrir a localização",
     organizeSelected: "Organizar Selecionados",
     alreadyOrganized: "Já organizado",
     collisionSame: "Arquivo idêntico já existe",
@@ -494,6 +562,40 @@ const I18N = {
     invalidManifest: "Manifiesto inválido",
     manifestFiles: "archivos",
     differentRoot: "Otra carpeta de Mods",
+    cacheTitle: "Caché de Análisis",
+    cacheNoData: "Sin información de caché.",
+    openCacheFolder: "Abrir Caché",
+    clearCache: "Limpiar Caché",
+    confirmClearCacheTitle: "¿Limpiar la caché de análisis?",
+    confirmClearCacheMessage: "Solo se eliminarán los fingerprints en caché. Tus packages y manifiestos de restauración no se modificarán.",
+    performanceDiagnostics: "Rendimiento",
+    scanTime: "Análisis",
+    totalTime: "Total",
+    hashingTime: "Hashing",
+    dbpfReadTime: "Lectura DBPF",
+    resourceDecodeTime: "Descompresión/resources",
+    comparisonTime: "Comparación",
+    cacheEntries: "Elementos en caché",
+    cacheSize: "Tamaño de caché",
+    openPackageLocation: "Abrir Ubicación del Package",
+    classificationReason: "Evidencia de clasificación",
+    openManifestFolder: "Abrir Carpeta del Manifiesto",
+    manifestRoot: "Raíz del manifiesto",
+    selectedRoot: "Raíz de Mods seleccionada",
+    rootMatch: "Las raíces coinciden",
+    rootMismatch: "Otra carpeta de Mods — restauración bloqueada",
+    intentionalOverride: "Override Intencional",
+    markIntentional: "Marcar como Intencional",
+    ignoreSession: "Ignorar Esta Sesión",
+    clearMark: "Quitar Marca",
+    ignoredSession: "Ignorado Esta Sesión",
+    selectForQuarantine: "Seleccionar para vista previa de cuarentena",
+    previewQuarantine: "Ver Cuarentena",
+    quarantinePreviewOnly: "Solo vista previa — ningún archivo se moverá hasta validar la ejecución de cuarentena.",
+    quarantineRoot: "Destino de cuarentena",
+    quarantineReady: "Listo para futura cuarentena",
+    clearSelection: "Limpiar Selección",
+    navigationFailed: "No se pudo abrir la ubicación",
     organizeSelected: "Organizar Seleccionados",
     alreadyOrganized: "Ya organizado",
     collisionSame: "Ya existe un archivo idéntico",
@@ -627,16 +729,37 @@ const I18N = {
 
 const LANGUAGE_ORDER = ["en", "pt", "es"];
 
+const PREFS_KEY = "s3cc-organizer-preferences-v1";
+const VALID_TABS = new Set(["organizer", "duplicates", "conflicts", "restore"]);
+
+function loadPreferences() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(PREFS_KEY) || "{}");
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (_) {
+    return {};
+  }
+}
+
+const preferences = loadPreferences();
+const savedLanguage =
+  localStorage.getItem("s3cc-organizer-language") || preferences.language || "en";
+
+function clampSidebarWidth(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? Math.max(205, Math.min(380, numeric)) : 280;
+}
+
 const state = {
-  language: localStorage.getItem("s3cc-organizer-language") || "en",
-  tab: "organizer",
-  folder: "",
+  language: savedLanguage,
+  tab: VALID_TABS.has(preferences.tab) ? preferences.tab : "organizer",
+  folder: typeof preferences.folder === "string" ? preferences.folder : "",
   items: [],
   stats: null,
   selectedId: "",
   selectedForPlan: new Set(),
-  search: "",
-  status: "all",
+  search: typeof preferences.search === "string" ? preferences.search : "",
+  status: typeof preferences.status === "string" ? preferences.status : "all",
   scanning: false,
   planning: false,
   executing: false,
@@ -653,15 +776,15 @@ const state = {
   duplicatesBusy: false,
   duplicatesError: "",
   duplicatesNotice: "",
-  duplicatesSearch: "",
-  duplicatesFilter: "all",
+  duplicatesSearch: typeof preferences.duplicatesSearch === "string" ? preferences.duplicatesSearch : "",
+  duplicatesFilter: typeof preferences.duplicatesFilter === "string" ? preferences.duplicatesFilter : "all",
   duplicateSelectedId: "",
   conflictsAnalysis: null,
   conflictsBusy: false,
   conflictsError: "",
   conflictsNotice: "",
-  conflictsSearch: "",
-  conflictsFilter: "all",
+  conflictsSearch: typeof preferences.conflictsSearch === "string" ? preferences.conflictsSearch : "",
+  conflictsFilter: typeof preferences.conflictsFilter === "string" ? preferences.conflictsFilter : "all",
   conflictSelectedId: "",
   operations: { scan: null, duplicates: null, conflicts: null },
   technicalDetails: {},
@@ -670,6 +793,14 @@ const state = {
   restoreHistory: [],
   restoreHistoryLoading: false,
   restoreHistoryError: "",
+  cacheInfo: null,
+  cacheBusy: false,
+  cacheError: "",
+  sidebarWidth: clampSidebarWidth(preferences.sidebarWidth),
+  conflictMarks: {},
+  quarantineSelected: new Set(),
+  quarantinePlan: null,
+  quarantineBusy: false,
   pendingAction: "",
 };
 
@@ -771,7 +902,162 @@ const el = {
   conflictsCancelBtn: document.querySelector("#conflicts-cancel-btn"),
   restoreHistoryList: document.querySelector("#restore-history-list"),
   refreshRestoreHistoryBtn: document.querySelector("#refresh-restore-history-btn"),
+  appShell: document.querySelector(".app-shell"),
+  layout: document.querySelector(".layout"),
+  sidebarResizer: document.querySelector("#sidebar-resizer"),
+  cacheStatusDot: document.querySelector("#cache-status-dot"),
+  cacheSummary: document.querySelector("#cache-summary"),
+  openCacheBtn: document.querySelector("#open-cache-btn"),
+  clearCacheBtn: document.querySelector("#clear-cache-btn"),
+  diagnosticsContent: document.querySelector("#diagnostics-content"),
+  openManifestFolderBtn: document.querySelector("#open-manifest-folder-btn"),
+  restoreRootCheck: document.querySelector("#restore-root-check"),
+  restoreManifestRoot: document.querySelector("#restore-manifest-root"),
+  restoreSelectedRoot: document.querySelector("#restore-selected-root"),
+  restoreRootStatus: document.querySelector("#restore-root-status"),
 };
+
+function persistPreferences() {
+  const data = {
+    language: state.language,
+    tab: state.tab,
+    folder: state.folder,
+    search: state.search,
+    status: state.status,
+    duplicatesSearch: state.duplicatesSearch,
+    duplicatesFilter: state.duplicatesFilter,
+    conflictsSearch: state.conflictsSearch,
+    conflictsFilter: state.conflictsFilter,
+    sidebarWidth: state.sidebarWidth,
+  };
+  localStorage.setItem(PREFS_KEY, JSON.stringify(data));
+}
+
+function applySidebarWidth() {
+  el.appShell?.style.setProperty("--sidebar-width", `${clampSidebarWidth(state.sidebarWidth)}px`);
+}
+
+function formatMs(value) {
+  const ms = Number(value || 0);
+  if (ms < 1000) return `${Math.round(ms)} ms`;
+  return `${(ms / 1000).toFixed(ms < 10000 ? 2 : 1)} s`;
+}
+
+async function revealSafe(path) {
+  if (!path) return;
+  try {
+    await invoke("reveal_path", { path });
+  } catch (error) {
+    state.notice = `${t("navigationFailed")}: ${String(error)}`;
+    render();
+  }
+}
+
+async function openDirectorySafe(path) {
+  if (!path) return;
+  try {
+    await invoke("open_directory", { path });
+  } catch (error) {
+    state.notice = `${t("navigationFailed")}: ${String(error)}`;
+    render();
+  }
+}
+
+async function refreshCacheInfo() {
+  if (!state.folder) {
+    state.cacheInfo = null;
+    state.cacheError = "";
+    renderCachePanel();
+    return;
+  }
+  state.cacheBusy = true;
+  state.cacheError = "";
+  renderCachePanel();
+  try {
+    state.cacheInfo = await invoke("get_cache_info", { folder: state.folder });
+  } catch (error) {
+    state.cacheInfo = null;
+    state.cacheError = String(error);
+  } finally {
+    state.cacheBusy = false;
+    renderCachePanel();
+    renderDiagnostics();
+  }
+}
+
+async function clearAnalysisCache() {
+  if (!state.folder || state.cacheBusy) return;
+  state.cacheBusy = true;
+  renderCachePanel();
+  try {
+    await invoke("clear_cache", { folder: state.folder });
+    state.technicalDetails = {};
+    state.cacheError = "";
+    await refreshCacheInfo();
+  } catch (error) {
+    state.cacheError = String(error);
+  } finally {
+    state.cacheBusy = false;
+    renderCachePanel();
+  }
+}
+
+function renderCachePanel() {
+  if (!el.cacheSummary) return;
+  el.cacheStatusDot.className =
+    "utility-dot " + (state.cacheBusy ? "busy" : state.cacheError ? "error" : state.cacheInfo?.entries ? "ready" : "");
+  if (state.cacheBusy) {
+    el.cacheSummary.textContent = t("technicalDetailsLoading");
+  } else if (state.cacheError) {
+    el.cacheSummary.textContent = state.cacheError;
+  } else if (state.cacheInfo) {
+    el.cacheSummary.textContent =
+      `${state.cacheInfo.entries} · ${bytesLabel(state.cacheInfo.bytes)} · ${state.cacheInfo.path}`;
+  } else {
+    el.cacheSummary.textContent = t("cacheNoData");
+  }
+  el.openCacheBtn.disabled = !state.cacheInfo?.bytes;
+  el.clearCacheBtn.disabled = !state.cacheInfo?.bytes || state.cacheBusy;
+}
+
+function appendDiagnostic(label, value) {
+  const row = document.createElement("div");
+  row.className = "diagnostic-row";
+  const span = document.createElement("span");
+  span.textContent = label;
+  const strong = document.createElement("strong");
+  strong.textContent = value;
+  row.append(span, strong);
+  el.diagnosticsContent.appendChild(row);
+}
+
+function renderDiagnostics() {
+  if (!el.diagnosticsContent) return;
+  el.diagnosticsContent.innerHTML = "";
+  if (state.stats?.totalMs != null) {
+    appendDiagnostic(t("scanTime"), formatMs(state.stats.totalMs));
+  }
+  const dup = state.duplicatesAnalysis?.stats;
+  if (dup) {
+    appendDiagnostic(`${t("duplicates")} · ${t("totalTime")}`, formatMs(dup.totalMs));
+    appendDiagnostic(t("hashingTime"), formatMs(dup.hashingMs));
+    appendDiagnostic(t("dbpfReadTime"), formatMs(dup.dbpfLoadMs));
+    appendDiagnostic(t("resourceDecodeTime"), formatMs(dup.resourceDecodeMs));
+    appendDiagnostic(t("comparisonTime"), formatMs(dup.comparisonMs));
+  }
+  const conf = state.conflictsAnalysis?.stats;
+  if (conf) {
+    const elapsed = state.operations.conflicts?.elapsedMs || 0;
+    appendDiagnostic(`${t("conflicts")} · ${t("totalTime")}`, formatMs(conf.totalMs || elapsed));
+  }
+  if (state.cacheInfo) {
+    appendDiagnostic(t("cacheEntries"), String(state.cacheInfo.entries ?? 0));
+    appendDiagnostic(t("cacheSize"), bytesLabel(state.cacheInfo.bytes));
+  }
+  if (!el.diagnosticsContent.children.length) {
+    appendDiagnostic(t("performanceDiagnostics"), "—");
+  }
+}
 
 function t(key) {
   return I18N[state.language]?.[key] ?? I18N.en[key] ?? key;
