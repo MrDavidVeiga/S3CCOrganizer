@@ -20,6 +20,7 @@ pub mod restore_history;
 pub mod review_store;
 pub mod resource_cfg;
 pub mod scanner;
+pub mod structure_manager;
 pub mod taxonomy;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -41,6 +42,12 @@ pub fn run() {
             review_store::load_conflict_decisions,
             review_store::set_conflict_decision,
             audit_report::save_audit_report,
+            structure_manager::list_structure,
+            structure_manager::list_structure_directories,
+            structure_manager::create_structure_folder,
+            structure_manager::move_structure_path,
+            structure_manager::rename_structure_folder,
+            structure_manager::list_manual_operations,
             quarantine::build_quarantine_plan,
             planner::build_organization_plan,
             executor::execute_organization,
