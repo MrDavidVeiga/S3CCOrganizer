@@ -44,6 +44,9 @@ pub fn scan_inbox(source_folder:String,language:AppLanguage)->Result<ScanResult,
 #[tauri::command]
 pub fn build_inbox_import_plan(folder:String,source_folder:String,selected_paths:Vec<String>)->Result<InboxImportPlan,String>{
     let root=canonical_dir(&folder)?;let source_root=canonical_dir(&source_folder)?;
+    if source_root.starts_with(&root) || root.starts_with(&source_root) {
+        return Err("Inbox must be outside the selected Mods root and its parent tree.".into());
+    }
     let destination_root=root.join("New CC");
     let mut items=Vec::new();let mut ready=0;let mut blocked=0;
     for raw in selected_paths{
@@ -77,7 +80,11 @@ pub fn execute_inbox_import(folder:String,source_folder:String,selected_paths:Ve
         if dst.exists(){for p in copied.iter().rev(){let _=fs::remove_file(p);}return Err(format!("Destination appeared during import: {}",dst.display()));}
         let parent=dst.parent().ok_or_else(||"Import destination has no parent.".to_string())?;
         fs::create_dir_all(parent).map_err(|e|format!("Could not create import folder: {e}"))?;
-        fs::copy(&src,&dst).map_err(|e|format!("Could not copy {}: {e}",src.display()))?;
+        if let Err(error)=fs::copy(&src,&dst){
+            let _=fs::remove_file(&dst);
+            for p in copied.iter().rev(){let _=fs::remove_file(p);}
+            return Err(format!("Could not copy {}: {error}",src.display()));
+        }
         let (hash,size)=sha256_file(&dst).map_err(|e|format!("Could not verify imported file: {e}"))?;
         if hash!=item.sha256||size!=item.size{
             let _=fs::remove_file(&dst);for p in copied.iter().rev(){let _=fs::remove_file(p);}
