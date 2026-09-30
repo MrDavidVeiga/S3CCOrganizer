@@ -57,7 +57,13 @@ Destination:
 <Packages parent>\S3CC Organizer\Quarantine\<timestamp>\...
 ```
 
-Execution is explicit and transactional. It rechecks SHA-256 + size, never overwrites, writes a quarantine manifest, rolls back on failure and can be restored later from Unified History.
+Execution is explicit and transactional. It rechecks SHA-256 + size, never overwrites, writes a durable quarantine manifest *before* moving data, rolls back on failure and can be restored later from Unified History.
+
+File movement uses atomic no-overwrite destination creation (hard links where supported; create-new and verified copy otherwise). The same preview session directory is preserved through execution. Original bytes are removed from their prior location only after the newly-created destination is verified.
+
+Transaction statuses include `PENDING`, `COMPLETE`, `ROLLED_BACK`, `ROLLBACK_INCOMPLETE`, `RESTORE_PENDING`, `RESTORE_INCOMPLETE`, and `RESTORED`. On interrupted transactions, the History view offers **Recover Quarantine**. Recovery preflights *every* file and only returns verified single-location files to their original paths. If two copies exist or their contents differ, the operation refuses to delete or overwrite and requires manual inspection.
+
+Quarantine ZIP/data inventory: [CORPUS-VALIDATION-PLAN.md](CORPUS-VALIDATION-PLAN.md). Added Rust regression cases cover success, an interrupted manifest, tampering, an occupied restore destination, a simulated late failure and no-overwrite transfer. These tests are source-committed, **not yet executed**.
 
 No package is deleted.
 
@@ -66,6 +72,12 @@ Unknown/Mixed/Needs Review packages can receive an explicit user-approved destin
 
 ## Dependency group suggestions
 Conservative dependency evidence is aggregated into reviewable Keep Together suggestions. No group is created without explicit user approval.
+
+## Large-folder safety and performance
+
+The scanner collects slider morph IDs during its initial package scan instead of reopening all morph packages. STBL companion checks reopen only STBL carriers. Dependency analysis bounds large resource payload scans and reports how many were skipped, including translated UI warnings. The runtime/performance impact is **not measured yet**.
+
+The read-only ZIP census tool and its Python regression tests are in `tools/`. Existing Library ZIPs are listed in `CORPUS-VALIDATION-PLAN.md`; the larger ZIPs still need executable byte-level validation.
 
 ## Next step
 Stop feature expansion temporarily and validate locally:
