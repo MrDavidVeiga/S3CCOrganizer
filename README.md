@@ -108,6 +108,8 @@ Long-running Scan, Duplicates and Conflicts operations now expose progress and c
 
 See [docs/ANALYSIS-UX-CACHE.md](docs/ANALYSIS-UX-CACHE.md).
 
+Technical Details also exposes on-demand mesh/polycount analysis for CAS GEOM and object MLOD/MODL resources. See [docs/MESH-POLYCOUNT.md](docs/MESH-POLYCOUNT.md).
+
 ## Pre-build hardening
 
 The application now persists UI preferences, supports a resizable sidebar, exposes safe file-manager navigation, shows cache/performance diagnostics, displays technical classification evidence in the Planner, blocks Restore across different Mods roots, supports persistent Intentional Override decisions plus session-only ignore marks, and provides reversible duplicate Quarantine outside Packages with SHA-256 preflight, rollback, manifest history and explicit restore.
@@ -175,6 +177,7 @@ Implemented in code:
 - dependency-based Keep Together group suggestions requiring explicit approval;
 - reversible duplicate Quarantine with a durable manifest, no-overwrite transfer, rollback, History restore and interrupted-transaction recovery;
 - advanced TGI/SHA technical search and TXT/CSV/JSON selection export;
+- on-demand GEOM/MLOD/MODL vertex and triangle/polycount analysis with LOD-aware summaries;
 - side-by-side normalized package comparison;
 - conservative package dependency evidence;
 - unified visual operation history.
