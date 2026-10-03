@@ -255,7 +255,9 @@ fn parse_mlod_block(data: &[u8], offset: usize) -> Result<Vec<MeshGroupInfo>, St
             primitives,
             triangles: primitive_triangles(primitive_type, primitives),
             primitive_type: primitive_name(primitive_type).to_string(),
-            shadow: mesh_flags & (0x08 | 0x10) != 0,
+            // DropShadow is shadow-only. ShadowCaster describes behavior of
+            // ordinary visible geometry and must not be excluded from polycount.
+            shadow: mesh_flags & 0x08 != 0,
         });
         cursor = end;
     }
