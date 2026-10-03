@@ -73,6 +73,7 @@ pub struct DuplicateMember {
     pub file_sha256: String,
     pub content_fingerprint: Option<String>,
     pub resource_count: usize,
+    pub instances: Vec<String>,
     pub parse_error: Option<String>,
 }
 
@@ -238,6 +239,11 @@ fn package_member(package: &PackageFingerprint) -> DuplicateMember {
         file_sha256: package.file_hash.clone(),
         content_fingerprint: package.content_fingerprint.clone(),
         resource_count: package.resources.len(),
+        instances: package.resources.iter()
+            .map(|resource| format!("0x{:016X}", resource.instance))
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect(),
         parse_error: package.parse_error.clone(),
     }
 }
