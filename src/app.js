@@ -3239,7 +3239,7 @@ function renderTechnicalDetails(container, item) {
         name.textContent = lod.lod;
         const counts = document.createElement("span");
         counts.textContent =
-          `${t("meshTriangles")}: ${integerLabel(lod.triangles)} · ${t("meshVertices")}: ${integerLabel(lod.vertices)} · ${lod.resourceCount} resource(s)`;
+          `${t("meshTriangles")}: ${integerLabel(lod.triangles)} · ${t("meshVertices")}: ${integerLabel(lod.vertices)} · ${lod.resourceCount} ${t("resources")}`;
         row.append(name, counts);
         lodList.appendChild(row);
       }
