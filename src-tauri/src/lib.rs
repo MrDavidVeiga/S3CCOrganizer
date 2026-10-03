@@ -9,6 +9,7 @@ pub mod duplicates;
 pub mod executor;
 pub mod i18n;
 pub mod manifest;
+pub mod mesh_info;
 pub mod navigation;
 pub mod operation;
 pub mod package_family;
