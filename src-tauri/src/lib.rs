@@ -47,6 +47,7 @@ pub fn run() {
             cache::clear_cache,
             navigation::open_directory,
             navigation::reveal_path,
+            package_details::get_package_preview,
             package_details::get_package_technical_details,
             restore_history::list_restore_history,
             review_store::load_conflict_decisions,
