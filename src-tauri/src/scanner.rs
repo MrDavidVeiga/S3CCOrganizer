@@ -31,6 +31,7 @@ pub struct ScanPackageItem {
     pub resource_count: usize,
     pub catalog_resource_count: usize,
     pub resource_types: Vec<String>,
+    pub instances: Vec<String>,
     pub status: String,
     pub detected_from: Vec<String>,
     pub category: Option<String>,
@@ -659,6 +660,7 @@ fn scan_one(
                 resource_count: 0,
                 catalog_resource_count: 0,
                 resource_types: Vec::new(),
+                instances: Vec::new(),
                 status: "invalid".to_string(),
                 detected_from: Vec::new(),
                 category: None,
@@ -901,6 +903,11 @@ fn scan_one(
         resource_count: package.entries.len(),
         catalog_resource_count,
         resource_types: type_set.into_iter().collect(),
+        instances: package.entries.iter()
+            .map(|entry| format!("0x{:016X}", entry.instance))
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect(),
         status,
         detected_from: detected_from.into_iter().collect(),
         category,
