@@ -608,6 +608,23 @@ mod tests {
     }
 
     #[test]
+    fn shadow_caster_flag_does_not_hide_visible_geometry() {
+        let mut body = vec![0u8; 88];
+        body[20..24].copy_from_slice(&(3u32 | (0x10u32 << 8)).to_le_bytes());
+        body[40..44].copy_from_slice(&50u32.to_le_bytes());
+        body[44..48].copy_from_slice(&75u32.to_le_bytes());
+        let mut data = Vec::new();
+        data.extend_from_slice(b"MLOD");
+        u32le(&mut data, 0x201);
+        u32le(&mut data, 1);
+        u32le(&mut data, body.len() as u32);
+        data.extend_from_slice(&body);
+        let groups = parse_mlod(&data).unwrap();
+        assert!(!groups[0].shadow);
+        assert_eq!(groups[0].triangles, Some(75));
+    }
+
+    #[test]
     fn object_resource_groups_map_main_and_shadow_lods() {
         assert_eq!(object_lod(TYPE_MLOD, 0), ("LOD 0 / High".into(), false));
         assert_eq!(object_lod(TYPE_MODL, 1), ("LOD 1 / Low".into(), false));
