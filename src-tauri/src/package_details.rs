@@ -3,10 +3,22 @@ use crate::{
     catalog::{TYPE_CASP, TYPE_OBJD},
     mesh_info::{analyze_package_meshes, PackageMeshInfo},
 };
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use serde::Serialize;
 use std::path::PathBuf;
 
+use crate::dbpf::Package;
+
 const TYPE_IMG: u32 = 0x00B2_D882;
+const TYPE_THUM_SMALL: u32 = 0x626F_60CC;
+const TYPE_THUM_MED: u32 = 0x626F_60CD;
+const TYPE_THUM_LARGE: u32 = 0x626F_60CE;
+const TYPE_THUM_SMALL_ALT: u32 = 0x0580_A2B4;
+const TYPE_THUM_MED_ALT: u32 = 0x0580_A2B5;
+const TYPE_THUM_LARGE_ALT: u32 = 0x0580_A2B6;
+const TYPE_ICON: u32 = 0x2E75_C765;
+const TYPE_IMAG_JPG: u32 = 0x2F7D_0002;
+const TYPE_IMAG_PNG: u32 = 0x2F7D_0004;
 const TYPE_GEOM: u32 = 0x015A_1849;
 const TYPE_MODL: u32 = 0x0166_1233;
 const TYPE_MATD: u32 = 0x01D0_E75D;
@@ -93,6 +105,80 @@ fn compression_label(value: u16) -> String {
         0xFFFF => "RefPack".to_string(),
         other => format!("0x{other:04X}"),
     }
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PackagePreview {
+    pub thumbnail_base64: Option<String>,
+    pub mime_type: Option<String>,
+}
+
+fn preview_mime(data: &[u8]) -> Option<&'static str> {
+    if data.len() >= 8 && &data[..8] == b"\x89PNG\r\n\x1a\n" {
+        Some("image/png")
+    } else if data.len() >= 3 && data[..3] == [0xFF, 0xD8, 0xFF] {
+        Some("image/jpeg")
+    } else {
+        None
+    }
+}
+
+fn package_preview_data(path: &std::path::Path) -> Result<PackagePreview, String> {
+    let package = Package::load(path).map_err(|error| error.to_string())?;
+    let catalog_instances = package.entries.iter()
+        .filter(|entry| matches!(entry.type_id, TYPE_CASP | TYPE_OBJD))
+        .map(|entry| entry.instance)
+        .collect::<std::collections::HashSet<_>>();
+
+    let primary_types = [
+        TYPE_THUM_LARGE, TYPE_THUM_MED, TYPE_THUM_SMALL,
+        TYPE_THUM_LARGE_ALT, TYPE_THUM_MED_ALT, TYPE_THUM_SMALL_ALT,
+        TYPE_ICON,
+    ];
+
+    let mut candidates = Vec::<(u8, usize, Vec<u8>, &'static str)>::new();
+    for entry in &package.entries {
+        let priority = if primary_types.contains(&entry.type_id) {
+            if catalog_instances.contains(&entry.instance) { 3 } else { 2 }
+        } else if matches!(entry.type_id, TYPE_IMAG_PNG | TYPE_IMAG_JPG)
+            && catalog_instances.contains(&entry.instance)
+        {
+            1
+        } else {
+            0
+        };
+        if priority == 0 || entry.mem_size > 16 * 1024 * 1024 {
+            continue;
+        }
+        let Ok(data) = package.data(entry) else { continue };
+        let Some(mime) = preview_mime(&data) else { continue };
+        candidates.push((priority, data.len(), data, mime));
+    }
+
+    candidates.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| b.1.cmp(&a.1)));
+    let Some((_, _, data, mime)) = candidates.into_iter().next() else {
+        return Ok(PackagePreview { thumbnail_base64: None, mime_type: None });
+    };
+
+    Ok(PackagePreview {
+        thumbnail_base64: Some(STANDARD.encode(data)),
+        mime_type: Some(mime.to_string()),
+    })
+}
+
+#[tauri::command]
+pub fn get_package_preview(folder: String, package_path: String) -> Result<PackagePreview, String> {
+    let root = PathBuf::from(folder.trim())
+        .canonicalize()
+        .map_err(|error| format!("Could not resolve root folder: {error}"))?;
+    let path = PathBuf::from(package_path.trim())
+        .canonicalize()
+        .map_err(|error| format!("Could not resolve package path: {error}"))?;
+    if !path.starts_with(&root) || !path.is_file() {
+        return Err("Package is outside the selected root.".to_string());
+    }
+    package_preview_data(&path)
 }
 
 #[tauri::command]
