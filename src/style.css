@@ -2681,3 +2681,288 @@ button:disabled {
 .mesh-warning-box {
   margin-top: 2px;
 }
+
+
+/* Splitter/Packer layout parity — Manager list + CC preview */
+.app-shell {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.results-actions,
+.analysis-toolbar-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(185px, 24vw, 360px);
+  gap: clamp(8px, 1.1vw, 16px);
+  margin: 14px 0 12px;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.results-query-controls,
+.analysis-query-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.results-selection-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+
+.results-filter-input,
+.analysis-filter-input {
+  flex: 0 0 clamp(150px, 15vw, 190px);
+  min-width: 0;
+}
+
+.results-search-input,
+.analysis-search-input {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+}
+
+.analysis-query-controls > .primary-btn {
+  flex: 0 0 auto;
+  width: auto;
+  white-space: nowrap;
+}
+
+.analysis-preview-spacer {
+  min-width: 0;
+}
+
+.results-layout,
+.duplicates-results,
+.conflicts-results {
+  grid-template-columns: minmax(0, 1fr) clamp(185px, 24vw, 360px);
+  gap: clamp(8px, 1.1vw, 16px);
+}
+
+.preview-card,
+.duplicates-preview,
+.conflicts-preview {
+  min-width: 0;
+}
+
+.package-preview-thumb-wrap {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  margin: 0 0 14px;
+  padding: 0;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.08);
+  min-height: 0;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,.03);
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color .18s ease, background .18s ease, transform .18s ease;
+}
+
+.package-preview-thumb-wrap:hover {
+  border-color: rgba(127,173,45,.5);
+  background: rgba(97,132,34,.08);
+}
+
+.package-preview-thumb-wrap:active {
+  transform: scale(.995);
+}
+
+.package-preview-thumb {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  object-fit: cover;
+  display: block;
+}
+
+.package-preview-thumb-empty {
+  min-height: 100%;
+  width: 100%;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 9px;
+  padding: 16px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.package-preview-thumb-empty i {
+  font-size: clamp(26px, 3vw, 42px);
+  opacity: .72;
+}
+
+.package-preview-thumb-empty small {
+  font-size: .68rem;
+  line-height: 1.4;
+}
+
+.duplicates-toolbar.analysis-toolbar-grid,
+.conflicts-toolbar.analysis-toolbar-grid {
+  grid-template-columns: minmax(0, 1fr) clamp(185px, 24vw, 360px);
+  gap: clamp(8px, 1.1vw, 16px);
+  margin: 14px 0 12px;
+}
+
+.duplicates-toolbar.analysis-toolbar-grid select,
+.conflicts-toolbar.analysis-toolbar-grid select {
+  grid-column: auto;
+}
+
+/* Tools stays one compact inner-tab row, as requested. */
+.tools-subtabs {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 7px;
+  margin: 12px 0;
+  width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,.25) transparent;
+}
+
+.tools-subtab {
+  width: 100%;
+  min-width: 0;
+  padding-inline: 8px;
+  white-space: nowrap;
+  font-size: .72rem;
+}
+
+/* Same five-icon responsive footer used by Splitter/Packer. */
+.social-footer {
+  --social-icon-size: clamp(30px, 3vw, 42px);
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  width: var(--sidebar-width);
+  box-sizing: border-box;
+  justify-self: start;
+  gap: clamp(8px, 1.2vw, 18px);
+  padding: 14px 0 clamp(10px, 1vw, 16px);
+  margin-top: 14px;
+  min-height: 0;
+}
+
+.social-icons-list {
+  width: 100%;
+  box-sizing: border-box;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: clamp(4px, .5vw, 18px);
+}
+
+.social-icons-list li {
+  flex: 0 1 var(--social-icon-size);
+  min-width: 0;
+}
+
+.social-icons-list li a {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  max-width: var(--social-icon-size);
+  height: auto;
+  aspect-ratio: 1 / 1;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.05);
+  color: var(--muted);
+  text-decoration: none;
+  transition: background .18s ease, border-color .18s ease, color .18s ease, transform .18s ease;
+}
+
+.social-icons-list li a:hover {
+  background: rgba(97,132,34,.15);
+  border-color: rgba(97,132,34,.5);
+  color: #9acd3f;
+  transform: translateY(-2px);
+}
+
+.social-icons-list li a svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+@media (max-height: 760px) {
+  .social-footer {
+    --social-icon-size: clamp(30px, 3vw, 36px);
+  }
+}
+
+@media (max-width: 1180px) {
+  .analysis-query-controls {
+    gap: 8px;
+  }
+
+  .analysis-filter-input {
+    flex-basis: 160px;
+  }
+
+  .tools-subtab {
+    font-size: .68rem;
+    padding-inline: 6px;
+  }
+}
+
+@media (max-width: 980px) {
+  .results-actions,
+  .analysis-toolbar-grid {
+    grid-template-columns: minmax(0, 1fr) clamp(185px, 24vw, 260px);
+  }
+
+  .results-layout {
+    grid-template-columns: minmax(0, 1fr) clamp(185px, 24vw, 260px);
+  }
+
+  .duplicates-results,
+  .conflicts-results {
+    grid-template-columns: minmax(0, 1fr) clamp(185px, 24vw, 260px);
+  }
+
+  .duplicates-preview,
+  .conflicts-preview {
+    display: block;
+  }
+
+  .tools-subtabs {
+    min-width: 720px;
+  }
+}
+
+@media (max-width: 700px) {
+  .results-query-controls,
+  .analysis-query-controls {
+    gap: 6px;
+  }
+
+  .results-filter-input,
+  .analysis-filter-input {
+    flex-basis: 135px;
+  }
+
+  .results-selection-controls {
+    gap: 6px;
+  }
+
+  .social-footer {
+    --social-icon-size: 30px;
+  }
+}
