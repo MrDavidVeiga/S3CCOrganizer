@@ -72,6 +72,18 @@ const I18N = {
     memorySize: "Memory size",
     payloadHash: "Payload SHA-256",
     resourceTechnicalDetails: "Resource details",
+    meshInformation: "Mesh Information",
+    meshHighestPolycount: "Highest visible polycount",
+    meshHighestVertices: "Vertices at highest polycount",
+    meshLods: "LOD polycounts",
+    meshResources: "Mesh resources",
+    meshTriangles: "Triangles",
+    meshVertices: "Vertices",
+    meshGroups: "Groups",
+    meshShadow: "Shadow",
+    meshUnknownLod: "Unknown LOD",
+    meshNoData: "No supported GEOM/MLOD/MODL mesh data found.",
+    meshWarnings: "Mesh analysis notes",
     cacheReused: "Cache reused",
     cacheUpdated: "Cache updated",
     restoreHistory: "Restore History",
@@ -456,6 +468,18 @@ const I18N = {
     memorySize: "Tamanho em memória",
     payloadHash: "SHA-256 do payload",
     resourceTechnicalDetails: "Detalhes dos resources",
+    meshInformation: "Informações da Mesh",
+    meshHighestPolycount: "Maior polycount visível",
+    meshHighestVertices: "Vértices no maior polycount",
+    meshLods: "Polycount por LOD",
+    meshResources: "Resources de mesh",
+    meshTriangles: "Triângulos",
+    meshVertices: "Vértices",
+    meshGroups: "Grupos",
+    meshShadow: "Sombra",
+    meshUnknownLod: "LOD desconhecido",
+    meshNoData: "Nenhum dado de mesh GEOM/MLOD/MODL compatível encontrado.",
+    meshWarnings: "Notas da análise de mesh",
     cacheReused: "Cache reutilizado",
     cacheUpdated: "Cache atualizado",
     restoreHistory: "Histórico de Restauração",
@@ -839,6 +863,18 @@ const I18N = {
     memorySize: "Tamaño en memoria",
     payloadHash: "SHA-256 del payload",
     resourceTechnicalDetails: "Detalles de los resources",
+    meshInformation: "Información de Mesh",
+    meshHighestPolycount: "Polycount visible más alto",
+    meshHighestVertices: "Vértices en el polycount más alto",
+    meshLods: "Polycount por LOD",
+    meshResources: "Resources de mesh",
+    meshTriangles: "Triángulos",
+    meshVertices: "Vértices",
+    meshGroups: "Grupos",
+    meshShadow: "Sombra",
+    meshUnknownLod: "LOD desconocido",
+    meshNoData: "No se encontraron datos de mesh GEOM/MLOD/MODL compatibles.",
+    meshWarnings: "Notas del análisis de mesh",
     cacheReused: "Caché reutilizada",
     cacheUpdated: "Caché actualizada",
     restoreHistory: "Historial de Restauración",
@@ -3015,6 +3051,11 @@ function bytesLabel(value) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function integerLabel(value) {
+  const locale = state.language === "pt" ? "pt-BR" : state.language === "es" ? "es-ES" : "en-US";
+  return new Intl.NumberFormat(locale).format(Number(value || 0));
+}
+
 function renderRestoreHistory() {
   if (!el.restoreHistoryList) return;
   el.restoreHistoryList.innerHTML = "";
@@ -3154,6 +3195,108 @@ function renderTechnicalDetails(container, item) {
   appendMeta(summary, t("resources"), details.resourceCount);
   appendMeta(summary, t("cacheReused"), details.cacheHit ? "✓" : "—");
   container.appendChild(summary);
+
+  const mesh = details.mesh;
+  const meshSection = document.createElement("section");
+  meshSection.className = "mesh-information";
+  const meshTitle = document.createElement("h4");
+  meshTitle.className = "technical-details-title";
+  meshTitle.textContent = t("meshInformation");
+  meshSection.appendChild(meshTitle);
+
+  if (!mesh?.hasMeshes) {
+    const emptyMesh = document.createElement("div");
+    emptyMesh.className = "technical-details-state";
+    emptyMesh.textContent = t("meshNoData");
+    meshSection.appendChild(emptyMesh);
+  } else {
+    const meshSummary = document.createElement("div");
+    meshSummary.className = "technical-summary";
+    appendMeta(
+      meshSummary,
+      t("meshHighestPolycount"),
+      mesh.highestVisibleTriangles == null ? "—" : integerLabel(mesh.highestVisibleTriangles)
+    );
+    appendMeta(
+      meshSummary,
+      t("meshHighestVertices"),
+      mesh.highestVisibleVertices == null ? "—" : integerLabel(mesh.highestVisibleVertices)
+    );
+    meshSection.appendChild(meshSummary);
+
+    if ((mesh.lods || []).length) {
+      const lodTitle = document.createElement("h5");
+      lodTitle.className = "mesh-subtitle";
+      lodTitle.textContent = t("meshLods");
+      meshSection.appendChild(lodTitle);
+
+      const lodList = document.createElement("div");
+      lodList.className = "mesh-lod-list";
+      for (const lod of mesh.lods) {
+        const row = document.createElement("article");
+        row.className = "mesh-lod-row";
+        const name = document.createElement("strong");
+        name.textContent = lod.lod;
+        const counts = document.createElement("span");
+        counts.textContent =
+          `${t("meshTriangles")}: ${integerLabel(lod.triangles)} · ${t("meshVertices")}: ${integerLabel(lod.vertices)} · ${lod.resourceCount} resource(s)`;
+        row.append(name, counts);
+        lodList.appendChild(row);
+      }
+      meshSection.appendChild(lodList);
+    }
+
+    const resourceTitle = document.createElement("h5");
+    resourceTitle.className = "mesh-subtitle";
+    resourceTitle.textContent = t("meshResources");
+    meshSection.appendChild(resourceTitle);
+
+    const resourceList = document.createElement("div");
+    resourceList.className = "mesh-resource-list";
+    for (const resource of mesh.resources || []) {
+      const row = document.createElement("article");
+      row.className = "mesh-resource-row";
+      const top = document.createElement("div");
+      const label = document.createElement("strong");
+      label.textContent = `${resource.typeLabel} · ${resource.lod}`;
+      const shadow = document.createElement("span");
+      shadow.textContent = resource.shadow ? t("meshShadow") : resource.groupHex;
+      top.append(label, shadow);
+
+      const counts = document.createElement("small");
+      counts.textContent =
+        `${t("meshTriangles")}: ${resource.triangles == null ? "—" : integerLabel(resource.triangles)} · ${t("meshVertices")}: ${integerLabel(resource.vertices)} · ${t("meshGroups")}: ${resource.groups?.length || 0}`;
+
+      const internal = document.createElement("code");
+      internal.textContent = resource.internalName || resource.tgi;
+      row.append(top, counts, internal);
+
+      for (const warning of resource.warnings || []) {
+        const note = document.createElement("small");
+        note.className = "mesh-note";
+        note.textContent = warning;
+        row.appendChild(note);
+      }
+      resourceList.appendChild(row);
+    }
+    meshSection.appendChild(resourceList);
+
+    if ((mesh.warnings || []).length) {
+      const warningBox = document.createElement("div");
+      warningBox.className = "warning-box mesh-warning-box";
+      const warningTitle = document.createElement("strong");
+      warningTitle.textContent = t("meshWarnings");
+      const list = document.createElement("ul");
+      for (const warning of mesh.warnings) {
+        const li = document.createElement("li");
+        li.textContent = warning;
+        list.appendChild(li);
+      }
+      warningBox.append(warningTitle, list);
+      meshSection.appendChild(warningBox);
+    }
+  }
+  container.appendChild(meshSection);
 
   const title = document.createElement("h4");
   title.className = "technical-details-title";
