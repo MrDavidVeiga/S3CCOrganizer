@@ -1,6 +1,7 @@
 use crate::{
     cache::{get_or_build, load_cache, save_cache},
     catalog::{TYPE_CASP, TYPE_OBJD},
+    mesh_info::{analyze_package_meshes, PackageMeshInfo},
 };
 use serde::Serialize;
 use std::path::PathBuf;
@@ -50,6 +51,7 @@ pub struct PackageTechnicalDetails {
     pub cache_hit: bool,
     pub parse_error: Option<String>,
     pub resources: Vec<PackageResourceDetails>,
+    pub mesh: PackageMeshInfo,
 }
 
 fn type_label(type_id: u32) -> String {
@@ -138,6 +140,8 @@ pub fn get_package_technical_details(
         })
         .collect::<Vec<_>>();
 
+    let mesh = analyze_package_meshes(&path);
+
     Ok(PackageTechnicalDetails {
         path: cached.path,
         size: cached.size,
@@ -148,5 +152,6 @@ pub fn get_package_technical_details(
         cache_hit,
         parse_error: cached.parse_error,
         resources,
+        mesh,
     })
 }
