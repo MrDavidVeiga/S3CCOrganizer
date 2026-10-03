@@ -117,7 +117,7 @@ pub struct PackagePreview {
 fn preview_mime(data: &[u8]) -> Option<&'static str> {
     if data.len() >= 8 && &data[..8] == b"\x89PNG\r\n\x1a\n" {
         Some("image/png")
-    } else if data.len() >= 3 && data[..3] == [0xFF, 0xD8, 0xFF] {
+    } else if data.len() >= 3 && &data[..3] == b"\xFF\xD8\xFF" {
         Some("image/jpeg")
     } else {
         None
