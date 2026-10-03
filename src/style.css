@@ -2614,3 +2614,70 @@ button:disabled {
   margin-top: 10px;
   width: 100%;
 }
+
+
+/* Mesh / polycount technical analysis */
+.mesh-information {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 2px;
+}
+
+.mesh-subtitle {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: .72rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.mesh-lod-list,
+.mesh-resource-list {
+  display: grid;
+  gap: 7px;
+}
+
+.mesh-lod-row,
+.mesh-resource-row {
+  display: grid;
+  gap: 5px;
+  padding: 9px 10px;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 10px;
+  background: rgba(255,255,255,.035);
+}
+
+.mesh-lod-row strong,
+.mesh-resource-row strong {
+  font-size: .75rem;
+}
+
+.mesh-lod-row span,
+.mesh-resource-row span,
+.mesh-resource-row small {
+  color: var(--muted);
+  font-size: .68rem;
+}
+
+.mesh-resource-row > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mesh-resource-row code {
+  color: #cfd9dd;
+  overflow-wrap: anywhere;
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: .64rem;
+}
+
+.mesh-note {
+  color: #e8c38a !important;
+  line-height: 1.4;
+}
+
+.mesh-warning-box {
+  margin-top: 2px;
+}
