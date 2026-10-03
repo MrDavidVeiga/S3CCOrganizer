@@ -23,7 +23,7 @@ const I18N = {
     invalid: "Invalid",
     unknown: "Unknown",
     chooseToBegin: "Choose a Mods folder to begin.",
-    search: "Search packages, categories or destinations…",
+    search: "Search by name or Instance ID",
     allStatuses: "All statuses",
     selectPackage: "Select a package to see its classification.",
     detectedFrom: "Detected from",
@@ -61,7 +61,11 @@ const I18N = {
     cancelAnalysis: "Cancel",
     cancelling: "Cancelling…",
     cancelled: "Analysis cancelled",
-    technicalDetails: "Technical Details",
+    technicalDetails: "Show Technical Details",
+    hideTechnicalDetails: "Hide Technical Details",
+    previewLoading: "Loading thumbnail…",
+    previewUnavailable: "No thumbnail available.",
+    previewOpenLocation: "Click the thumbnail to open the package location.",
     technicalDetailsLoading: "Reading package resources…",
     technicalDetailsError: "Could not load technical details",
     showingResourceLimit: "Showing the first 500 resources",
@@ -190,11 +194,11 @@ const I18N = {
     manualOperations: "Manual structure operations",
     tools: "Tools",
     toolsIntro: "Profiles, health, snapshots, Inbox, metadata, dependencies and technical diagnostics.",
-    profilesRules: "Profiles & Rules",
-    healthResourceCfg: "Health & Resource.cfg",
+    profilesRules: "Profiles",
+    healthResourceCfg: "Health",
     snapshotsCompare: "Snapshots & Compare",
-    inboxNewCc: "Inbox / New CC",
-    metadataGroups: "Metadata & Groups",
+    inboxNewCc: "Inbox",
+    metadataGroups: "Metadata",
     technicalLab: "Technical",
     operationHistory: "History",
     workspaceSettings: "Workspace Settings",
@@ -312,7 +316,7 @@ const I18N = {
     analyzingDuplicates: "Analyzing package fingerprints…",
     duplicatesReady: "Duplicate analysis complete",
     duplicatesFailed: "Duplicate analysis failed",
-    duplicateSearch: "Search duplicate findings…",
+    duplicateSearch: "Search by name or Instance ID",
     allDuplicateTypes: "All findings",
     exactDuplicate: "Exact Duplicate",
     contentDuplicate: "Content Duplicate",
@@ -457,7 +461,11 @@ const I18N = {
     cancelAnalysis: "Cancelar",
     cancelling: "Cancelando…",
     cancelled: "Análise cancelada",
-    technicalDetails: "Detalhes Técnicos",
+    technicalDetails: "Mostrar Detalhes Técnicos",
+    hideTechnicalDetails: "Ocultar Detalhes Técnicos",
+    previewLoading: "Carregando thumbnail…",
+    previewUnavailable: "Thumbnail não disponível.",
+    previewOpenLocation: "Clique na thumbnail para abrir a localização do package.",
     technicalDetailsLoading: "Lendo resources do package…",
     technicalDetailsError: "Não foi possível carregar os detalhes técnicos",
     showingResourceLimit: "Exibindo os primeiros 500 resources",
@@ -814,7 +822,7 @@ const I18N = {
     invalid: "Inválidos",
     unknown: "Desconocidos",
     chooseToBegin: "Elige una carpeta de Mods para comenzar.",
-    search: "Buscar packages, categorías o destinos…",
+    search: "Buscar por nombre o Instance ID",
     allStatuses: "Todos los estados",
     selectPackage: "Selecciona un package para ver su clasificación.",
     detectedFrom: "Detectado por",
@@ -852,7 +860,11 @@ const I18N = {
     cancelAnalysis: "Cancelar",
     cancelling: "Cancelando…",
     cancelled: "Análisis cancelado",
-    technicalDetails: "Detalles Técnicos",
+    technicalDetails: "Mostrar Detalles Técnicos",
+    hideTechnicalDetails: "Ocultar Detalles Técnicos",
+    previewLoading: "Cargando thumbnail…",
+    previewUnavailable: "Thumbnail no disponible.",
+    previewOpenLocation: "Haz clic en la thumbnail para abrir la ubicación del package.",
     technicalDetailsLoading: "Leyendo resources del package…",
     technicalDetailsError: "No se pudieron cargar los detalles técnicos",
     showingResourceLimit: "Mostrando los primeros 500 resources",
@@ -1103,7 +1115,7 @@ const I18N = {
     analyzingDuplicates: "Analizando fingerprints de los packages…",
     duplicatesReady: "Análisis de duplicados completado",
     duplicatesFailed: "Error en el análisis de duplicados",
-    duplicateSearch: "Buscar resultados de duplicados…",
+    duplicateSearch: "Buscar por nome ou Instance ID",
     allDuplicateTypes: "Todos los resultados",
     exactDuplicate: "Duplicado Exacto",
     contentDuplicate: "Duplicado por Contenido",
@@ -1211,8 +1223,9 @@ const savedLanguage =
   localStorage.getItem("s3cc-organizer-language") || preferences.language || "en";
 
 function clampSidebarWidth(value) {
+  if (value == null || value === "") return null;
   const numeric = Number(value);
-  return Number.isFinite(numeric) ? Math.max(205, Math.min(380, numeric)) : 280;
+  return Number.isFinite(numeric) ? Math.max(205, Math.min(380, numeric)) : null;
 }
 
 const state = {
@@ -1260,6 +1273,10 @@ const state = {
   technicalDetails: {},
   technicalDetailsLoading: "",
   technicalDetailsErrors: {},
+  technicalDetailsOpen: new Set(),
+  packagePreviews: {},
+  packagePreviewLoading: {},
+  packagePreviewErrors: {},
   restoreHistory: [],
   restoreHistoryLoading: false,
   restoreHistoryError: "",
@@ -1535,7 +1552,9 @@ function persistPreferences() {
 }
 
 function applySidebarWidth() {
-  el.appShell?.style.setProperty("--sidebar-width", `${clampSidebarWidth(state.sidebarWidth)}px`);
+  const width = clampSidebarWidth(state.sidebarWidth);
+  if (width == null) el.appShell?.style.removeProperty("--sidebar-width");
+  else el.appShell?.style.setProperty("--sidebar-width", `${width}px`);
 }
 
 function formatMs(value) {
@@ -1601,6 +1620,7 @@ async function clearAnalysisCache() {
   try {
     await invoke("clear_cache", { folder: state.folder });
     state.technicalDetails = {};
+    state.technicalDetailsOpen.clear();
     state.cacheError = "";
     await refreshCacheInfo();
   } catch (error) {
@@ -2086,7 +2106,8 @@ function renderLanguage() {
     String(!el.languageMenu?.classList.contains("hidden"))
   );
   if (el.searchInput) el.searchInput.placeholder = t("search");
-  if (el.duplicatesSearch) el.duplicatesSearch.placeholder = t("duplicateSearch");
+  if (el.duplicatesSearch) el.duplicatesSearch.placeholder = t("search");
+  if (el.conflictsSearch) el.conflictsSearch.placeholder = t("search");
   renderStatusFilter();
   renderDuplicateFilter();
   renderConflictFilter();
@@ -2190,13 +2211,12 @@ function visibleDuplicateFindings() {
     if (!query) return true;
 
     const memberNames = item.findingType === "group"
-      ? (item.members || []).flatMap((member) => [member.name, member.relativePath])
+      ? (item.members || []).flatMap((member) => [member.name, ...(member.instances || [])])
       : [
           item.left?.name,
-          item.left?.relativePath,
+          ...(item.left?.instances || []),
           item.right?.name,
-          item.right?.relativePath,
-          ...(item.evidence || []),
+          ...(item.right?.instances || []),
         ];
 
     return memberNames
@@ -2638,18 +2658,8 @@ function visibleConflictFindings() {
 
     const haystack = [
       item.left?.name,
-      item.left?.relativePath,
       item.right?.name,
-      item.right?.relativePath,
-      item.kind,
-      ...(item.impactKinds || []),
-      ...(item.evidence || []).flatMap((evidence) => [
-        evidence.resourceLabel,
-        evidence.resourceTypeHex,
-        evidence.groupHex,
-        evidence.instanceHex,
-        evidence.resourceClass,
-      ]),
+      ...(item.evidence || []).map((evidence) => evidence.instanceHex),
     ]
       .filter(Boolean)
       .join(" ")
@@ -3133,6 +3143,7 @@ async function loadRestoreHistory() {
 
 async function loadTechnicalDetails(item) {
   if (!item || !state.folder || state.technicalDetailsLoading) return;
+  state.technicalDetailsOpen.add(item.path);
   state.technicalDetailsLoading = item.path;
   delete state.technicalDetailsErrors[item.path];
   renderPreview();
@@ -3151,17 +3162,30 @@ async function loadTechnicalDetails(item) {
 }
 
 function renderTechnicalDetails(container, item) {
+  const isOpen = state.technicalDetailsOpen.has(item.path);
   const button = document.createElement("button");
   button.type = "button";
   button.className = "secondary-btn technical-details-btn";
-  button.textContent = t("technicalDetails");
+  button.textContent = isOpen ? t("hideTechnicalDetails") : t("technicalDetails");
   button.disabled =
     state.technicalDetailsLoading === item.path ||
     state.scanning ||
     state.duplicatesBusy ||
     state.conflictsBusy;
-  button.addEventListener("click", () => loadTechnicalDetails(item));
+  button.addEventListener("click", () => {
+    if (state.technicalDetailsOpen.has(item.path)) {
+      state.technicalDetailsOpen.delete(item.path);
+      renderPreview();
+    } else if (state.technicalDetails[item.path]) {
+      state.technicalDetailsOpen.add(item.path);
+      renderPreview();
+    } else {
+      loadTechnicalDetails(item);
+    }
+  });
   container.appendChild(button);
+
+  if (!isOpen && state.technicalDetailsLoading !== item.path) return;
 
   if (state.technicalDetailsLoading === item.path) {
     const loading = document.createElement("div");
@@ -3395,6 +3419,10 @@ function invalidateAnalysesAfterStructureChange() {
   state.conflictMarks = {};
   state.technicalDetails = {};
   state.technicalDetailsErrors = {};
+  state.technicalDetailsOpen.clear();
+  state.packagePreviews = {};
+  state.packagePreviewLoading = {};
+  state.packagePreviewErrors = {};
   state.restorePlan = null;
   state.quarantineSelected.clear();
   state.quarantinePlan = null;
@@ -4668,29 +4696,12 @@ function visibleItems() {
   const query = state.search.trim().toLocaleLowerCase();
   return state.items.filter((item) => {
     if (state.status !== "all" && item.status !== state.status) return false;
-    const metadata = metadataForItem(item);
     if (!query) return true;
-
-    const haystack = [
-      item.name,
-      item.relativePath,
-      item.category,
-      item.subCategory,
-      item.gender,
-      item.age,
-      item.destinationPath,
-      ...(item.resourceTypes || []),
-      ...(item.usageCategories || []),
-      ...(item.candidateDestinations || []),
-      ...(metadata?.tags || []),
-      metadata?.testStatus,
-      metadata?.favorite ? "favorite favorito favorito" : "",
-    ]
+    return [item.name, ...(item.instances || [])]
       .filter(Boolean)
       .join(" ")
-      .toLocaleLowerCase();
-
-    return haystack.includes(query);
+      .toLocaleLowerCase()
+      .includes(query);
   });
 }
 
@@ -4717,6 +4728,24 @@ function appendMeta(container, label, value) {
   dd.textContent = Array.isArray(value) ? value.join(", ") : String(value);
   row.append(dt, dd);
   container.appendChild(row);
+}
+
+async function loadPackagePreview(item) {
+  if (!item || !state.folder || state.packagePreviewLoading[item.path]) return;
+  state.packagePreviewLoading[item.path] = true;
+  delete state.packagePreviewErrors[item.path];
+  renderPreview();
+  try {
+    state.packagePreviews[item.path] = await invoke("get_package_preview", {
+      folder: state.folder,
+      packagePath: item.path,
+    });
+  } catch (error) {
+    state.packagePreviewErrors[item.path] = String(error);
+  } finally {
+    delete state.packagePreviewLoading[item.path];
+    renderPreview();
+  }
 }
 
 function manualClassificationForItem(item) {
@@ -4799,17 +4828,37 @@ function renderPreview() {
     appendMeta(meta, t("organizationPlan"), t("notEligible"));
   }
 
-  el.previewCard.append(header, meta);
+  const thumbWrap = document.createElement("button");
+  thumbWrap.type = "button";
+  thumbWrap.className = "package-preview-thumb-wrap";
+  thumbWrap.title = t("previewOpenLocation");
+  thumbWrap.addEventListener("click", () => revealSafe(item.path));
+  const preview = state.packagePreviews[item.path];
+  if (preview?.thumbnailBase64) {
+    const image = document.createElement("img");
+    image.className = "package-preview-thumb";
+    image.alt = item.name;
+    image.src = `data:${preview.mimeType || "image/png"};base64,${preview.thumbnailBase64}`;
+    thumbWrap.appendChild(image);
+  } else {
+    const empty = document.createElement("span");
+    empty.className = "package-preview-thumb-empty";
+    empty.innerHTML = '<i class="fa-regular fa-image" aria-hidden="true"></i>';
+    const label = document.createElement("small");
+    label.textContent = state.packagePreviewLoading[item.path]
+      ? t("previewLoading")
+      : t("previewUnavailable");
+    empty.appendChild(label);
+    thumbWrap.appendChild(empty);
+  }
 
-  const previewActions = document.createElement("div");
-  previewActions.className = "preview-actions";
-  const revealButton = document.createElement("button");
-  revealButton.type = "button";
-  revealButton.className = "secondary-btn";
-  revealButton.textContent = t("openPackageLocation");
-  revealButton.addEventListener("click", () => revealSafe(item.path));
-  previewActions.appendChild(revealButton);
-  el.previewCard.appendChild(previewActions);
+  el.previewCard.append(thumbWrap, header, meta);
+
+  if (!(item.path in state.packagePreviews)
+      && !state.packagePreviewLoading[item.path]
+      && !state.packagePreviewErrors[item.path]) {
+    queueMicrotask(() => loadPackagePreview(item));
+  }
 
   const existingManual = manualClassificationForItem(item);
   if (item.status !== "invalid" && (!eligibleForPlan(item) || existingManual || (item.detectedFrom || []).includes("ManualReview"))) {
