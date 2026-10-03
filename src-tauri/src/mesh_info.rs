@@ -142,7 +142,7 @@ fn geom_at(data: &[u8], mut cursor: usize) -> Result<(u64, u64), String> {
 }
 
 fn parse_geom(data: &[u8]) -> Result<(u64, u64), String> {
-    if data.len() < 36 || data.get(..4) != Some(b"GEOM") {
+    if data.len() < 36 || data.get(..4) != Some(&b"GEOM"[..]) {
         return Err("Resource does not start with a GEOM tag.".into());
     }
     let version = read_u32(data, 4).unwrap();
@@ -212,7 +212,7 @@ fn primitive_triangles(kind: u32, primitives: u64) -> Option<u64> {
 
 fn parse_mlod_block(data: &[u8], offset: usize) -> Result<Vec<MeshGroupInfo>, String> {
     if offset.checked_add(12).map(|v| v <= data.len()) != Some(true)
-        || data.get(offset..offset + 4) != Some(b"MLOD")
+        || data.get(offset..offset + 4) != Some(&b"MLOD"[..])
     {
         return Err("MLOD block header is missing.".into());
     }
