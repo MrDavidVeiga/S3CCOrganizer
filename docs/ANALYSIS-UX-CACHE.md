@@ -55,19 +55,25 @@ Deleted files are removed from the in-memory cache during a full Duplicates/Conf
 
 ### Cache location
 
-For a selected root such as:
+The cache is application data and is stored outside The Sims 3 and Mods folders.
+
+Typical locations are:
 
 ```text
-Mods\Packages
+Windows:
+%LOCALAPPDATA%\Veiga's S3CC Manager\Cache\fingerprints-v1.json
+
+macOS:
+~/Library/Caches/Veiga's S3CC Manager/Cache/fingerprints-v1.json
+
+Linux:
+$XDG_CACHE_HOME/Veiga's S3CC Manager/Cache/fingerprints-v1.json
+(or ~/.cache/... when XDG_CACHE_HOME is not set)
 ```
 
-the cache is stored outside the package tree:
+A valid legacy cache from the old `S3CC Organizer\Cache` location is migrated automatically when possible.
 
-```text
-Mods\S3CC Organizer\Cache\fingerprints-v1.json
-```
-
-The Organizer never writes cache files inside the selected package hierarchy.
+The Manager never writes cache files inside the selected package hierarchy.
 
 ### Corrupt or incompatible cache
 
