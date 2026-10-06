@@ -559,16 +559,18 @@ pub fn validate_entries(entries: &[CatalogEntry]) -> CatalogValidation {
 fn write_csv(path: &Path, language: AppLanguage, entries: &[CatalogEntry]) -> Result<(), String> {
     let mut writer = WriterBuilder::new().from_path(path).map_err(|e| format!("Could not create CSV: {e}"))?;
     writer.write_record(["S3CC Packer / Manager Master Catalog"]).map_err(|e| e.to_string())?;
-    writer.write_record(["SCHEMA", &SCHEMA_VERSION.to_string()]).map_err(|e| e.to_string())?;
+    let schema_text = SCHEMA_VERSION.to_string();
+    writer.write_record(["SCHEMA", schema_text.as_str()]).map_err(|e| e.to_string())?;
     writer.write_record(["LANGUAGE", match language { AppLanguage::En => "en", AppLanguage::Pt => "pt", AppLanguage::Es => "es" }]).map_err(|e| e.to_string())?;
     let mut headers = localized_headers(language).to_vec();
     headers.extend(["S3CC Entry ID", "Link Broken", "Partnership / Exception"]);
     writer.write_record(headers).map_err(|e| e.to_string())?;
     for entry in entries {
+        let entry_id = compute_entry_id(entry);
         writer.write_record([
             entry.creator_converter.as_str(), entry.file_name.as_str(), entry.url.as_str(), entry.tumblr_handle.as_str(),
             entry.type_name.as_str(), entry.resource_type.as_str(), entry.instance.as_str(), entry.tgi.as_str(),
-            compute_entry_id(entry).as_str(),
+            entry_id.as_str(),
             if entry.link_broken { "1" } else { "0" },
             if entry.partnership_exception { "1" } else { "0" },
         ]).map_err(|e| e.to_string())?;
