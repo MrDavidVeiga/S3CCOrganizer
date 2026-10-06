@@ -10,7 +10,7 @@ The Organizer is designed around six independent views:
 - **Duplicates** — distinguish exact copies, content duplicates, related variants/retextures and files that only share resources.
 - **Conflicts** — compare resource definitions and avoid treating every shared TGI/pattern as a real conflict.
 - **Structure** — manually create nested folders, move files/folders, rename folders and safely undo recent manual structure actions.
-- **Tools** — profiles/rules, protected folders, package metadata, health/Resource.cfg, snapshots, folder comparison, Inbox/New CC, groups, technical search, side-by-side comparison, conservative dependencies and unified history.
+- **Tools** — profiles/rules, protected folders, package metadata, health/Resource.cfg, snapshots, folder comparison, Inbox/New CC, groups, technical search, side-by-side comparison, conservative dependencies, Sims3Pack→Package conversion and unified history.
 - **Restore** — preview and execute transactional restoration from Organizer manifests.
 
 The application is implemented in **Rust + Tauri 2 + Vite**, following the same desktop stack used by Veiga's S3CC Packer/Splitter. S3PI is used only as technical reference for known The Sims 3 resource/category information; S3PI code is not embedded as a dependency.
@@ -178,6 +178,7 @@ Implemented in code:
 - reversible duplicate Quarantine with a durable manifest, no-overwrite transfer, rollback, History restore and interrupted-transaction recovery;
 - advanced TGI/SHA technical search and TXT/CSV/JSON selection export;
 - on-demand GEOM/MLOD/MODL vertex and triangle/polycount analysis with LOD-aware summaries;
+- Sims3Pack conversion with localized manifest naming, CASP fallback, set splitting and no-overwrite output;
 - side-by-side normalized package comparison;
 - conservative package dependency evidence;
 - unified visual operation history.
