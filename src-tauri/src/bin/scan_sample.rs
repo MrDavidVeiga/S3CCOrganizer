@@ -10,7 +10,7 @@ fn main() {
         _ => AppLanguage::En,
     };
 
-    match scan_packages(folder, language) {
+    match tauri::async_runtime::block_on(scan_packages(folder, language)) {
         Ok(result) => {
             println!(
                 "{}",
