@@ -747,7 +747,7 @@ function setStaticText() {
   el("#catalog-title").textContent = tr("title"); el("#catalog-intro").textContent = tr("intro");
   el("#catalog-create span").textContent = tr("create"); el("#catalog-open span").textContent = tr("open");
   el("#catalog-save span").textContent = tr("save"); el("#catalog-validate span").textContent = tr("validate");
-  el(".catalog-autosave span").textContent = tr("auto"); el("#catalog-sources-title").textContent = tr("sources");
+  el(".catalog-autosave span").textContent = tr("auto"); el(".catalog-backup-limit span").textContent = "Backups"; el("#catalog-sources-title").textContent = tr("sources");
   el("#catalog-included-title").textContent = tr("included"); el("#catalog-ignored-title").textContent = tr("ignored");
   el("#catalog-add-source").textContent = "+ " + tr("add"); el("#catalog-add-ignored").textContent = "+ " + tr("add");
   el("#catalog-scan-sources span").textContent = tr("scan"); el("#catalog-search").placeholder = tr("search");
@@ -786,6 +786,7 @@ el("#catalog-import-missing")?.addEventListener("click",importMissing);
 el("#catalog-compare")?.addEventListener("click",compareMasters);
 el("#catalog-export-issues")?.addEventListener("click",exportIssues);
 el("#catalog-autosave")?.addEventListener("change",event=>{state.autosave=event.currentTarget.checked;void saveProfileSettings();});
+el("#catalog-backup-limit")?.addEventListener("change",event=>{state.backupLimit=Math.max(1,Math.min(10,Number(event.currentTarget.value)||5));void saveProfileSettings();});
 el("#catalog-search")?.addEventListener("input",event=>{state.search=event.currentTarget.value;state.page=0;persistUi();renderTable();});
 el("#catalog-type-filter")?.addEventListener("change",event=>{state.typeFilter=event.currentTarget.value;state.page=0;persistUi();renderTable();});
 el("#catalog-resource-filter")?.addEventListener("change",event=>{state.resourceFilter=event.currentTarget.value;state.page=0;persistUi();renderTable();});
