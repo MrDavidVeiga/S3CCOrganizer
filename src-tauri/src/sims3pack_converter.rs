@@ -829,11 +829,24 @@ fn merge_sims3pack_payloads(
     inspection: &Sims3PackInspection,
     target: &Path,
 ) -> Result<usize, String> {
+    let convertible = inspection.items.iter().filter(|item| item.convertible).collect::<Vec<_>>();
+    if convertible.len() == 1 {
+        let item = convertible[0];
+        let packaged = pack.packaged_files.get(item.index)
+            .ok_or_else(|| format!("Missing packaged item {}.", item.index))?;
+        let payload = read_packaged_payload(source, pack, packaged)?;
+        if payload.len() < 4 || &payload[..4] != b"DBPF" {
+            return Err("Embedded file is not a DBPF package.".to_string());
+        }
+        write_no_replace(target, &payload)?;
+        return Ok(1);
+    }
+
     let mut staged_paths = Vec::<PathBuf>::new();
     let mut packages = Vec::<Package>::new();
 
     let result = (|| -> Result<usize, String> {
-        for item in inspection.items.iter().filter(|item| item.convertible) {
+        for item in convertible {
             let packaged = pack.packaged_files.get(item.index)
                 .ok_or_else(|| format!("Missing packaged item {}.", item.index))?;
             let payload = read_packaged_payload(source, pack, packaged)?;
