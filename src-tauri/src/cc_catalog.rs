@@ -319,7 +319,7 @@ fn parse_tgi(value: &str) -> Option<(String, String, String)> {
 
 fn resource_type_id(value: &str) -> Option<String> {
     if value.trim().starts_with("0x") { return normalized_hex(value, 8); }
-    let id = match value.trim().to_ascii_uppercase().as_str() {
+    let id: u32 = match value.trim().to_ascii_uppercase().as_str() {
         "CASP" => 0x034A_EECB, "OBJD" => 0x319E_4F1D, "OBJK" => 0x02DC_343F,
         "GEOM" => 0x015A_1849, "NMAP" => 0x0166_038C, "STBL" => 0x2205_57DA,
         "XML" => 0x0333_406C, "ITUN" => 0x03B3_3DDF, "S3SA" => 0x073F_AA07,
