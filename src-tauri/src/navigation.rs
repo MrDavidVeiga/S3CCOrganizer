@@ -92,20 +92,23 @@ pub fn reveal_path(path: String) -> Result<(), String> {
 
 fn valid_external_url(raw: &str) -> Result<String, String> {
     let value = raw.trim();
-    let lower = value.to_ascii_lowercase();
-    if value.is_empty()
-        || !(lower.starts_with("https://") || lower.starts_with("http://"))
-        || value.chars().any(char::is_whitespace)
-    {
+    if value.is_empty() || value.chars().any(char::is_whitespace) {
         return Err("Only complete HTTP/HTTPS URLs can be opened.".to_string());
     }
-    Ok(value.to_string())
+    let lower = value.to_ascii_lowercase();
+    if lower.starts_with("https://") || lower.starts_with("http://") {
+        Ok(value.to_string())
+    } else if lower.starts_with("www.") {
+        Ok(format!("https://{value}"))
+    } else {
+        Err("Only complete HTTP/HTTPS URLs can be opened.".to_string())
+    }
 }
 
 #[cfg(target_os = "windows")]
 fn open_url_impl(url: &str) -> Result<(), String> {
-    Command::new("cmd")
-        .args(["/C", "start", "", url])
+    Command::new("rundll32.exe")
+        .args(["url.dll,FileProtocolHandler", url])
         .spawn()
         .map_err(|error| format!("Could not open URL: {error}"))?;
     Ok(())
