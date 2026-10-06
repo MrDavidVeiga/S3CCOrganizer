@@ -29,7 +29,7 @@ const TEXT = {
     technical:"Technical identity", suggestions:"Suggestions", noPreview:"No thumbnail available.", clickPreview:"Click thumbnail to reveal the package.",
     addBelow:"Add row below", remove:"Remove row", confirmDelete:"Remove this saved catalog entry?",
     sortAsc:"A → Z", sortDesc:"Z → A", prev:"Previous", next:"Next", applySuggestion:"Apply", comparisonNone:"No differences found.",
-    missingUrl:"Without URL"
+    missingUrl:"Without URL", withUrl:"With URL", invalidUrl:"Invalid URL"
   },
   pt: {
     title:"Catálogo de CC", intro:"Crie e mantenha a planilha-mestra de CC usada pelo CC Links.",
@@ -53,7 +53,7 @@ const TEXT = {
     technical:"Identidade técnica", suggestions:"Sugestões", noPreview:"Thumbnail não disponível.", clickPreview:"Clique na thumbnail para abrir a localização do package.",
     addBelow:"Adicionar linha abaixo", remove:"Remover linha", confirmDelete:"Remover esta entrada já salva do catálogo?",
     sortAsc:"A → Z", sortDesc:"Z → A", prev:"Anterior", next:"Próxima", applySuggestion:"Aplicar", comparisonNone:"Nenhuma diferença encontrada.",
-    missingUrl:"Sem URL"
+    missingUrl:"Sem URL", withUrl:"Com URL", invalidUrl:"URL inválida"
   },
   es: {
     title:"Catálogo de CC", intro:"Crea y mantén la hoja maestra de CC usada por CC Links.",
@@ -77,7 +77,7 @@ const TEXT = {
     technical:"Identidad técnica", suggestions:"Sugerencias", noPreview:"Thumbnail no disponible.", clickPreview:"Haz clic en la thumbnail para abrir la ubicación del package.",
     addBelow:"Añadir fila debajo", remove:"Eliminar fila", confirmDelete:"¿Eliminar esta entrada ya guardada del catálogo?",
     sortAsc:"A → Z", sortDesc:"Z → A", prev:"Anterior", next:"Siguiente", applySuggestion:"Aplicar", comparisonNone:"No se encontraron diferencias.",
-    missingUrl:"Sin URL"
+    missingUrl:"Sin URL", withUrl:"Con URL", invalidUrl:"URL inválida"
   }
 };
 
@@ -174,6 +174,13 @@ function rowVisualState(entry) {
   return state.rowState.get(entry._key) || "saved";
 }
 
+function catalogUrlValid(value) {
+  const text = String(value || "").trim().toLocaleLowerCase();
+  return (text.startsWith("http://") || text.startsWith("https://") || text.startsWith("www."))
+    && text.includes(".")
+    && !/\s/.test(text);
+}
+
 function filteredEntries() {
   const query = state.search.trim().toLocaleLowerCase();
   const dup = duplicateKeys();
@@ -186,7 +193,9 @@ function filteredEntries() {
     if (state.statusFilter === "modified" && state.rowState.get(entry._key) !== "modified") return false;
     if (state.statusFilter === "new" && state.rowState.get(entry._key) !== "new") return false;
     if (state.statusFilter === "error" && !errors.has(entry._key)) return false;
+    if (state.statusFilter === "with_url" && !String(entry.url || "").trim()) return false;
     if (state.statusFilter === "missing_url" && String(entry.url || "").trim()) return false;
+    if (state.statusFilter === "invalid_url" && (!String(entry.url || "").trim() || catalogUrlValid(entry.url))) return false;
     if (!query) return true;
     return [entry.creatorConverter,entry.fileName,entry.url,entry.tumblrHandle,entry.type,entry.resourceType,entry.instance,entry.tgi]
       .filter(Boolean).join(" ").toLocaleLowerCase().includes(query);
@@ -757,8 +766,31 @@ function renderComparison() {
 async function exportIssues() {
   const path = await save({title:tr("exportIssues"),defaultPath:"S3CC-Missing-and-Issues.xlsx",filters:[{name:"Excel Workbook",extensions:["xlsx"]},{name:"CSV",extensions:["csv"]}]});
   if (!path) return;
-  try { await invoke("export_catalog_issues",{path:path,language:state.language,entries:state.entries.map(officialEntry)}); setStatus(path); }
-  catch (error) { setStatus(String(error),true); }
+
+  const extraRows = [];
+  for (const item of state.missing?.items || []) {
+    if (item._resolved) continue;
+    extraRows.push({
+      status:item.status || "MISSING_CC_LINK",
+      entry:officialEntry(entryFromMissing(item))
+    });
+  }
+  for (const item of state.comparison?.onlyRight || []) {
+    if (item.right) extraRows.push({status:"ONLY_COMPARED_MASTER",entry:officialEntry(item.right)});
+  }
+  for (const item of state.comparison?.onlyLeft || []) {
+    if (item.left) extraRows.push({status:"ONLY_CURRENT_MASTER",entry:officialEntry(item.left)});
+  }
+
+  try {
+    await invoke("export_catalog_issues",{
+      path:path,
+      language:state.language,
+      entries:state.entries.map(officialEntry),
+      extraRows:extraRows
+    });
+    setStatus(path);
+  } catch (error) { setStatus(String(error),true); }
 }
 
 function setStaticText() {
@@ -781,7 +813,7 @@ function setStaticText() {
   [...el("#catalog-table-header").children].slice(0,8).forEach((node,index) => node.textContent = headers[index]);
 
   const status = el("#catalog-status-filter");
-  [tr("allStatuses"),tr("broken"),tr("duplicates"),tr("modified"),tr("fresh"),tr("errors"),tr("missingUrl")].forEach((label,index) => { if (status.options[index]) status.options[index].textContent = label; });
+  [tr("allStatuses"),tr("broken"),tr("duplicates"),tr("modified"),tr("fresh"),tr("errors"),tr("withUrl"),tr("missingUrl"),tr("invalidUrl")].forEach((label,index) => { if (status.options[index]) status.options[index].textContent = label; });
   const sort = el("#catalog-sort");
   [tr("creator"),tr("fileName"),tr("type"),tr("resourceType"),"Status","Modified date"].forEach((label,index) => { if (sort.options[index]) sort.options[index].textContent = label; });
   renderAll();
