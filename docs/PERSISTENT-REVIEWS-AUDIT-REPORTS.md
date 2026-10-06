@@ -111,3 +111,14 @@ These features do not:
 - change automatic conflict classification.
 
 They record user review decisions and export already available analysis data only.
+
+
+## Audit report location
+
+New audit reports are written to the user's Documents folder instead of the selected Mods/game tree:
+
+```text
+Documents/Veiga's S3CC Manager/Reports
+```
+
+The exact Documents location follows the operating system. Existing reports in the previous location are left untouched.
