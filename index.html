@@ -15,6 +15,7 @@
           <button class="mode-btn" data-tab="conflicts" data-i18n="conflicts" type="button">Conflicts</button>
           <button class="mode-btn" data-tab="structure" data-i18n="structure" type="button">Structure</button>
           <button class="mode-btn" data-tab="tools" data-i18n="tools" type="button">Tools</button>
+          <button class="mode-btn" data-tab="catalog" data-i18n="catalog" type="button">Catalog</button>
           <button class="mode-btn" data-tab="restore" data-i18n="restore" type="button">Restore</button>
         </div>
         <div class="language language-switcher">
@@ -432,6 +433,119 @@
             </div>
           </section>
 
+          <section id="page-catalog" class="tool-page hidden catalog-page">
+            <div class="hero">
+              <div>
+                <h2 id="catalog-title">CC Catalog</h2>
+                <p id="catalog-intro">Create and maintain the master CC catalog used by CC Links.</p>
+              </div>
+              <div id="catalog-state" class="scan-state"></div>
+            </div>
+
+            <div class="catalog-toolbar">
+              <button id="catalog-create" class="primary-btn" type="button"><i class="fa-solid fa-file-circle-plus"></i><span>Create Master</span></button>
+              <button id="catalog-open" class="secondary-btn" type="button"><i class="fa-solid fa-folder-open"></i><span>Open Master</span></button>
+              <button id="catalog-save" class="primary-btn" type="button" disabled><i class="fa-solid fa-floppy-disk"></i><span>Save Changes</span></button>
+              <button id="catalog-validate" class="secondary-btn" type="button" disabled><i class="fa-solid fa-list-check"></i><span>Validate</span></button>
+              <label class="catalog-autosave"><input id="catalog-autosave" type="checkbox" /><span>Auto save</span></label>
+              <div id="catalog-path" class="catalog-path">No master selected.</div>
+            </div>
+
+            <div id="catalog-health" class="catalog-health">
+              <article><b id="catalog-health-entries">0</b><span>Entries</span></article>
+              <article><b id="catalog-health-url">0</b><span>With URL</span></article>
+              <article><b id="catalog-health-missing-url">0</b><span>Without URL</span></article>
+              <article><b id="catalog-health-broken">0</b><span>Broken Links</span></article>
+              <article><b id="catalog-health-duplicates">0</b><span>Duplicates</span></article>
+              <article><b id="catalog-health-type">0</b><span>With Type</span></article>
+              <article><b id="catalog-health-compact">0</b><span>Compact Ready</span></article>
+            </div>
+
+            <details id="catalog-source-panel" class="catalog-source-panel">
+              <summary><span id="catalog-sources-title">CC Sources & Ignored Folders</span><small id="catalog-sources-summary"></small></summary>
+              <div class="catalog-source-columns">
+                <section>
+                  <div class="catalog-section-heading"><strong id="catalog-included-title">CC Sources</strong><button id="catalog-add-source" class="secondary-btn compact-btn" type="button">+ Add</button></div>
+                  <div id="catalog-sources-list" class="catalog-path-list"></div>
+                </section>
+                <section>
+                  <div class="catalog-section-heading"><strong id="catalog-ignored-title">Ignored</strong><button id="catalog-add-ignored" class="secondary-btn compact-btn" type="button">+ Add</button></div>
+                  <div id="catalog-ignored-list" class="catalog-path-list"></div>
+                </section>
+              </div>
+              <div class="catalog-source-actions">
+                <button id="catalog-scan-sources" class="primary-btn" type="button"><i class="fa-solid fa-magnifying-glass"></i><span>Scan Sources</span></button>
+                <span id="catalog-scan-summary"></span>
+              </div>
+            </details>
+
+            <div class="catalog-querybar">
+              <input id="catalog-search" class="text-input" type="search" autocomplete="off" spellcheck="false" placeholder="Search catalog…" />
+              <select id="catalog-type-filter" class="text-input"><option value="">All Types</option></select>
+              <select id="catalog-resource-filter" class="text-input"><option value="">All Resource Types</option></select>
+              <select id="catalog-status-filter" class="text-input">
+                <option value="">All Statuses</option>
+                <option value="broken">Broken links</option>
+                <option value="duplicate">Duplicates</option>
+                <option value="modified">Modified</option>
+                <option value="new">New</option>
+                <option value="error">Errors</option>
+                <option value="missing_url">Without URL</option>
+              </select>
+              <select id="catalog-sort" class="text-input">
+                <option value="creator_converter">Creator / Converter</option>
+                <option value="file_name">File Name</option>
+                <option value="type">Type</option>
+                <option value="resource_type">Resource Type</option>
+                <option value="status">Status</option>
+                <option value="modified_at">Modified date</option>
+              </select>
+              <button id="catalog-sort-direction" class="secondary-btn" type="button" data-direction="asc">A → Z</button>
+            </div>
+
+            <div id="catalog-workspace" class="catalog-workspace">
+              <div class="catalog-table-shell">
+                <div id="catalog-table-header" class="catalog-grid catalog-grid-header">
+                  <button type="button" data-sort="creator_converter">Creator / Converter</button>
+                  <button type="button" data-sort="file_name">File Name</button>
+                  <button type="button" data-sort="url">URL</button>
+                  <button type="button" data-sort="tumblr_handle">Tumblr Handle</button>
+                  <button type="button" data-sort="type">Type</button>
+                  <button type="button" data-sort="resource_type">Resource Type</button>
+                  <button type="button" data-sort="instance">Instance</button>
+                  <button type="button" data-sort="tgi">TGI</button>
+                  <span></span>
+                </div>
+                <div id="catalog-table-body" class="catalog-table-body">
+                  <div class="catalog-empty">Create or open a master catalog to begin.</div>
+                </div>
+              </div>
+
+              <aside id="catalog-preview" class="catalog-preview">
+                <div class="preview-empty">Select a catalog entry.</div>
+              </aside>
+            </div>
+
+            <div class="catalog-bottom-actions">
+              <button id="catalog-import-missing" class="secondary-btn" type="button" disabled><i class="fa-solid fa-file-import"></i><span>Import Missing CC Links</span></button>
+              <button id="catalog-compare" class="secondary-btn" type="button" disabled><i class="fa-solid fa-code-compare"></i><span>Compare Masters</span></button>
+              <button id="catalog-export-issues" class="secondary-btn" type="button" disabled><i class="fa-solid fa-file-export"></i><span>Export Missing / Issues</span></button>
+              <span id="catalog-compatibility" class="catalog-compatibility"></span>
+            </div>
+
+            <details id="catalog-missing-panel" class="catalog-secondary-panel hidden">
+              <summary id="catalog-missing-title">Missing CC Links Queue</summary>
+              <div id="catalog-missing-summary" class="catalog-panel-summary"></div>
+              <div id="catalog-missing-list" class="catalog-queue-list"></div>
+            </details>
+
+            <details id="catalog-compare-panel" class="catalog-secondary-panel hidden">
+              <summary id="catalog-compare-title">Master Comparison</summary>
+              <div id="catalog-compare-summary" class="catalog-panel-summary"></div>
+              <div id="catalog-compare-list" class="catalog-queue-list"></div>
+            </details>
+          </section>
+
           <section id="page-restore" class="tool-page hidden restore-page">
             <div class="hero">
               <div>
@@ -627,6 +741,18 @@
       </section>
     </div>
 
+    <div id="catalog-import-modal" class="modal-backdrop hidden" aria-hidden="true">
+      <section class="confirm-modal catalog-import-modal card" role="dialog" aria-modal="true">
+        <h2 id="catalog-import-modal-title">Open Master Catalog</h2>
+        <div id="catalog-import-modal-summary" class="catalog-import-summary"></div>
+        <div class="confirm-actions">
+          <button id="catalog-import-cancel" class="secondary-btn" type="button">Cancel</button>
+          <button id="catalog-import-accept" class="primary-btn" type="button">Open Catalog</button>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="./src/cc-catalog.js"></script>
     <script type="module" src="./src/app.js"></script>
   </body>
 </html>
