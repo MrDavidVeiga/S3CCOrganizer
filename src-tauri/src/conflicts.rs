@@ -777,6 +777,7 @@ mod tests {
             name: name.to_string(),
             path: PathBuf::from(name),
             relative_path: PathBuf::from(name),
+            file_sha256: format!("test-{name}"),
             readable: true,
             load_priority: Some(priority),
             load_rule: Some("Packages/*.package".to_string()),
