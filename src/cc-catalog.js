@@ -575,7 +575,7 @@ function loadDocument(doc, notice) {
 }
 
 async function createMaster() {
-  const path = await save({title:tr("create"),defaultPath:"S3CC-Master-Catalog.xlsx",filters:[{name:"Excel Workbook",extensions:["xlsx"]}]});
+  const path = await save({title:tr("create"),defaultPath:"S3CC-Master-Catalog.xlsx",filters:[{name:"Excel Workbook",extensions:["xlsx"]},{name:"CSV",extensions:["csv"]}]});
   if (!path) return;
   try { loadDocument(await invoke("create_cc_catalog",{path:path,language:state.language}),false); setStatus(tr("createdOk")); }
   catch (error) { setStatus(String(error),true); }
