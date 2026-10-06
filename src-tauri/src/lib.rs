@@ -1,6 +1,7 @@
 pub mod analyzer;
 pub mod audit_report;
 pub mod catalog;
+pub mod cc_catalog;
 pub mod cache;
 pub mod compression;
 pub mod conflicts;
@@ -39,6 +40,14 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             scanner::scan_packages,
+            cc_catalog::open_cc_catalog,
+            cc_catalog::create_cc_catalog,
+            cc_catalog::save_cc_catalog,
+            cc_catalog::validate_cc_catalog,
+            cc_catalog::scan_cc_catalog_sources,
+            cc_catalog::compare_cc_catalogs,
+            cc_catalog::import_missing_cc_links,
+            cc_catalog::export_catalog_issues,
             duplicates::analyze_duplicates,
             conflicts::analyze_conflicts,
             operation::get_operation_status,
