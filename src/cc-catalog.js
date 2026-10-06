@@ -29,7 +29,7 @@ const TEXT = {
     technical:"Technical identity", suggestions:"Suggestions", noPreview:"No thumbnail available.", clickPreview:"Click thumbnail to reveal the package.",
     addBelow:"Add row below", remove:"Remove row", confirmDelete:"Remove this saved catalog entry?",
     sortAsc:"A → Z", sortDesc:"Z → A", prev:"Previous", next:"Next", applySuggestion:"Apply", comparisonNone:"No differences found.",
-    missingUrl:"Without URL", withUrl:"With URL", invalidUrl:"Invalid URL"
+    missingUrl:"Without URL", invalidUrl:"Invalid URL"
   },
   pt: {
     title:"Catálogo de CC", intro:"Crie e mantenha a planilha-mestra de CC usada pelo CC Links.",
@@ -53,7 +53,7 @@ const TEXT = {
     technical:"Identidade técnica", suggestions:"Sugestões", noPreview:"Thumbnail não disponível.", clickPreview:"Clique na thumbnail para abrir a localização do package.",
     addBelow:"Adicionar linha abaixo", remove:"Remover linha", confirmDelete:"Remover esta entrada já salva do catálogo?",
     sortAsc:"A → Z", sortDesc:"Z → A", prev:"Anterior", next:"Próxima", applySuggestion:"Aplicar", comparisonNone:"Nenhuma diferença encontrada.",
-    missingUrl:"Sem URL", withUrl:"Com URL", invalidUrl:"URL inválida"
+    missingUrl:"Sem URL", invalidUrl:"URL inválida"
   },
   es: {
     title:"Catálogo de CC", intro:"Crea y mantén la hoja maestra de CC usada por CC Links.",
@@ -77,7 +77,7 @@ const TEXT = {
     technical:"Identidad técnica", suggestions:"Sugerencias", noPreview:"Thumbnail no disponible.", clickPreview:"Haz clic en la thumbnail para abrir la ubicación del package.",
     addBelow:"Añadir fila debajo", remove:"Eliminar fila", confirmDelete:"¿Eliminar esta entrada ya guardada del catálogo?",
     sortAsc:"A → Z", sortDesc:"Z → A", prev:"Anterior", next:"Siguiente", applySuggestion:"Aplicar", comparisonNone:"No se encontraron diferencias.",
-    missingUrl:"Sin URL", withUrl:"Con URL", invalidUrl:"URL inválida"
+    missingUrl:"Sin URL", invalidUrl:"URL inválida"
   }
 };
 
