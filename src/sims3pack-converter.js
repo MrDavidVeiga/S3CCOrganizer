@@ -16,6 +16,7 @@ const TEXT = {
     converted:n=>`${n} package(s) converted`, skipped:n=>`${n} skipped`,
     noPackages:"No convertible .package payloads were found.", openDestination:"Open destination",
     warning:"Warning", source:"Name source", output:"Output", internal:"Internal file",
+    combined:"Combined conversion", separateHint:"Unchecked: separate conversion",
   },
   pt: {
     title:"Sims3Pack → Package",
@@ -29,6 +30,7 @@ const TEXT = {
     converted:n=>`${n} package(s) convertido(s)`, skipped:n=>`${n} ignorado(s)`,
     noPackages:"Nenhum payload .package convertível foi encontrado.", openDestination:"Abrir destino",
     warning:"Aviso", source:"Origem do nome", output:"Saída", internal:"Arquivo interno",
+    combined:"Conversão conjunta", separateHint:"Desmarcado: conversão separada",
   },
   es: {
     title:"Sims3Pack → Package",
@@ -42,6 +44,7 @@ const TEXT = {
     converted:n=>`${n} package(s) convertido(s)`, skipped:n=>`${n} omitido(s)`,
     noPackages:"No se encontraron payloads .package convertibles.", openDestination:"Abrir destino",
     warning:"Aviso", source:"Origen del nombre", output:"Salida", internal:"Archivo interno",
+    combined:"Conversión conjunta", separateHint:"Desmarcado: conversión separada",
   }
 };
 
@@ -59,6 +62,7 @@ const state = {
   paths: [],
   destination: "",
   inspections: [],
+  combined: false,
   busy: false,
   lastResult: null,
 };
@@ -93,6 +97,8 @@ function setStaticText() {
   q("#sims3pack-convert span").textContent = tr("convert");
   q("#sims3pack-files-label").textContent = tr("files");
   q("#sims3pack-destination-label").textContent = tr("destination");
+  q("#sims3pack-combined-label").textContent = tr("combined");
+  q("#sims3pack-combined-hint").textContent = tr("separateHint");
   const empty = q("#sims3pack-converter-empty");
   if (empty) empty.textContent = tr("empty");
   render();
@@ -269,6 +275,7 @@ async function inspectSelected() {
     state.inspections = await invoke("inspect_sims3packs", {
       paths: state.paths,
       language: state.language,
+      combined: state.combined,
     });
     setStatus(tr("ready"));
   } catch (error) {
@@ -327,6 +334,11 @@ async function convert() {
 q("#sims3pack-choose-files")?.addEventListener("click", chooseFiles);
 q("#sims3pack-choose-destination")?.addEventListener("click", chooseDestination);
 q("#sims3pack-convert")?.addEventListener("click", convert);
+q("#sims3pack-combined")?.addEventListener("change", event => {
+  state.combined = Boolean(event.currentTarget.checked);
+  state.lastResult = null;
+  render();
+});
 
 window.addEventListener("s3cc-language-changed", event => {
   state.language = event.detail || "en";
