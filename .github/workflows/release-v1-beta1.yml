@@ -79,8 +79,6 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: lts/*
-          cache: npm
-          cache-dependency-path: package-lock.json
 
       - name: Install Rust stable
         if: matrix.target == ''
@@ -98,7 +96,7 @@ jobs:
           workspaces: "src-tauri -> target"
 
       - name: Install frontend dependencies
-        run: npm ci
+        run: npm install
 
       - name: Restore application icon source
         run: node -e "const fs=require('fs');fs.writeFileSync('src-tauri/icons/manager-icon.png',Buffer.from(fs.readFileSync('src-tauri/icons/manager-icon.b64','utf8').trim(),'base64'))"
