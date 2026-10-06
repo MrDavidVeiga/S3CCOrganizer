@@ -275,7 +275,6 @@ async function inspectSelected() {
     state.inspections = await invoke("inspect_sims3packs", {
       paths: state.paths,
       language: state.language,
-      combined: state.combined,
     });
     setStatus(tr("ready"));
   } catch (error) {
@@ -321,6 +320,7 @@ async function convert() {
       paths: state.paths,
       destinationFolder: state.destination,
       language: state.language,
+      combined: state.combined,
     });
     setStatus(tr("converted")(state.lastResult.converted || 0));
   } catch (error) {
