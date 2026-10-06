@@ -186,7 +186,7 @@ fn manifest_preview(
     ready_items: &[PlanItem],
 ) -> String {
     let mut out = String::new();
-    out.push_str("S3CC ORGANIZER RESTORE MANIFEST\n");
+    out.push_str("S3CC MANAGER RESTORE MANIFEST\n");
     out.push_str("version=1\n");
     out.push_str(&format!(
         "created_at={}\n",
