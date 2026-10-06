@@ -22,6 +22,7 @@ pub mod restore_history;
 pub mod review_store;
 pub mod resource_cfg;
 pub mod scanner;
+pub mod sims3pack_converter;
 pub mod structure_manager;
 pub mod workspace;
 pub mod snapshots;
@@ -40,6 +41,8 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             scanner::scan_packages,
+            sims3pack_converter::inspect_sims3packs,
+            sims3pack_converter::convert_sims3packs,
             cc_catalog::open_cc_catalog,
             cc_catalog::create_cc_catalog,
             cc_catalog::save_cc_catalog,
