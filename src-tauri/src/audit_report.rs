@@ -14,19 +14,20 @@ pub struct AuditReportResult {
 }
 
 fn reports_dir(root: &Path) -> PathBuf {
-    root.parent()
-        .unwrap_or(root)
-        .join("S3CC Organizer")
-        .join("Reports")
+    let base = dirs::document_dir()
+        .or_else(|| dirs::home_dir().map(|home| home.join("Documents")))
+        .unwrap_or_else(|| root.parent().unwrap_or(root).to_path_buf());
+
+    base.join("Veiga's S3CC Manager").join("Reports")
 }
 
 fn unique_paths(directory: &Path) -> (PathBuf, PathBuf) {
     let stamp = Local::now().format("%Y%m%d-%H%M%S").to_string();
     for suffix in 0..1000usize {
         let base = if suffix == 0 {
-            format!("S3CC-Organizer-Audit-{stamp}")
+            format!("S3CC-Manager-Audit-{stamp}")
         } else {
-            format!("S3CC-Organizer-Audit-{stamp}-{suffix}")
+            format!("S3CC-Manager-Audit-{stamp}-{suffix}")
         };
         let markdown = directory.join(format!("{base}.md"));
         let json = directory.join(format!("{base}.json"));
@@ -36,8 +37,8 @@ fn unique_paths(directory: &Path) -> (PathBuf, PathBuf) {
     }
 
     (
-        directory.join(format!("S3CC-Organizer-Audit-{stamp}-overflow.md")),
-        directory.join(format!("S3CC-Organizer-Audit-{stamp}-overflow.json")),
+        directory.join(format!("S3CC-Manager-Audit-{stamp}-overflow.md")),
+        directory.join(format!("S3CC-Manager-Audit-{stamp}-overflow.json")),
     )
 }
 
@@ -92,10 +93,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn reports_live_outside_packages_tree() {
+    fn reports_use_manager_documents_location() {
         let root = Path::new(r"C:\Mods\Packages");
         assert!(reports_dir(root)
             .to_string_lossy()
-            .contains("S3CC Organizer"));
+            .contains("Veiga's S3CC Manager"));
     }
 }
