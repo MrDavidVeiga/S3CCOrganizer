@@ -507,17 +507,19 @@ pub fn build_organization_plan(
 
     stats.directories_to_create = directories.len();
 
+    let can_execute = !workspace.read_only
+        && stats.ready > 0
+        && stats.blocked == 0
+        && stats.collision_same_content == 0
+        && stats.collision_different_content == 0;
+
     Ok(OrganizationPlan {
         root: root.to_string_lossy().to_string(),
         manifest_preview: manifest_preview(&root, language, &ready_items),
         directories_to_create: directories.into_iter().collect(),
         stats,
         items,
-        can_execute: !workspace.read_only
-            && stats.ready > 0
-            && stats.blocked == 0
-            && stats.collision_same_content == 0
-            && stats.collision_different_content == 0,
+        can_execute,
     })
 }
 
