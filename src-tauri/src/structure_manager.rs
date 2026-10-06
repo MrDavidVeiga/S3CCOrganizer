@@ -357,7 +357,7 @@ pub fn create_structure_folder(
     Ok(StructureActionResult {
         operation: "create_folder".to_string(),
         source_relative_path: None,
-        destination_relative_path,
+        destination_relative_path: destination_relative,
     })
 }
 
@@ -410,7 +410,7 @@ pub fn move_structure_path(
     Ok(StructureActionResult {
         operation: "move".to_string(),
         source_relative_path: Some(relative_text(&source_relative)),
-        destination_relative_path,
+        destination_relative_path: destination_relative,
     })
 }
 
@@ -457,7 +457,7 @@ pub fn rename_structure_folder(
     Ok(StructureActionResult {
         operation: "rename_folder".to_string(),
         source_relative_path: Some(relative_text(&source_relative)),
-        destination_relative_path,
+        destination_relative_path: destination_relative,
     })
 }
 
