@@ -641,7 +641,7 @@ fn backup_existing(path: &Path, limit: usize) -> Result<Option<PathBuf>, String>
     let mut backups = fs::read_dir(&backup_dir).map_err(|e| e.to_string())?
         .filter_map(Result::ok)
         .filter(|entry| {
-            let name = entry.file_name().to_string_lossy();
+            let name = entry.file_name().to_string_lossy().into_owned();
             entry.path().is_file() && name.starts_with(&format!("{stem}-")) && name.ends_with(&format!(".{ext}"))
         })
         .collect::<Vec<_>>();
