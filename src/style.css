@@ -3539,3 +3539,206 @@ button:disabled {
   width: 66px;
   padding: 7px 8px;
 }
+
+
+/* Sims3Pack converter */
+.sims3pack-converter-card {
+  margin-top: 10px;
+}
+
+.sims3pack-converter-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.sims3pack-converter-heading h3 {
+  margin: 0 0 4px;
+}
+
+.sims3pack-converter-heading p {
+  margin: 0;
+  color: var(--muted);
+  font-size: .66rem;
+  line-height: 1.45;
+}
+
+.sims3pack-converter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 11px;
+}
+
+.sims3pack-converter-actions .primary-btn,
+.sims3pack-converter-actions .secondary-btn {
+  width: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.sims3pack-converter-paths {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap: 8px;
+  margin-top: 9px;
+}
+
+.sims3pack-converter-paths > div {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  padding: 8px 9px;
+  border: 1px solid rgba(255,255,255,.06);
+  border-radius: 9px;
+  background: rgba(0,0,0,.12);
+}
+
+.sims3pack-converter-paths span {
+  color: var(--muted);
+  font-size: .58rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.sims3pack-converter-paths code {
+  min-width: 0;
+  color: #d4dde1;
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: .61rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sims3pack-converter-results {
+  display: grid;
+  gap: 8px;
+  max-height: 340px;
+  overflow-y: auto;
+  margin-top: 10px;
+  padding-right: 2px;
+}
+
+.sims3pack-group,
+.sims3pack-conversion-summary {
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 11px;
+  background: rgba(0,0,0,.12);
+  overflow: hidden;
+}
+
+.sims3pack-group-header,
+.sims3pack-conversion-summary-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+
+.sims3pack-group-header > div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.sims3pack-group-header strong,
+.sims3pack-conversion-summary-head strong {
+  font-size: .69rem;
+}
+
+.sims3pack-group-header small {
+  color: var(--muted);
+  font-size: .57rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sims3pack-items {
+  display: grid;
+}
+
+.sims3pack-item {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) minmax(180px,.7fr);
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(255,255,255,.05);
+}
+
+.sims3pack-item:last-child {
+  border-bottom: 0;
+}
+
+.sims3pack-item.invalid {
+  opacity: .64;
+}
+
+.sims3pack-item-main,
+.sims3pack-item-technical {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.sims3pack-item-main strong {
+  font-size: .65rem;
+  overflow-wrap: anywhere;
+}
+
+.sims3pack-item-main span,
+.sims3pack-item-technical code {
+  color: var(--muted);
+  font-size: .57rem;
+}
+
+.sims3pack-item-technical code {
+  font-family: "Cascadia Mono", Consolas, monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sims3pack-warning {
+  grid-column: 1 / -1;
+  color: #e4c493;
+  font-size: .58rem;
+  line-height: 1.4;
+}
+
+.sims3pack-converted-line {
+  display: grid;
+  grid-template-columns: minmax(160px,.4fr) minmax(0,1fr);
+  gap: 8px;
+  padding: 7px 10px;
+  border-bottom: 1px solid rgba(255,255,255,.05);
+}
+
+.sims3pack-converted-line strong {
+  font-size: .63rem;
+}
+
+.sims3pack-converted-line code {
+  min-width: 0;
+  color: var(--muted);
+  font-size: .56rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 900px) {
+  .sims3pack-converter-paths,
+  .sims3pack-item {
+    grid-template-columns: 1fr;
+  }
+
+  .sims3pack-item-technical {
+    display: none;
+  }
+}
