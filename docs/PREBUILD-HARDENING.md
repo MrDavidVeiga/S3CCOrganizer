@@ -80,12 +80,20 @@ The scanner collects slider morph IDs during its initial package scan instead of
 The read-only ZIP census tool and its Python regression tests are in `tools/`. Existing Library ZIPs are listed in `CORPUS-VALIDATION-PLAN.md`; the larger ZIPs still need executable byte-level validation.
 
 ## Next step
-Stop feature expansion temporarily and validate locally:
+
+The **v1.0.0 public scope is now frozen** to Organizer + Duplicates + Conflicts + Restore + Sims3Pack → Package.
+
+Development code may remain ahead of the public roadmap, but release validation should focus first on the v1.0.0 feature set:
 
 ```text
 cargo check
 cargo test
 Tauri build
 real .package tests
+real Sims3Pack conversion tests
+organization / quarantine / restore write tests
 large-folder performance test
+EN/PT/ES regression pass
 ```
+
+Later functionality is staged according to [RELEASE-ROADMAP.md](RELEASE-ROADMAP.md).
