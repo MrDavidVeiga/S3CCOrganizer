@@ -3527,3 +3527,15 @@ button:disabled {
     margin-left: 0;
   }
 }
+
+.catalog-backup-limit {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: .7rem;
+}
+.catalog-backup-limit .text-input {
+  width: 66px;
+  padding: 7px 8px;
+}
