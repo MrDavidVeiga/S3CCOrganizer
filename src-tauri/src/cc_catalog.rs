@@ -120,6 +120,13 @@ pub struct CatalogSaveResult {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+pub struct CatalogIssueExportRow {
+    pub entry: CatalogEntry,
+    pub status: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct CatalogScanResult {
     pub entries: Vec<CatalogEntry>,
     pub scanned_packages: usize,
@@ -903,12 +910,20 @@ pub fn import_missing_cc_links(path: String, entries: Vec<CatalogEntry>) -> Resu
 }
 
 #[tauri::command]
-pub fn export_catalog_issues(path: String, language: AppLanguage, entries: Vec<CatalogEntry>) -> Result<String, String> {
+pub fn export_catalog_issues(
+    path: String,
+    language: AppLanguage,
+    entries: Vec<CatalogEntry>,
+    extra_rows: Option<Vec<CatalogIssueExportRow>>,
+) -> Result<String, String> {
     let validation = validate_entries(&entries);
-    let issue_rows = entries.into_iter().enumerate().filter_map(|(index, entry)| {
+    let mut issue_rows = entries.into_iter().enumerate().filter_map(|(index, entry)| {
         let codes = validation.issues.iter().filter(|issue| issue.row_index == Some(index)).map(|issue| issue.code.clone()).collect::<Vec<_>>();
         (!codes.is_empty()).then_some((entry, codes.join("; ")))
     }).collect::<Vec<_>>();
+    for row in extra_rows.unwrap_or_default() {
+        issue_rows.push((row.entry, row.status));
+    }
     let path_buf = PathBuf::from(path.trim());
     match path_buf.extension().and_then(|v| v.to_str()).unwrap_or("").to_ascii_lowercase().as_str() {
         "csv" => {
