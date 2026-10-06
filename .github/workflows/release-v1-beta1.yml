@@ -22,7 +22,7 @@ jobs:
             target: ""
             build_args: --no-bundle
             binary_name: s3cc-organizer.exe
-            packaged_binary: "Veiga's S3CC Manager.exe"
+            packaged_binary: "Veiga´s S3CC Manager.exe"
             artifact_name: S3CC-Manager-Windows-x64
             release_slug: Windows_x64
 
@@ -30,7 +30,7 @@ jobs:
             target: ""
             build_args: --no-bundle
             binary_name: s3cc-organizer
-            packaged_binary: "Veiga's S3CC Manager"
+            packaged_binary: "Veiga´s S3CC Manager"
             artifact_name: S3CC-Manager-Linux-x64
             release_slug: Linux_x64
 
@@ -38,7 +38,7 @@ jobs:
             target: x86_64-apple-darwin
             build_args: --target x86_64-apple-darwin --no-bundle
             binary_name: s3cc-organizer
-            packaged_binary: "Veiga's S3CC Manager"
+            packaged_binary: "Veiga´s S3CC Manager"
             artifact_name: S3CC-Manager-macOS-Intel
             release_slug: macOS_Intel
 
@@ -46,7 +46,7 @@ jobs:
             target: aarch64-apple-darwin
             build_args: --target aarch64-apple-darwin --no-bundle
             binary_name: s3cc-organizer
-            packaged_binary: "Veiga's S3CC Manager"
+            packaged_binary: "Veiga´s S3CC Manager"
             artifact_name: S3CC-Manager-macOS-Apple-Silicon
             release_slug: macOS_Apple_Silicon
 
