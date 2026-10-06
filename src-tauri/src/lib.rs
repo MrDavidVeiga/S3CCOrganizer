@@ -35,10 +35,31 @@ pub mod selection_export;
 pub mod history;
 pub mod taxonomy;
 
+#[cfg(target_os = "windows")]
+fn apply_runtime_window_icon(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    use base64::{engine::general_purpose::STANDARD, Engine as _};
+    use tauri::Manager;
+
+    let encoded = include_str!("../icons/manager-icon.b64").trim();
+    let bytes = STANDARD.decode(encoded)?;
+    let icon = tauri::image::Image::from_bytes(&bytes)?;
+
+    if let Some(window) = app.get_webview_window("main") {
+        window.set_icon(icon)?;
+    }
+
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .setup(|app| {
+            #[cfg(target_os = "windows")]
+            apply_runtime_window_icon(app)?;
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             scanner::scan_packages,
             sims3pack_converter::inspect_sims3packs,
@@ -104,5 +125,5 @@ pub fn run() {
             restore::execute_restore
         ])
         .run(tauri::generate_context!())
-        .expect("error while running S3CC Organizer");
+        .expect("error while running S3CC Manager");
 }
