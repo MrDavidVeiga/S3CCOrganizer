@@ -843,9 +843,9 @@ fn merge_sims3pack_payloads(
             let temp = temporary_package_path(item.index)?;
             fs::write(&temp, &payload)
                 .map_err(|e| format!("Could not stage embedded package: {e}"))?;
+            staged_paths.push(temp.clone());
             let package = Package::load(&temp)
                 .map_err(|e| format!("Invalid embedded package {}: {e}", packaged.name))?;
-            staged_paths.push(temp);
             packages.push(package);
         }
 
