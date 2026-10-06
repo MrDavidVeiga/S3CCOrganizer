@@ -4,7 +4,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 
 const I18N = {
   en: {
-    organizer: "Organizer",
+    organizer: "Manager",
     duplicates: "Duplicates",
     conflicts: "Conflicts",
     catalog: "Catalog",
@@ -402,12 +402,12 @@ const I18N = {
     partialPriorityUnknown: "Only one package matched a PackedFile rule. The winner is not inferred.",
     unmatchedPriorityUnknown: "Neither package matched a PackedFile rule. The winner is not inferred.",
     missingResourceCfg: "No Resource.cfg was found at the selected root or its parent.",
-    advancedCfgUnknown: "This Resource.cfg uses advanced traversal or conditional directives. The Organizer will not infer a winner from Priority alone.",
+    advancedCfgUnknown: "This Resource.cfg uses advanced traversal or conditional directives. The Manager will not infer a winner from Priority alone.",
     likelyHigherPriority: "Higher priority",
     conflictsNext: "Resource-level conflict analysis is implemented in read-only mode.",
   },
   pt: {
-    organizer: "Organizador",
+    organizer: "Gerenciador",
     duplicates: "Duplicados",
     conflicts: "Conflitos",
     catalog: "Catálogo",
@@ -809,7 +809,7 @@ const I18N = {
     conflictsNext: "A análise de conflitos por resource está implementada em modo somente leitura.",
   },
   es: {
-    organizer: "Organizador",
+    organizer: "Gestor",
     duplicates: "Duplicados",
     conflicts: "Conflictos",
     catalog: "Catálogo",
@@ -1207,7 +1207,7 @@ const I18N = {
     partialPriorityUnknown: "Solo un package coincidió con una regla PackedFile. La herramienta no infiere cuál gana.",
     unmatchedPriorityUnknown: "Ninguno de los dos packages coincidió con una regla PackedFile. La herramienta no infiere cuál gana.",
     missingResourceCfg: "No se encontró Resource.cfg en la carpeta seleccionada ni en su carpeta superior.",
-    advancedCfgUnknown: "Este Resource.cfg usa directivas avanzadas de recorrido o condición. El Organizer no inferirá un ganador solo por Priority.",
+    advancedCfgUnknown: "Este Resource.cfg usa directivas avanzadas de recorrido o condición. El Manager no inferirá un ganador solo por Priority.",
     likelyHigherPriority: "Prioridad más alta",
     conflictsNext: "El análisis de conflictos por resource está implementado en modo de solo lectura.",
   },
@@ -1231,11 +1231,6 @@ const preferences = loadPreferences();
 const savedLanguage =
   localStorage.getItem("s3cc-organizer-language") || preferences.language || "en";
 
-function clampSidebarWidth(value) {
-  if (value == null || value === "") return null;
-  const numeric = Number(value);
-  return Number.isFinite(numeric) ? Math.max(205, Math.min(380, numeric)) : null;
-}
 
 const state = {
   language: savedLanguage,
@@ -1292,7 +1287,6 @@ const state = {
   cacheInfo: null,
   cacheBusy: false,
   cacheError: "",
-  sidebarWidth: clampSidebarWidth(preferences.sidebarWidth),
   conflictMarks: {},
   persistentConflictMarks: {},
   persistentConflictRecords: [],
@@ -1436,7 +1430,6 @@ const el = {
   refreshRestoreHistoryBtn: document.querySelector("#refresh-restore-history-btn"),
   appShell: document.querySelector(".app-shell"),
   layout: document.querySelector(".layout"),
-  sidebarResizer: document.querySelector("#sidebar-resizer"),
   cacheStatusDot: document.querySelector("#cache-status-dot"),
   cacheSummary: document.querySelector("#cache-summary"),
   openCacheBtn: document.querySelector("#open-cache-btn"),
@@ -1555,16 +1548,10 @@ function persistPreferences() {
       state.conflictsFilter === "ignored_session"
         ? "all"
         : state.conflictsFilter,
-    sidebarWidth: state.sidebarWidth,
   };
   localStorage.setItem(PREFS_KEY, JSON.stringify(data));
 }
 
-function applySidebarWidth() {
-  const width = clampSidebarWidth(state.sidebarWidth);
-  if (width == null) el.appShell?.style.removeProperty("--sidebar-width");
-  else el.appShell?.style.setProperty("--sidebar-width", `${width}px`);
-}
 
 function formatMs(value) {
   const ms = Number(value || 0);
@@ -1858,13 +1845,13 @@ function buildAuditSnapshot() {
 
 function buildAuditMarkdown(snapshot) {
   const lines = [
-    "# S3CC Organizer Audit Report",
+    "# S3CC Manager Audit Report",
     "",
     `- ${t("reportGeneratedAt")}: ${snapshot.generatedAt}`,
     `- Root: ${snapshot.root || "—"}`,
     `- ${t("language")}: ${snapshot.language}`,
     "",
-    "## Organizer",
+    "## Manager",
     "",
   ];
 
@@ -5290,7 +5277,6 @@ function render() {
   renderAuditPanel();
   renderStructure();
   renderTools();
-  applySidebarWidth();
 
   el.folderPath.textContent = state.folder || t("noFolder");
   el.folderPath.title = state.folder;
@@ -5539,7 +5525,7 @@ async function chooseManifest() {
     multiple: false,
     directory: false,
     title: t("chooseManifest"),
-    filters: [{ name: "S3CC Organizer", extensions: ["txt"] }],
+    filters: [{ name: "S3CC Manager", extensions: ["txt"] }],
   });
   if (!selected || Array.isArray(selected)) return;
 
@@ -5767,30 +5753,6 @@ document.addEventListener("keydown", (event) => {
   else if (!el.planModal.classList.contains("hidden")) closePlanModal();
 });
 
-let sidebarResizePointer = null;
-
-el.sidebarResizer?.addEventListener("pointerdown", (event) => {
-  sidebarResizePointer = event.pointerId;
-  el.sidebarResizer.setPointerCapture?.(event.pointerId);
-  el.sidebarResizer.classList.add("dragging");
-});
-
-el.sidebarResizer?.addEventListener("pointermove", (event) => {
-  if (sidebarResizePointer !== event.pointerId || !el.layout) return;
-  const rect = el.layout.getBoundingClientRect();
-  state.sidebarWidth = clampSidebarWidth(event.clientX - rect.left);
-  applySidebarWidth();
-});
-
-function finishSidebarResize(event) {
-  if (sidebarResizePointer !== event.pointerId) return;
-  sidebarResizePointer = null;
-  el.sidebarResizer.classList.remove("dragging");
-  persistPreferences();
-}
-
-el.sidebarResizer?.addEventListener("pointerup", finishSidebarResize);
-el.sidebarResizer?.addEventListener("pointercancel", finishSidebarResize);
 
 el.chooseFolderBtn.addEventListener("click", chooseFolder);
 el.scanCancelBtn.addEventListener("click", () => cancelAnalysis("scan"));
@@ -5949,7 +5911,6 @@ el.statusFilter.addEventListener("change", (event) => {
 el.searchInput.value = state.search;
 el.duplicatesSearch.value = state.duplicatesSearch;
 el.conflictsSearch.value = state.conflictsSearch;
-applySidebarWidth();
 
 if (state.folder) {
   void loadRestoreHistory();
