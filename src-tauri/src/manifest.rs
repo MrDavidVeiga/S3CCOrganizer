@@ -66,7 +66,7 @@ pub fn parse_language(value: &str) -> Option<AppLanguage> {
 
 pub fn serialize_manifest(manifest: &RestoreManifest) -> String {
     let mut out = String::new();
-    out.push_str("S3CC ORGANIZER RESTORE MANIFEST\n");
+    out.push_str("S3CC MANAGER RESTORE MANIFEST\n");
     out.push_str(&format!("version={}\n", manifest.version));
     out.push_str(&format!("created_at={}\n", manifest.created_at));
     out.push_str(&format!(
@@ -103,8 +103,11 @@ pub fn serialize_manifest(manifest: &RestoreManifest) -> String {
 pub fn parse_manifest(text: &str) -> Result<RestoreManifest, String> {
     let mut lines = text.lines();
 
-    if lines.next().map(str::trim) != Some("S3CC ORGANIZER RESTORE MANIFEST") {
-        return Err("Invalid S3CC Organizer restore manifest header.".to_string());
+    let header = lines.next().map(str::trim);
+    if header != Some("S3CC MANAGER RESTORE MANIFEST")
+        && header != Some("S3CC ORGANIZER RESTORE MANIFEST")
+    {
+        return Err("Invalid S3CC Manager restore manifest header.".to_string());
     }
 
     let mut version = None;
