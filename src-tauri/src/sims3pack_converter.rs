@@ -926,7 +926,7 @@ pub fn convert_sims3packs(
             loop {
                 match merge_sims3pack_payloads(&source, &pack, &inspection, &target) {
                     Ok(_) => break,
-                    Err(error) if target.exists() => {
+                    Err(_error) if target.exists() => {
                         target = unique_output_path(&destination, &file_name);
                     }
                     Err(error) => {
@@ -994,7 +994,7 @@ pub fn convert_sims3packs(
             loop {
                 match write_no_replace(&target, &payload) {
                     Ok(()) => break,
-                    Err(error) if target.exists() => {
+                    Err(_error) if target.exists() => {
                         target = unique_output_path(&output_root, &item.proposed_file_name);
                     }
                     Err(error) => {
