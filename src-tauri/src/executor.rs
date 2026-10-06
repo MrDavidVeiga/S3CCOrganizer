@@ -30,7 +30,7 @@ fn make_manifest_path(root: &Path) -> Result<PathBuf, String> {
     let base = root
         .parent()
         .unwrap_or(root)
-        .join("S3CC Organizer")
+        .join("S3CC Manager")
         .join("Restore Manifests");
 
     fs::create_dir_all(&base)
@@ -39,9 +39,9 @@ fn make_manifest_path(root: &Path) -> Result<PathBuf, String> {
     let stamp = Local::now().format("%Y%m%d-%H%M%S").to_string();
     for suffix in 0..10_000usize {
         let file_name = if suffix == 0 {
-            format!("S3CC-Organizer-Restore-{stamp}.txt")
+            format!("S3CC-Manager-Restore-{stamp}.txt")
         } else {
-            format!("S3CC-Organizer-Restore-{stamp}-{suffix}.txt")
+            format!("S3CC-Manager-Restore-{stamp}-{suffix}.txt")
         };
         let candidate = base.join(file_name);
         if !candidate.exists() {
