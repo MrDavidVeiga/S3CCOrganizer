@@ -131,6 +131,55 @@ fn add_missing_directories(root: &Path, parts: &[String], output: &mut BTreeSet<
     }
 }
 
+fn mark_intra_plan_destination_collisions(items: &mut [PlanItem], stats: &mut PlanStats) {
+    let mut destinations = HashMap::<String, Vec<usize>>::new();
+
+    for (index, item) in items.iter().enumerate() {
+        if item.plan_status != "ready" {
+            continue;
+        }
+        let Some(destination) = item.destination_relative_path.as_ref() else {
+            continue;
+        };
+        let key = destination.replace('/', "\\").to_ascii_lowercase();
+        destinations.entry(key).or_default().push(index);
+    }
+
+    for indices in destinations.values().filter(|indices| indices.len() > 1) {
+        let first = &items[indices[0]];
+        let first_hash = first.sha256.as_deref().unwrap_or_default();
+        let first_size = first.size;
+        let same_content = indices.iter().all(|index| {
+            let item = &items[*index];
+            item.size == first_size
+                && item
+                    .sha256
+                    .as_deref()
+                    .map(|hash| hash.eq_ignore_ascii_case(first_hash))
+                    .unwrap_or(false)
+        });
+
+        for index in indices {
+            let item = &mut items[*index];
+            if same_content {
+                item.plan_status = "collision_same_content".to_string();
+                stats.collision_same_content += 1;
+                item.warnings.push(
+                    "Multiple selected packages resolve to the same destination and are byte-identical. Resolve the duplicate before organizing."
+                        .to_string(),
+                );
+            } else {
+                item.plan_status = "collision_different_content".to_string();
+                stats.collision_different_content += 1;
+                item.warnings.push(
+                    "Multiple selected packages resolve to the same destination but contain different data. Nothing will be overwritten."
+                        .to_string(),
+                );
+            }
+        }
+    }
+}
+
 fn manifest_preview(
     root: &Path,
     language: AppLanguage,
@@ -248,6 +297,11 @@ pub fn build_organization_plan(
     }
 
     let mut partial_group_hashes = HashSet::<String>::new();
+    // Detect collisions created by the plan itself before any filesystem write occurs.
+    // Without this check, two selected files with the same filename/category can both
+    // appear ready, and the first move creates the destination that makes the second fail.
+    mark_intra_plan_destination_collisions(&mut items, &mut stats);
+
     for group in workspace.groups.iter().filter(|group| group.keep_together) {
         let intersects = group
             .member_sha256
@@ -534,6 +588,48 @@ mod tests {
         assert!(validate_destination_parts(&["Bad/Folder".into()]).is_err());
         assert!(validate_destination_parts(&["CON".into()]).is_err());
         assert!(validate_destination_parts(&["Name.".into()]).is_err());
+    }
+
+    #[test]
+    fn planned_destination_collision_is_detected_before_execution() {
+        let mut items = vec![
+            PlanItem {
+                id: "1".into(),
+                name: "same.package".into(),
+                source_path: r"C:\\Mods\\A\\same.package".into(),
+                source_relative_path: r"A\\same.package".into(),
+                destination_path: Some(r"C:\\Mods\\CAS\\Sliders\\same.package".into()),
+                destination_relative_path: Some(r"CAS\\Sliders\\same.package".into()),
+                classification_status: "classified".into(),
+                classification_reason: Some("test".into()),
+                plan_status: "ready".into(),
+                sha256: Some("A".repeat(64)),
+                size: 10,
+                warnings: vec![],
+            },
+            PlanItem {
+                id: "2".into(),
+                name: "same.package".into(),
+                source_path: r"C:\\Mods\\B\\same.package".into(),
+                source_relative_path: r"B\\same.package".into(),
+                destination_path: Some(r"C:\\Mods\\CAS\\Sliders\\same.package".into()),
+                destination_relative_path: Some(r"CAS\\Sliders\\same.package".into()),
+                classification_status: "classified".into(),
+                classification_reason: Some("test".into()),
+                plan_status: "ready".into(),
+                sha256: Some("B".repeat(64)),
+                size: 10,
+                warnings: vec![],
+            },
+        ];
+        let mut stats = PlanStats::default();
+
+        mark_intra_plan_destination_collisions(&mut items, &mut stats);
+
+        assert_eq!(stats.collision_different_content, 2);
+        assert!(items
+            .iter()
+            .all(|item| item.plan_status == "collision_different_content"));
     }
 
     #[test]
