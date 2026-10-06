@@ -7,6 +7,7 @@ const I18N = {
     organizer: "Organizer",
     duplicates: "Duplicates",
     conflicts: "Conflicts",
+    catalog: "Catalog",
     restore: "Restore",
     language: "Language",
     chooseModsFolder: "Choose Mods Folder",
@@ -407,6 +408,7 @@ const I18N = {
     organizer: "Organizador",
     duplicates: "Duplicados",
     conflicts: "Conflitos",
+    catalog: "Catálogo",
     restore: "Restaurar",
     language: "Idioma",
     chooseModsFolder: "Escolher Pasta de Mods",
@@ -806,6 +808,7 @@ const I18N = {
     organizer: "Organizador",
     duplicates: "Duplicados",
     conflicts: "Conflictos",
+    catalog: "Catálogo",
     restore: "Restaurar",
     language: "Idioma",
     chooseModsFolder: "Elegir Carpeta de Mods",
@@ -1207,7 +1210,7 @@ const I18N = {
 const LANGUAGE_ORDER = ["en", "pt", "es"];
 
 const PREFS_KEY = "s3cc-organizer-preferences-v1";
-const VALID_TABS = new Set(["organizer", "duplicates", "conflicts", "structure", "tools", "restore"]);
+const VALID_TABS = new Set(["organizer", "duplicates", "conflicts", "structure", "tools", "catalog", "restore"]);
 
 function loadPreferences() {
   try {
@@ -2113,6 +2116,7 @@ function renderLanguage() {
   renderConflictFilter();
   renderTestStatusFilter();
   renderSelectionSummary();
+  window.dispatchEvent(new CustomEvent("s3cc-language-changed", { detail: state.language }));
 }
 
 function renderTestStatusFilter() {
@@ -5338,6 +5342,7 @@ async function chooseFolder() {
 
   state.folder = selected;
   persistPreferences();
+  window.dispatchEvent(new CustomEvent("s3cc-folder-changed", { detail: state.folder }));
   state.items = [];
   state.stats = null;
   state.selectedId = "";
