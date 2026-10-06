@@ -3742,3 +3742,35 @@ button:disabled {
     display: none;
   }
 }
+
+
+.sims3pack-conversion-mode {
+  display: inline-grid;
+  grid-template-columns: auto auto;
+  grid-template-areas:
+    "check label"
+    ". hint";
+  align-items: center;
+  column-gap: 7px;
+  row-gap: 1px;
+  padding: 7px 9px;
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 9px;
+  background: rgba(0,0,0,.10);
+}
+
+.sims3pack-conversion-mode input {
+  grid-area: check;
+  accent-color: var(--green);
+}
+
+.sims3pack-conversion-mode span {
+  grid-area: label;
+  font-size: .64rem;
+}
+
+.sims3pack-conversion-mode small {
+  grid-area: hint;
+  color: var(--muted);
+  font-size: .54rem;
+}
