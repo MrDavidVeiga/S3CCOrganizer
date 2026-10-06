@@ -422,6 +422,40 @@
                 <div class="tool-actions"><button id="tools-dependencies" class="secondary-btn" type="button" data-i18n="analyzeDependencies">Analyze Dependencies</button></div>
                 <div id="tools-dependency-results" class="tools-list"></div>
               </div>
+
+              <section class="tools-card sims3pack-converter-card">
+                <div class="sims3pack-converter-heading">
+                  <div>
+                    <h3 id="sims3pack-converter-title">Sims3Pack → Package</h3>
+                    <p id="sims3pack-converter-intro">Extract embedded packages and give them readable names from the Sims3Pack manifest or CASP.</p>
+                  </div>
+                  <div id="sims3pack-converter-state" class="scan-state"></div>
+                </div>
+
+                <div class="sims3pack-converter-actions">
+                  <button id="sims3pack-choose-files" class="secondary-btn" type="button">
+                    <i class="fa-solid fa-file-import" aria-hidden="true"></i>
+                    <span>Choose Sims3Pack(s)</span>
+                  </button>
+                  <button id="sims3pack-choose-destination" class="secondary-btn" type="button">
+                    <i class="fa-solid fa-folder-open" aria-hidden="true"></i>
+                    <span>Choose Destination</span>
+                  </button>
+                  <button id="sims3pack-convert" class="primary-btn" type="button" disabled>
+                    <i class="fa-solid fa-arrow-right-arrow-left" aria-hidden="true"></i>
+                    <span>Convert to .package</span>
+                  </button>
+                </div>
+
+                <div class="sims3pack-converter-paths">
+                  <div><span id="sims3pack-files-label">Files</span><code id="sims3pack-files-path">—</code></div>
+                  <div><span id="sims3pack-destination-label">Destination</span><code id="sims3pack-destination-path">—</code></div>
+                </div>
+
+                <div id="sims3pack-converter-results" class="sims3pack-converter-results">
+                  <div class="tools-empty" id="sims3pack-converter-empty">Choose one or more .Sims3Pack files to preview the conversion.</div>
+                </div>
+              </section>
             </div>
 
             <div id="tools-history" class="tools-panel hidden">
@@ -756,6 +790,7 @@
     </div>
 
     <script type="module" src="./src/cc-catalog.js"></script>
+    <script type="module" src="./src/sims3pack-converter.js"></script>
     <script type="module" src="./src/app.js"></script>
   </body>
 </html>
