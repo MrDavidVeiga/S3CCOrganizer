@@ -8,6 +8,8 @@ const I18N = {
     duplicates: "Duplicates",
     conflicts: "Conflicts",
     catalog: "Catalog",
+    converter: "Converter",
+    converterIntro: "Convert Sims3Pack files to .package safely, separately or combined.",
     restore: "Restore",
     language: "Language",
     chooseModsFolder: "Choose Mods Folder",
@@ -409,6 +411,8 @@ const I18N = {
     duplicates: "Duplicados",
     conflicts: "Conflitos",
     catalog: "Catálogo",
+    converter: "Conversor",
+    converterIntro: "Converta arquivos Sims3Pack para .package com segurança, separadamente ou em conjunto.",
     restore: "Restaurar",
     language: "Idioma",
     chooseModsFolder: "Escolher Pasta de Mods",
@@ -809,6 +813,8 @@ const I18N = {
     duplicates: "Duplicados",
     conflicts: "Conflictos",
     catalog: "Catálogo",
+    converter: "Conversor",
+    converterIntro: "Convierte archivos Sims3Pack a .package de forma segura, por separado o en conjunto.",
     restore: "Restaurar",
     language: "Idioma",
     chooseModsFolder: "Elegir Carpeta de Mods",
@@ -1210,7 +1216,7 @@ const I18N = {
 const LANGUAGE_ORDER = ["en", "pt", "es"];
 
 const PREFS_KEY = "s3cc-organizer-preferences-v1";
-const VALID_TABS = new Set(["organizer", "duplicates", "conflicts", "structure", "tools", "catalog", "restore"]);
+const VALID_TABS = new Set(["organizer", "duplicates", "conflicts", "tools", "restore"]);
 
 function loadPreferences() {
   try {
@@ -1306,7 +1312,7 @@ const state = {
   structureNotice: "",
   structureModalAction: "",
   manualOperations: [],
-  toolsTab: "profiles",
+  toolsTab: "technical",
   workspaceStore: null,
   toolsBusy: false,
   toolsError: "",
@@ -2440,7 +2446,7 @@ function renderDuplicatesPreview() {
     }
     el.duplicatesPreview.appendChild(metrics);
 
-    if (["retexture", "recategorized_variant", "related_variant"].includes(item.kind)) {
+    if (false && ["retexture", "recategorized_variant", "related_variant"].includes(item.kind)) {
       const groupActions = document.createElement("div");
       groupActions.className = "quarantine-actions";
       const keepTogether = document.createElement("button");
