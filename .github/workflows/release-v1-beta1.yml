@@ -1,0 +1,94 @@
+name: Release v1.0.0 Beta 1
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    if: github.event_name == 'workflow_dispatch' || github.event.head_commit.message == 'Release v1.0.0 Beta 1'
+    runs-on: windows-2022
+
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Check Rust
+        run: cargo check --manifest-path src-tauri/Cargo.toml
+
+      - name: Run Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib
+
+      - name: Build Windows x64 portable
+        run: npm run tauri build -- --no-bundle
+
+      - name: Package portable release
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path . -Filter "s3cc-organizer.exe" -Recurse -File |
+            Where-Object {
+              $_.FullName -match '\\release\\' -and
+              $_.FullName -notmatch '\\bundle\\'
+            } |
+            Select-Object -First 1
+
+          if (-not $exe) {
+            Write-Host "Executable candidates:"
+            Get-ChildItem -Path . -Filter "*.exe" -Recurse -File | Select-Object FullName
+            throw "Manager executable not found."
+          }
+
+          New-Item -ItemType Directory -Force -Path release-stage | Out-Null
+          Copy-Item $exe.FullName "release-stage\VeigasS3CCManager.exe"
+          Copy-Item "README.md" "release-stage\README.md"
+          Copy-Item "docs\RELEASE-NOTES-v1.0.0-BETA1.md" "release-stage\RELEASE-NOTES.md"
+
+          Compress-Archive -Path "release-stage\*" -DestinationPath "VeigasS3CCManager_v1.0.0_Beta1_Windows_x64.zip" -Force
+          $hash = (Get-FileHash "VeigasS3CCManager_v1.0.0_Beta1_Windows_x64.zip" -Algorithm SHA256).Hash
+          "$hash  VeigasS3CCManager_v1.0.0_Beta1_Windows_x64.zip" |
+            Out-File -Encoding ascii "VeigasS3CCManager_v1.0.0_Beta1_Windows_x64_SHA256.txt"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: VeigasS3CCManager-v1.0.0-Beta1-Windows-x64
+          path: |
+            VeigasS3CCManager_v1.0.0_Beta1_Windows_x64.zip
+            VeigasS3CCManager_v1.0.0_Beta1_Windows_x64_SHA256.txt
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Create GitHub prerelease
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.0-beta.1
+          target_commitish: ${{ github.sha }}
+          name: "Veiga's S3CC Manager v1.0.0 Beta 1"
+          body_path: docs/RELEASE-NOTES-v1.0.0-BETA1.md
+          prerelease: true
+          draft: false
+          files: |
+            VeigasS3CCManager_v1.0.0_Beta1_Windows_x64.zip
+            VeigasS3CCManager_v1.0.0_Beta1_Windows_x64_SHA256.txt
