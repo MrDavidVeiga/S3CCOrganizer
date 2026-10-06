@@ -23,6 +23,13 @@ pub struct CustomRule {
     pub destination: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogPathConfig {
+    pub path: String,
+    pub enabled: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OrganizationProfile {
@@ -32,7 +39,19 @@ pub struct OrganizationProfile {
     pub collapse_to_category: bool,
     pub rules: Vec<CustomRule>,
     pub protected_folders: Vec<String>,
+    #[serde(default)]
+    pub catalog_sources: Vec<CatalogPathConfig>,
+    #[serde(default)]
+    pub catalog_ignored: Vec<CatalogPathConfig>,
+    #[serde(default)]
+    pub catalog_master_file: String,
+    #[serde(default = "default_catalog_backup_limit")]
+    pub catalog_backup_limit: u32,
+    #[serde(default)]
+    pub catalog_autosave: bool,
 }
+
+fn default_catalog_backup_limit() -> u32 { 5 }
 
 impl Default for OrganizationProfile {
     fn default() -> Self {
@@ -43,6 +62,11 @@ impl Default for OrganizationProfile {
             collapse_to_category: false,
             rules: Vec::new(),
             protected_folders: Vec::new(),
+            catalog_sources: Vec::new(),
+            catalog_ignored: Vec::new(),
+            catalog_master_file: String::new(),
+            catalog_backup_limit: default_catalog_backup_limit(),
+            catalog_autosave: false,
         }
     }
 }
