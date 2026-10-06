@@ -79,26 +79,47 @@ fn canonical_key(path: &Path) -> Result<String, String> {
         .to_string())
 }
 
-pub fn cache_path(root: &Path) -> PathBuf {
-    let base = root
-        .parent()
+fn legacy_cache_path(root: &Path) -> PathBuf {
+    root.parent()
         .unwrap_or(root)
         .join("S3CC Organizer")
-        .join("Cache");
-    base.join("fingerprints-v1.json")
+        .join("Cache")
+        .join("fingerprints-v1.json")
+}
+
+pub fn cache_path(root: &Path) -> PathBuf {
+    let base = dirs::cache_dir()
+        .or_else(dirs::data_local_dir)
+        .or_else(dirs::home_dir)
+        .unwrap_or_else(|| root.parent().unwrap_or(root).to_path_buf());
+
+    base.join("Veiga's S3CC Manager")
+        .join("Cache")
+        .join("fingerprints-v1.json")
+}
+
+fn read_cache_file(path: &Path) -> Option<FingerprintCache> {
+    let text = fs::read_to_string(path).ok()?;
+    let cache = serde_json::from_str::<FingerprintCache>(&text).ok()?;
+    (cache.version == CACHE_VERSION).then_some(cache)
 }
 
 pub fn load_cache(root: &Path) -> FingerprintCache {
     let path = cache_path(root);
-    let Ok(text) = fs::read_to_string(&path) else {
-        return FingerprintCache::default();
-    };
-    let Ok(cache) = serde_json::from_str::<FingerprintCache>(&text) else {
-        return FingerprintCache::default();
-    };
-    if cache.version != CACHE_VERSION {
-        return FingerprintCache::default();
+    if let Some(cache) = read_cache_file(&path) {
+        return cache;
     }
+
+    let legacy = legacy_cache_path(root);
+    let Some(cache) = read_cache_file(&legacy) else {
+        return FingerprintCache::default();
+    };
+
+    // Migrate a valid legacy cache outside the game/Mods tree when possible.
+    if save_cache(root, &cache).is_ok() {
+        let _ = fs::remove_file(&legacy);
+    }
+
     cache
 }
 
@@ -264,13 +285,17 @@ pub fn clear_cache(folder: String) -> Result<bool, String> {
     let root = PathBuf::from(folder.trim())
         .canonicalize()
         .map_err(|error| format!("Could not resolve cache root: {error}"))?;
-    let path = cache_path(&root);
-    if !path.exists() {
-        return Ok(false);
+
+    let mut removed = false;
+    for path in [cache_path(&root), legacy_cache_path(&root)] {
+        if path.exists() {
+            fs::remove_file(&path)
+                .map_err(|error| format!("Could not remove cache {}: {error}", path.display()))?;
+            removed = true;
+        }
     }
-    fs::remove_file(&path)
-        .map_err(|error| format!("Could not remove cache {}: {error}", path.display()))?;
-    Ok(true)
+
+    Ok(removed)
 }
 
 #[cfg(test)]
@@ -278,10 +303,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn cache_lives_outside_selected_root_when_parent_exists() {
+    fn cache_uses_manager_user_cache_location() {
         let root = Path::new(r"C:\Mods\Packages");
-        assert!(cache_path(root)
-            .to_string_lossy()
-            .contains("S3CC Organizer"));
+        let path = cache_path(root).to_string_lossy().to_string();
+        assert!(path.contains("Veiga's S3CC Manager"));
+        assert!(path.ends_with("fingerprints-v1.json"));
     }
 }
