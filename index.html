@@ -14,7 +14,7 @@
           <button class="mode-btn" data-tab="duplicates" data-i18n="duplicates" type="button">Duplicates</button>
           <button class="mode-btn" data-tab="conflicts" data-i18n="conflicts" type="button">Conflicts</button>
           <button class="mode-btn hidden" data-tab="structure" data-i18n="structure" type="button">Structure</button>
-          <button class="mode-btn" data-tab="tools" data-i18n="converter" type="button">Converter</button>
+          <button class="mode-btn" data-tab="tools" data-i18n="tools" type="button">Tools</button>
           <button class="mode-btn hidden" data-tab="catalog" data-i18n="catalog" type="button">Catalog</button>
           <button class="mode-btn" data-tab="restore" data-i18n="restore" type="button">Restore</button>
         </div>
@@ -292,19 +292,19 @@
           <section id="page-tools" class="tool-page hidden tools-page">
             <div class="hero">
               <div>
-                <h2 data-i18n="converter">Converter</h2>
-                <p data-i18n="converterIntro">Convert Sims3Pack files to .package safely, separately or combined.</p>
+                <h2 data-i18n="tools">Tools</h2>
+                <p data-i18n="converterIntro">Convert Sims3Pack files and access recovery history.</p>
               </div>
               <div id="tools-state" class="scan-state"></div>
             </div>
 
-            <div class="tools-subtabs hidden" role="tablist">
-              <button class="secondary-btn tools-subtab active" data-tools-tab="profiles" data-i18n="profilesRules" type="button">Profiles</button>
-              <button class="secondary-btn tools-subtab" data-tools-tab="health" data-i18n="healthResourceCfg" type="button">Health</button>
-              <button class="secondary-btn tools-subtab" data-tools-tab="snapshots" data-i18n="snapshotsCompare" type="button">Snapshots</button>
-              <button class="secondary-btn tools-subtab" data-tools-tab="inbox" data-i18n="inboxNewCc" type="button">Inbox</button>
-              <button class="secondary-btn tools-subtab" data-tools-tab="metadata" data-i18n="metadataGroups" type="button">Metadata</button>
-              <button class="secondary-btn tools-subtab" data-tools-tab="technical" data-i18n="technicalLab" type="button">Technical</button>
+            <div class="tools-subtabs" role="tablist">
+              <button class="secondary-btn tools-subtab hidden" data-tools-tab="profiles" data-i18n="profilesRules" type="button">Profiles</button>
+              <button class="secondary-btn tools-subtab hidden" data-tools-tab="health" data-i18n="healthResourceCfg" type="button">Health</button>
+              <button class="secondary-btn tools-subtab hidden" data-tools-tab="snapshots" data-i18n="snapshotsCompare" type="button">Snapshots</button>
+              <button class="secondary-btn tools-subtab hidden" data-tools-tab="inbox" data-i18n="inboxNewCc" type="button">Inbox</button>
+              <button class="secondary-btn tools-subtab hidden" data-tools-tab="metadata" data-i18n="metadataGroups" type="button">Metadata</button>
+              <button class="secondary-btn tools-subtab active" data-tools-tab="technical" data-i18n="converter" type="button">Converter</button>
               <button class="secondary-btn tools-subtab" data-tools-tab="history" data-i18n="operationHistory" type="button">History</button>
             </div>
 
