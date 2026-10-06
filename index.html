@@ -448,6 +448,7 @@
               <button id="catalog-save" class="primary-btn" type="button" disabled><i class="fa-solid fa-floppy-disk"></i><span>Save Changes</span></button>
               <button id="catalog-validate" class="secondary-btn" type="button" disabled><i class="fa-solid fa-list-check"></i><span>Validate</span></button>
               <label class="catalog-autosave"><input id="catalog-autosave" type="checkbox" /><span>Auto save</span></label>
+              <label class="catalog-backup-limit"><span>Backups</span><select id="catalog-backup-limit" class="text-input"><option value="5">5</option><option value="10">10</option></select></label>
               <div id="catalog-path" class="catalog-path">No master selected.</div>
             </div>
 
@@ -493,12 +494,12 @@
                 <option value="missing_url">Without URL</option>
               </select>
               <select id="catalog-sort" class="text-input">
-                <option value="creator_converter">Creator / Converter</option>
-                <option value="file_name">File Name</option>
+                <option value="creatorConverter">Creator / Converter</option>
+                <option value="fileName">File Name</option>
                 <option value="type">Type</option>
-                <option value="resource_type">Resource Type</option>
+                <option value="resourceType">Resource Type</option>
                 <option value="status">Status</option>
-                <option value="modified_at">Modified date</option>
+                <option value="modifiedAt">Modified date</option>
               </select>
               <button id="catalog-sort-direction" class="secondary-btn" type="button" data-direction="asc">A → Z</button>
             </div>
@@ -506,12 +507,12 @@
             <div id="catalog-workspace" class="catalog-workspace">
               <div class="catalog-table-shell">
                 <div id="catalog-table-header" class="catalog-grid catalog-grid-header">
-                  <button type="button" data-sort="creator_converter">Creator / Converter</button>
-                  <button type="button" data-sort="file_name">File Name</button>
+                  <button type="button" data-sort="creatorConverter">Creator / Converter</button>
+                  <button type="button" data-sort="fileName">File Name</button>
                   <button type="button" data-sort="url">URL</button>
-                  <button type="button" data-sort="tumblr_handle">Tumblr Handle</button>
+                  <button type="button" data-sort="tumblrHandle">Tumblr Handle</button>
                   <button type="button" data-sort="type">Type</button>
-                  <button type="button" data-sort="resource_type">Resource Type</button>
+                  <button type="button" data-sort="resourceType">Resource Type</button>
                   <button type="button" data-sort="instance">Instance</button>
                   <button type="button" data-sort="tgi">TGI</button>
                   <span></span>
