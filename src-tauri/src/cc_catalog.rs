@@ -365,6 +365,18 @@ fn find_header_row(rows: &[Vec<String>]) -> Option<(usize, ColumnMap)> {
     None
 }
 
+fn csv_schema_version(rows: &[Vec<String>]) -> u32 {
+    for row in rows.iter().take(12) {
+        let first = row.get(0).map(|value| normalize_header(value)).unwrap_or_default();
+        if first == "schema" || first == "s3ccschema" {
+            return row.get(1)
+                .and_then(|value| value.trim().parse::<u32>().ok())
+                .unwrap_or(0);
+        }
+    }
+    0
+}
+
 fn read_csv_rows(path: &Path) -> Result<Vec<Vec<String>>, String> {
     let bytes = fs::read(path).map_err(|e| format!("Could not open CSV catalog: {e}"))?;
     let semi = bytes.iter().take(4096).filter(|&&b| b == b';').count();
@@ -402,7 +414,11 @@ fn read_catalog_core(path: &Path) -> Result<(Vec<CatalogEntry>, Vec<String>, u32
     if !path.is_file() { return Err("Master catalog file not found.".to_string()); }
     let ext = path.extension().and_then(|v| v.to_str()).unwrap_or("").to_ascii_lowercase();
     let (rows, mut schema) = match ext.as_str() {
-        "csv" => (read_csv_rows(path)?, 0),
+        "csv" => {
+            let rows = read_csv_rows(path)?;
+            let schema = csv_schema_version(&rows);
+            (rows, schema)
+        },
         "xlsx" | "xls" | "xlsb" | "ods" => read_workbook_rows(path)?,
         _ => return Err("Unsupported catalog format. Use CSV, XLSX, XLS, XLSB or ODS.".to_string()),
     };
@@ -542,11 +558,19 @@ pub fn validate_entries(entries: &[CatalogEntry]) -> CatalogValidation {
 
 fn write_csv(path: &Path, language: AppLanguage, entries: &[CatalogEntry]) -> Result<(), String> {
     let mut writer = WriterBuilder::new().from_path(path).map_err(|e| format!("Could not create CSV: {e}"))?;
-    writer.write_record(localized_headers(language)).map_err(|e| e.to_string())?;
+    writer.write_record(["S3CC Packer / Manager Master Catalog"]).map_err(|e| e.to_string())?;
+    writer.write_record(["SCHEMA", &SCHEMA_VERSION.to_string()]).map_err(|e| e.to_string())?;
+    writer.write_record(["LANGUAGE", match language { AppLanguage::En => "en", AppLanguage::Pt => "pt", AppLanguage::Es => "es" }]).map_err(|e| e.to_string())?;
+    let mut headers = localized_headers(language).to_vec();
+    headers.extend(["S3CC Entry ID", "Link Broken", "Partnership / Exception"]);
+    writer.write_record(headers).map_err(|e| e.to_string())?;
     for entry in entries {
         writer.write_record([
             entry.creator_converter.as_str(), entry.file_name.as_str(), entry.url.as_str(), entry.tumblr_handle.as_str(),
             entry.type_name.as_str(), entry.resource_type.as_str(), entry.instance.as_str(), entry.tgi.as_str(),
+            compute_entry_id(entry).as_str(),
+            if entry.link_broken { "1" } else { "0" },
+            if entry.partnership_exception { "1" } else { "0" },
         ]).map_err(|e| e.to_string())?;
     }
     writer.flush().map_err(|e| e.to_string())
