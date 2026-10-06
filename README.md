@@ -138,6 +138,26 @@ Free-form package notes are intentionally not included in this phase.
 
 See [docs/ADVANCED-TOOLS.md](docs/ADVANCED-TOOLS.md).
 
+## Release roadmap
+
+Public releases are intentionally staged so each minor version adds a meaningful new capability even when development code is already ahead.
+
+Planned progression:
+
+- **v1.0.0** — Organizer + Duplicates + Conflicts + Restore + Sims3Pack → Package.
+- **v1.1.0** — Structure + Undo.
+- **v1.2.0** — Health + Resource.cfg.
+- **v1.3.0** — Snapshots + Inbox.
+- **v1.4.0** — Metadata + Keep Together + relationship workflows.
+- **v1.5.0** — Technical Search + Package Compare + Dependencies.
+- **v1.6.0** — Advanced Mesh Analyzer.
+- **v1.7.x–v1.9.x** — reserved for meaningful capabilities discovered through real testing and beta feedback.
+- **v2.0.0** — CC Catalog ecosystem + Packer ↔ Manager ↔ Missing CC Links integration.
+
+The product direction is to go beyond a CAS-only catalog: the Manager should understand, diagnose, organize and safely maintain the wider TS3 custom-content library.
+
+See [docs/RELEASE-ROADMAP.md](docs/RELEASE-ROADMAP.md).
+
 ## Status
 
 The repository is organized around four layers:
