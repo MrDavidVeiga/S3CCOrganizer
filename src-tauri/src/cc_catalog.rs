@@ -296,7 +296,7 @@ fn looks_valid_url(value: &str) -> bool {
 }
 
 fn normalized_hex(value: &str, width: usize) -> Option<String> {
-    let raw = value.trim().trim_start_matches("0x").replace(['-', ':', ' '], "");
+    let raw = value.trim().trim_start_matches("0x").replace('-', "").replace(':', "").replace(' ', "");
     if raw.is_empty() || raw.len() > width || !raw.chars().all(|ch| ch.is_ascii_hexdigit()) {
         return None;
     }
@@ -606,7 +606,12 @@ fn backup_existing(path: &Path, limit: usize) -> Result<Option<PathBuf>, String>
     fs::copy(path, &backup).map_err(|e| format!("Could not back up master catalog: {e}"))?;
 
     let mut backups = fs::read_dir(&backup_dir).map_err(|e| e.to_string())?
-        .filter_map(Result::ok).filter(|entry| entry.path().is_file()).collect::<Vec<_>>();
+        .filter_map(Result::ok)
+        .filter(|entry| {
+            let name = entry.file_name().to_string_lossy();
+            entry.path().is_file() && name.starts_with(&format!("{stem}-")) && name.ends_with(&format!(".{ext}"))
+        })
+        .collect::<Vec<_>>();
     backups.sort_by_key(|entry| entry.metadata().and_then(|m| m.modified()).unwrap_or(SystemTime::UNIX_EPOCH));
     let keep = limit.max(1);
     if backups.len() > keep {
