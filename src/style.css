@@ -3761,7 +3761,7 @@ button:disabled {
 }
 
 .release-v1 .tools-subtabs {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   min-width: 0;
 }
 
@@ -3937,6 +3937,46 @@ button:disabled {
 
   .release-v1 .layout {
     gap: 6px;
+  }
+}
+
+/* Manager action footer below the analyzed package list */
+.manager-plan-footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(185px, 24vw, 360px);
+  gap: clamp(8px, 1.1vw, 16px);
+  margin-top: 10px;
+  flex: 0 0 auto;
+}
+
+.manager-plan-actions {
+  min-width: 0;
+}
+
+.manager-plan-actions .selection-summary {
+  margin: 0 0 6px;
+}
+
+.manager-plan-actions .primary-btn {
+  width: 100%;
+}
+
+.maintenance-grid {
+  align-items: stretch;
+}
+
+.maintenance-card {
+  min-height: 0;
+}
+
+.maintenance-card .sidebar-utility-summary {
+  font-size: .72rem;
+  min-height: 38px;
+}
+
+@media (max-width: 980px) {
+  .manager-plan-footer {
+    grid-template-columns: minmax(0, 1fr) clamp(185px, 24vw, 260px);
   }
 }
 
