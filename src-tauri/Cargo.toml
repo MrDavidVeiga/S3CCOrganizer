@@ -4,6 +4,10 @@ version = "1.0.0"
 edition = "2021"
 default-run = "s3cc-organizer"
 
+[[bin]]
+name = "s3cc-organizer"
+path = "src/main.rs"
+
 [lib]
 name = "s3cc_organizer_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
