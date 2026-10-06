@@ -12,7 +12,7 @@ use std::{
 const TYPE_MANIFEST: u32 = 0x73E9_3EEB;
 const TYPE_KEY: u32 = 0x0166_038C;
 const MAX_XML_BYTES: usize = 16 * 1024 * 1024;
-const MAX_PAYLOAD_BYTES: usize = 2 * 1024 * 1024 * 1024;
+const MAX_PAYLOAD_BYTES: usize = 1024 * 1024 * 1024;
 
 #[derive(Debug, Clone, Default)]
 struct ManifestNames {
@@ -687,9 +687,17 @@ fn write_no_replace(path: &Path, data: &[u8]) -> Result<(), String> {
         .create_new(true)
         .open(path)
         .map_err(|e| format!("Could not create {}: {e}", path.display()))?;
-    file.write_all(data)
-        .map_err(|e| format!("Could not write {}: {e}", path.display()))?;
-    file.sync_all().map_err(|e| e.to_string())?;
+
+    if let Err(error) = file.write_all(data) {
+        drop(file);
+        let _ = fs::remove_file(path);
+        return Err(format!("Could not write {}: {error}", path.display()));
+    }
+    if let Err(error) = file.sync_all() {
+        drop(file);
+        let _ = fs::remove_file(path);
+        return Err(format!("Could not finalize {}: {error}", path.display()));
+    }
     Ok(())
 }
 
