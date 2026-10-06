@@ -3721,12 +3721,9 @@ button:disabled {
 .sims3pack-conversion-mode {
   display: inline-grid;
   grid-template-columns: auto auto;
-  grid-template-areas:
-    "check label"
-    ". hint";
+  grid-template-areas: "check label";
   align-items: center;
   column-gap: 7px;
-  row-gap: 1px;
   padding: 7px 9px;
   border: 1px solid rgba(255,255,255,.07);
   border-radius: 9px;
@@ -3743,11 +3740,6 @@ button:disabled {
   font-size: .64rem;
 }
 
-.sims3pack-conversion-mode small {
-  grid-area: hint;
-  color: var(--muted);
-  font-size: .54rem;
-}
 
 
 /* v1.0 public release surface */
