@@ -610,9 +610,27 @@ async function saveCatalog(silent) {
     if (!silent) setStatus(tr("saveBlocked"),true);
     return;
   }
+
+  let targetPath = state.path;
+  const extension = String(targetPath).split(".").pop().toLocaleLowerCase();
+  if (extension !== "xlsx" && extension !== "csv") {
+    if (silent) return;
+    targetPath = await save({
+      title:tr("save"),
+      defaultPath:"S3CC-Master-Catalog.xlsx",
+      filters:[{name:"Excel Workbook",extensions:["xlsx"]},{name:"CSV",extensions:["csv"]}]
+    });
+    if (!targetPath) return;
+  }
+
   state.saving = true;
   try {
-    const result = await invoke("save_cc_catalog",{path:state.path,language:state.language,entries:state.entries.map(officialEntry),backupLimit:state.backupLimit});
+    const result = await invoke("save_cc_catalog",{path:targetPath,language:state.language,entries:state.entries.map(officialEntry),backupLimit:state.backupLimit});
+    if (targetPath !== state.path) {
+      state.path = targetPath;
+      updatePath();
+      await saveProfileSettings();
+    }
     state.validation = result.validation; state.original.clear();
     state.entries.forEach(entry => { state.original.set(entry._key,clone(officialEntry(entry))); state.rowState.set(entry._key,"saved"); });
     if (!silent) setStatus(tr("savedOk"));
