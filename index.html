@@ -13,9 +13,9 @@
           <button class="mode-btn active" data-tab="organizer" data-i18n="organizer" type="button">Organizer</button>
           <button class="mode-btn" data-tab="duplicates" data-i18n="duplicates" type="button">Duplicates</button>
           <button class="mode-btn" data-tab="conflicts" data-i18n="conflicts" type="button">Conflicts</button>
-          <button class="mode-btn" data-tab="structure" data-i18n="structure" type="button">Structure</button>
-          <button class="mode-btn" data-tab="tools" data-i18n="tools" type="button">Tools</button>
-          <button class="mode-btn" data-tab="catalog" data-i18n="catalog" type="button">Catalog</button>
+          <button class="mode-btn hidden" data-tab="structure" data-i18n="structure" type="button">Structure</button>
+          <button class="mode-btn" data-tab="tools" data-i18n="converter" type="button">Converter</button>
+          <button class="mode-btn hidden" data-tab="catalog" data-i18n="catalog" type="button">Catalog</button>
           <button class="mode-btn" data-tab="restore" data-i18n="restore" type="button">Restore</button>
         </div>
         <div class="language language-switcher">
@@ -292,13 +292,13 @@
           <section id="page-tools" class="tool-page hidden tools-page">
             <div class="hero">
               <div>
-                <h2 data-i18n="tools">Tools</h2>
-                <p data-i18n="toolsIntro">Profiles, health, snapshots, Inbox, metadata, dependencies and technical diagnostics.</p>
+                <h2 data-i18n="converter">Converter</h2>
+                <p data-i18n="converterIntro">Convert Sims3Pack files to .package safely, separately or combined.</p>
               </div>
               <div id="tools-state" class="scan-state"></div>
             </div>
 
-            <div class="tools-subtabs" role="tablist">
+            <div class="tools-subtabs hidden" role="tablist">
               <button class="secondary-btn tools-subtab active" data-tools-tab="profiles" data-i18n="profilesRules" type="button">Profiles</button>
               <button class="secondary-btn tools-subtab" data-tools-tab="health" data-i18n="healthResourceCfg" type="button">Health</button>
               <button class="secondary-btn tools-subtab" data-tools-tab="snapshots" data-i18n="snapshotsCompare" type="button">Snapshots</button>
@@ -403,7 +403,7 @@
             </div>
 
             <div id="tools-technical" class="tools-panel hidden">
-              <div class="tools-grid two">
+              <div class="tools-grid two hidden">
                 <section class="tools-card">
                   <h3 data-i18n="advancedSearch">Advanced Technical Search</h3>
                   <div class="tool-inline"><input id="tools-tech-query" class="text-input" type="text" placeholder="type:034AEECB / instance:... / sha:..."/><button id="tools-tech-search" class="primary-btn" type="button" data-i18n="searchAction">Search</button></div>
@@ -418,7 +418,7 @@
                   <div id="tools-package-compare" class="tools-list"></div>
                 </section>
               </div>
-              <div class="tools-card">
+              <div class="tools-card hidden">
                 <div class="tool-actions"><button id="tools-dependencies" class="secondary-btn" type="button" data-i18n="analyzeDependencies">Analyze Dependencies</button></div>
                 <div id="tools-dependency-results" class="tools-list"></div>
               </div>
