@@ -24,24 +24,27 @@ pub struct RestoreHistoryItem {
 fn manifests_dir(root: &Path) -> PathBuf {
     root.parent()
         .unwrap_or(root)
+        .join("S3CC Manager")
+        .join("Restore Manifests")
+}
+
+fn legacy_manifests_dir(root: &Path) -> PathBuf {
+    root.parent()
+        .unwrap_or(root)
         .join("S3CC Organizer")
         .join("Restore Manifests")
 }
 
-#[tauri::command]
-pub fn list_restore_history(folder: String) -> Result<Vec<RestoreHistoryItem>, String> {
-    let root = PathBuf::from(folder.trim())
-        .canonicalize()
-        .map_err(|error| format!("Could not resolve restore root: {error}"))?;
-    let directory = manifests_dir(&root);
-
+fn collect_directory(
+    directory: &Path,
+    root: &Path,
+    items: &mut Vec<RestoreHistoryItem>,
+) -> Result<(), String> {
     if !directory.is_dir() {
-        return Ok(Vec::new());
+        return Ok(());
     }
 
-    let mut items = Vec::new();
-
-    for entry in fs::read_dir(&directory)
+    for entry in fs::read_dir(directory)
         .map_err(|error| format!("Could not list {}: {error}", directory.display()))?
     {
         let entry = match entry {
@@ -85,7 +88,7 @@ pub fn list_restore_history(folder: String) -> Result<Vec<RestoreHistoryItem>, S
                     root: Some(manifest.root.to_string_lossy().to_string()),
                     matches_selected_root: manifest_root
                         .as_ref()
-                        .map(|manifest_root| manifest_root == &root)
+                        .map(|manifest_root| manifest_root == root)
                         .unwrap_or(false),
                     valid: true,
                     error: None,
@@ -105,6 +108,19 @@ pub fn list_restore_history(folder: String) -> Result<Vec<RestoreHistoryItem>, S
             }),
         }
     }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn list_restore_history(folder: String) -> Result<Vec<RestoreHistoryItem>, String> {
+    let root = PathBuf::from(folder.trim())
+        .canonicalize()
+        .map_err(|error| format!("Could not resolve restore root: {error}"))?;
+
+    let mut items = Vec::new();
+    collect_directory(&manifests_dir(&root), &root, &mut items)?;
+    collect_directory(&legacy_manifests_dir(&root), &root, &mut items)?;
 
     items.sort_by_key(|item| std::cmp::Reverse(item.modified_unix_ms));
     Ok(items)
