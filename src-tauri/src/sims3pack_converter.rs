@@ -170,7 +170,8 @@ fn attr_language(
     reader: &Reader<&[u8]>,
 ) -> Option<String> {
     for attr in event.attributes().flatten() {
-        if attr.key.as_ref().eq_ignore_ascii_case(b"language") {
+        let key = String::from_utf8_lossy(attr.key.as_ref()).to_ascii_lowercase();
+        if key == "language" {
             return attr
                 .decode_and_unescape_value(reader)
                 .ok()
