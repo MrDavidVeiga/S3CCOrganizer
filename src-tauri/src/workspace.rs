@@ -314,7 +314,7 @@ pub fn matching_rule<'a>(
 pub fn split_destination(value: &str) -> Vec<String> {
     value
         .replace('/', "\\")
-        .split('\')
+        .split('\\\\')
         .map(str::trim)
         .filter(|part| !part.is_empty())
         .map(str::to_string)
