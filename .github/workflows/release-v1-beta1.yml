@@ -100,6 +100,9 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      - name: Restore application icon source
+        run: node -e "const fs=require('fs');fs.writeFileSync('src-tauri/icons/manager-icon.png',Buffer.from(fs.readFileSync('src-tauri/icons/manager-icon.b64','utf8').trim(),'base64'))"
+
       - name: Generate application icons
         run: npm run tauri icon src-tauri/icons/manager-icon.png
 
