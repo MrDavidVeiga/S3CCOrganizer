@@ -1,8 +1,9 @@
 use crate::{catalog::TYPE_CASP, dbpf::Package, i18n::AppLanguage};
+use byteorder::{LittleEndian, WriteBytesExt};
 use quick_xml::{events::Event, Reader};
 use serde::Serialize;
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashSet},
     fs::{self, File, OpenOptions},
     io::{Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
@@ -11,6 +12,7 @@ use std::{
 
 const TYPE_MANIFEST: u32 = 0x73E9_3EEB;
 const TYPE_KEY: u32 = 0x0166_038C;
+const TYPE_MERGE_SKIP: u32 = 0x7672_F0C5;
 const MAX_XML_BYTES: usize = 16 * 1024 * 1024;
 const MAX_PAYLOAD_BYTES: usize = 1024 * 1024 * 1024;
 
@@ -702,6 +704,163 @@ fn write_no_replace(path: &Path, data: &[u8]) -> Result<(), String> {
     Ok(())
 }
 
+
+#[derive(Debug, Clone)]
+struct MergedResource {
+    type_id: u32,
+    group: u32,
+    instance: u64,
+    chunk_offset: u32,
+    file_size: u32,
+    mem_size: u32,
+    compressed: u16,
+    unknown2: u16,
+}
+
+fn write_empty_dbpf_header(file: &mut File) -> Result<(), String> {
+    file.write_all(b"DBPF").map_err(|e| e.to_string())?;
+    file.write_u32::<LittleEndian>(2).map_err(|e| e.to_string())?;
+    file.write_u32::<LittleEndian>(0).map_err(|e| e.to_string())?;
+    file.write_all(&[0u8; 24]).map_err(|e| e.to_string())?;
+    file.write_u32::<LittleEndian>(0).map_err(|e| e.to_string())?;
+    file.write_u32::<LittleEndian>(0).map_err(|e| e.to_string())?;
+    file.write_u32::<LittleEndian>(0).map_err(|e| e.to_string())?;
+    file.write_all(&[0u8; 12]).map_err(|e| e.to_string())?;
+    file.write_u32::<LittleEndian>(3).map_err(|e| e.to_string())?;
+    file.write_u32::<LittleEndian>(96).map_err(|e| e.to_string())?;
+    file.write_all(&[0u8; 28]).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+fn merge_packages_no_replace(target: &Path, packages: &[Package]) -> Result<usize, String> {
+    let mut file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create_new(true)
+        .open(target)
+        .map_err(|e| format!("Could not create {}: {e}", target.display()))?;
+
+    let result = (|| -> Result<usize, String> {
+        write_empty_dbpf_header(&mut file)?;
+        file.seek(SeekFrom::Start(96)).map_err(|e| e.to_string())?;
+
+        let mut seen = HashSet::<(u32, u32, u64)>::new();
+        let mut resources = Vec::<MergedResource>::new();
+
+        for package in packages {
+            for entry in &package.entries {
+                if matches!(entry.type_id, TYPE_MANIFEST | TYPE_KEY | TYPE_MERGE_SKIP) {
+                    continue;
+                }
+                let key = (entry.type_id, entry.group, entry.instance);
+                if !seen.insert(key) {
+                    continue;
+                }
+
+                let raw = package.raw_data(entry)
+                    .map_err(|e| format!("Could not read resource {}: {e}", entry.key_string()))?;
+                let chunk_offset = file.stream_position().map_err(|e| e.to_string())? as u32;
+                file.write_all(&raw).map_err(|e| e.to_string())?;
+                resources.push(MergedResource {
+                    type_id: entry.type_id,
+                    group: entry.group,
+                    instance: entry.instance,
+                    chunk_offset,
+                    file_size: entry.file_size,
+                    mem_size: entry.mem_size,
+                    compressed: entry.compressed,
+                    unknown2: entry.unknown2,
+                });
+            }
+        }
+
+        let index_position = file.stream_position().map_err(|e| e.to_string())? as u32;
+        file.write_u32::<LittleEndian>(0).map_err(|e| e.to_string())?;
+        for entry in &resources {
+            file.write_u32::<LittleEndian>(entry.type_id).map_err(|e| e.to_string())?;
+            file.write_u32::<LittleEndian>(entry.group).map_err(|e| e.to_string())?;
+            file.write_u32::<LittleEndian>((entry.instance >> 32) as u32).map_err(|e| e.to_string())?;
+            file.write_u32::<LittleEndian>(entry.instance as u32).map_err(|e| e.to_string())?;
+            file.write_u32::<LittleEndian>(entry.chunk_offset).map_err(|e| e.to_string())?;
+            file.write_u32::<LittleEndian>(entry.file_size | 0x8000_0000).map_err(|e| e.to_string())?;
+            file.write_u32::<LittleEndian>(entry.mem_size).map_err(|e| e.to_string())?;
+            file.write_u16::<LittleEndian>(entry.compressed).map_err(|e| e.to_string())?;
+            file.write_u16::<LittleEndian>(entry.unknown2).map_err(|e| e.to_string())?;
+        }
+
+        let index_count = resources.len() as u32;
+        let index_length = 4u32
+            .checked_add(index_count.checked_mul(32).ok_or_else(|| "Merged index is too large.".to_string())?)
+            .ok_or_else(|| "Merged index is too large.".to_string())?;
+
+        file.seek(SeekFrom::Start(36)).map_err(|e| e.to_string())?;
+        file.write_u32::<LittleEndian>(index_count).map_err(|e| e.to_string())?;
+        file.seek(SeekFrom::Start(44)).map_err(|e| e.to_string())?;
+        file.write_u32::<LittleEndian>(index_length).map_err(|e| e.to_string())?;
+        file.seek(SeekFrom::Start(64)).map_err(|e| e.to_string())?;
+        file.write_u32::<LittleEndian>(index_position).map_err(|e| e.to_string())?;
+        file.sync_all().map_err(|e| e.to_string())?;
+
+        Ok(resources.len())
+    })();
+
+    if result.is_err() {
+        drop(file);
+        let _ = fs::remove_file(target);
+    }
+    result
+}
+
+fn combined_output_name(source: &Path, pack: &Sims3Pack, language: AppLanguage) -> (String, String) {
+    if let Some(name) = best_manifest_name(&pack.manifest, language) {
+        let stem = sanitize_file_stem(&name);
+        return (format!("{stem}.package"), "sims3pack_manifest".to_string());
+    }
+    let stem = source
+        .file_stem()
+        .map(|v| sanitize_file_stem(&v.to_string_lossy()))
+        .unwrap_or_else(|| "Converted Sims3Pack".to_string());
+    (format!("{stem}.package"), "source_file".to_string())
+}
+
+fn merge_sims3pack_payloads(
+    source: &Path,
+    pack: &Sims3Pack,
+    inspection: &Sims3PackInspection,
+    target: &Path,
+) -> Result<usize, String> {
+    let mut staged_paths = Vec::<PathBuf>::new();
+    let mut packages = Vec::<Package>::new();
+
+    let result = (|| -> Result<usize, String> {
+        for item in inspection.items.iter().filter(|item| item.convertible) {
+            let packaged = pack.packaged_files.get(item.index)
+                .ok_or_else(|| format!("Missing packaged item {}.", item.index))?;
+            let payload = read_packaged_payload(source, pack, packaged)?;
+            if payload.len() < 4 || &payload[..4] != b"DBPF" {
+                continue;
+            }
+            let temp = temporary_package_path(item.index)?;
+            fs::write(&temp, &payload)
+                .map_err(|e| format!("Could not stage embedded package: {e}"))?;
+            let package = Package::load(&temp)
+                .map_err(|e| format!("Invalid embedded package {}: {e}", packaged.name))?;
+            staged_paths.push(temp);
+            packages.push(package);
+        }
+
+        if packages.is_empty() {
+            return Err("No convertible .package payloads were found.".to_string());
+        }
+        merge_packages_no_replace(target, &packages)
+    })();
+
+    for path in staged_paths {
+        let _ = fs::remove_file(path);
+    }
+    result
+}
+
 #[tauri::command]
 pub fn inspect_sims3packs(paths: Vec<String>, language: AppLanguage) -> Result<Vec<Sims3PackInspection>, String> {
     let mut results = Vec::new();
@@ -720,6 +879,7 @@ pub fn convert_sims3packs(
     paths: Vec<String>,
     destination_folder: String,
     language: AppLanguage,
+    combined: bool,
 ) -> Result<Sims3PackConversionResult, String> {
     let destination = PathBuf::from(destination_folder.trim());
     if destination.as_os_str().is_empty() {
@@ -746,6 +906,38 @@ pub fn convert_sims3packs(
                 continue;
             }
         };
+
+        if combined {
+            let (file_name, name_source) = combined_output_name(&source, &pack, language);
+            let mut target = unique_output_path(&destination, &file_name);
+            loop {
+                match merge_sims3pack_payloads(&source, &pack, &inspection, &target) {
+                    Ok(_) => break,
+                    Err(error) if target.exists() => {
+                        target = unique_output_path(&destination, &file_name);
+                    }
+                    Err(error) => {
+                        result.skipped += inspection.items.iter().filter(|item| item.convertible).count();
+                        result.errors.push(format!("{}: {error}", source.display()));
+                        target = PathBuf::new();
+                        break;
+                    }
+                }
+            }
+
+            if !target.as_os_str().is_empty() {
+                result.converted += 1;
+                result.skipped += inspection.items.iter().filter(|item| !item.convertible).count();
+                result.items.push(Sims3PackConvertedItem {
+                    source_path: source.to_string_lossy().to_string(),
+                    packaged_name: inspection.display_name.clone(),
+                    output_file_name: target.file_name().map(|v| v.to_string_lossy().to_string()).unwrap_or_default(),
+                    output_path: target.to_string_lossy().to_string(),
+                    name_source,
+                });
+            }
+            continue;
+        }
 
         let output_root = if inspection.set {
             let set_name = source
