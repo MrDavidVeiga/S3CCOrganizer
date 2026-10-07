@@ -402,6 +402,7 @@ fn decision_key(left: &PackageInfo, right: &PackageInfo) -> String {
 
 pub fn analyze_conflicts_core(
     folder: String,
+    selected_paths: Option<Vec<String>>,
     operation_kind: Option<&str>,
 ) -> Result<ConflictAnalysis, String> {
     let total_started = Instant::now();
@@ -424,13 +425,39 @@ pub fn analyze_conflicts_core(
         .as_ref()
         .and_then(|cfg| PathBuf::from(&cfg.path).parent().map(Path::to_path_buf));
 
-    let mut paths = WalkDir::new(&root)
+    let mut all_paths = WalkDir::new(&root)
         .follow_links(false)
         .into_iter()
         .filter_map(Result::ok)
         .filter(|entry| entry.file_type().is_file() && is_package(entry.path()))
         .map(|entry| entry.into_path())
         .collect::<Vec<_>>();
+    all_paths.sort_by_key(|path| path.to_string_lossy().to_ascii_lowercase());
+
+    let mut paths = if let Some(selected_paths) = selected_paths {
+        if selected_paths.is_empty() {
+            return Err("No packages were selected.".to_string());
+        }
+
+        let mut selected = std::collections::HashSet::<PathBuf>::new();
+        for raw in selected_paths {
+            let canonical = PathBuf::from(&raw)
+                .canonicalize()
+                .map_err(|error| format!("Could not resolve selected package {raw}: {error}"))?;
+            if !canonical.starts_with(&root) || !is_package(&canonical) {
+                return Err(format!("Selected package is outside the current library: {raw}"));
+            }
+            selected.insert(canonical);
+        }
+
+        all_paths
+            .iter()
+            .filter(|path| path.canonicalize().ok().map(|value| selected.contains(&value)).unwrap_or(false))
+            .cloned()
+            .collect::<Vec<_>>()
+    } else {
+        all_paths.clone()
+    };
     paths.sort_by_key(|path| path.to_string_lossy().to_ascii_lowercase());
 
     if let Some(kind) = operation_kind {
@@ -439,7 +466,7 @@ pub fn analyze_conflicts_core(
     }
 
     let mut cache = load_cache(&root);
-    retain_existing(&mut cache, &paths);
+    retain_existing(&mut cache, &all_paths);
 
     let mut packages = Vec::<PackageInfo>::with_capacity(paths.len());
     let mut resource_index =
@@ -739,12 +766,12 @@ pub fn analyze_conflicts_core(
 }
 
 #[tauri::command]
-pub async fn analyze_conflicts(folder: String) -> Result<ConflictAnalysis, String> {
+pub async fn analyze_conflicts(folder: String, selected_paths: Option<Vec<String>>) -> Result<ConflictAnalysis, String> {
     const KIND: &str = "conflicts";
     operation::begin(KIND, "starting");
 
     let joined = tauri::async_runtime::spawn_blocking(move || {
-        analyze_conflicts_core(folder, Some(KIND))
+        analyze_conflicts_core(folder, selected_paths, Some(KIND))
     })
     .await;
 
