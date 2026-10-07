@@ -33,6 +33,9 @@ pub struct ScanPackageItem {
     pub catalog_resource_count: usize,
     pub resource_types: Vec<String>,
     pub instances: Vec<String>,
+    pub scripted: bool,
+    pub content_source: String,
+    pub source_confidence: Option<String>,
     pub status: String,
     pub detected_from: Vec<String>,
     pub category: Option<String>,
@@ -109,6 +112,59 @@ fn package_extension(path: &Path) -> bool {
         .and_then(|value| value.to_str())
         .map(|value| value.eq_ignore_ascii_case("package"))
         .unwrap_or(false)
+}
+
+fn contains_ascii_case_insensitive(data: &[u8], needle: &str) -> bool {
+    let needle = needle.as_bytes();
+    if needle.is_empty() || data.len() < needle.len() {
+        return false;
+    }
+
+    data.windows(needle.len()).any(|window| {
+        window
+            .iter()
+            .zip(needle.iter())
+            .all(|(left, right)| left.to_ascii_lowercase() == right.to_ascii_lowercase())
+    })
+}
+
+fn store_name_hint(value: &str) -> bool {
+    let normalized = value
+        .chars()
+        .map(|ch| if ch.is_ascii_alphanumeric() { ch.to_ascii_lowercase() } else { ' ' })
+        .collect::<String>();
+    normalized.split_whitespace().any(|token| token == "store")
+}
+
+fn detect_store_source(package: &Package, name: &str, relative: &str, has_s3sa: bool) -> (String, Option<String>) {
+    let mut strong_internal_evidence = false;
+
+    for entry in &package.entries {
+        if !matches!(entry.type_id, TYPE_S3SA | TYPE_STBL_LOCAL | TYPE_MANIFEST_LOCAL | TYPE_NMAP_LOCAL) {
+            continue;
+        }
+        let Ok(data) = package.data(entry) else {
+            continue;
+        };
+
+        if contains_ascii_case_insensitive(&data, "sims3.store")
+            || contains_ascii_case_insensitive(&data, "the sims 3 store")
+            || contains_ascii_case_insensitive(&data, "sims3store")
+        {
+            strong_internal_evidence = true;
+            break;
+        }
+    }
+
+    if strong_internal_evidence {
+        return ("the_sims_3_store".to_string(), Some("strong".to_string()));
+    }
+
+    if has_s3sa && (store_name_hint(name) || store_name_hint(relative)) {
+        return ("the_sims_3_store".to_string(), Some("probable".to_string()));
+    }
+
+    ("custom_content".to_string(), None)
 }
 
 
@@ -695,6 +751,9 @@ fn scan_one(
                 catalog_resource_count: 0,
                 resource_types: Vec::new(),
                 instances: Vec::new(),
+                scripted: false,
+                content_source: "unknown".to_string(),
+                source_confidence: None,
                 status: "invalid".to_string(),
                 detected_from: Vec::new(),
                 category: None,
@@ -928,6 +987,10 @@ fn scan_one(
         );
     }
 
+    let scripted = type_ids.contains(&TYPE_S3SA);
+    let (content_source, source_confidence) =
+        detect_store_source(&package, &name, &relative, scripted);
+
     ScanPackageItem {
         id,
         name,
@@ -942,6 +1005,9 @@ fn scan_one(
             .collect::<BTreeSet<_>>()
             .into_iter()
             .collect(),
+        scripted,
+        content_source,
+        source_confidence,
         status,
         detected_from: detected_from.into_iter().collect(),
         category,
