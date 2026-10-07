@@ -64,7 +64,7 @@ const I18N = {
     simulationOnly: "Preflight preview. Nothing moves until you choose Organize Selected.",
     readyToMove: "Ready",
     collisions: "Collisions",
-    planCollisionsSkipped: "Collisions Skipped",
+    planCollisionsSkipped: "Collisions to Review",
     organizationResult: "Organization Result",
     organizedPackages: "packages organized",
     duplicatesPending: "identical duplicates pending review",
@@ -74,8 +74,11 @@ const I18N = {
     collisionReviewTitle: "Skipped Collisions",
     collisionReviewIntro: "These packages were left untouched because different files resolve to the same destination.",
     collisionReviewSafety: "No collided file was moved or overwritten.",
-    duplicatesSkipped: "Identical Skipped",
-    duplicateSkipped: "Identical duplicate · skipped",
+    duplicatesSkipped: "Duplicates to Review",
+    duplicateSkipped: "Identical duplicate · review",
+    moveToNotCategorized: "Move to Not Categorized",
+    duplicateToReview: "Duplicate · move to Not Categorized",
+    collisionToReview: "Collision · move to Not Categorized",
     blocked: "Blocked",
     foldersToCreate: "Folders",
     manifestPreview: "Restore manifest preview",
@@ -488,7 +491,7 @@ const I18N = {
     simulationOnly: "Preview de segurança. Nada será movido até escolher Organizar Selecionados.",
     readyToMove: "Prontos",
     collisions: "Colisões",
-    planCollisionsSkipped: "Colisões ignoradas",
+    planCollisionsSkipped: "Colisões para revisar",
     organizationResult: "Resultado da Organização",
     organizedPackages: "packages organizados",
     duplicatesPending: "duplicados idênticos pendentes de revisão",
@@ -498,8 +501,11 @@ const I18N = {
     collisionReviewTitle: "Colisões Ignoradas",
     collisionReviewIntro: "Estes packages ficaram intactos porque arquivos diferentes apontam para o mesmo destino.",
     collisionReviewSafety: "Nenhum arquivo em colisão foi movido ou sobrescrito.",
-    duplicatesSkipped: "Duplicados ignorados",
-    duplicateSkipped: "Duplicado idêntico · ignorado",
+    duplicatesSkipped: "Duplicados para revisar",
+    duplicateSkipped: "Duplicado idêntico · revisar",
+    moveToNotCategorized: "Mover para Sem Categoria",
+    duplicateToReview: "Duplicado · mover para Sem Categoria",
+    collisionToReview: "Colisão · mover para Sem Categoria",
     blocked: "Bloqueados",
     foldersToCreate: "Pastas",
     manifestPreview: "Preview do manifesto de restauração",
@@ -911,7 +917,7 @@ const I18N = {
     simulationOnly: "Vista previa de seguridad. Nada se moverá hasta elegir Organizar Seleccionados.",
     readyToMove: "Listos",
     collisions: "Colisiones",
-    planCollisionsSkipped: "Colisiones omitidas",
+    planCollisionsSkipped: "Colisiones para revisar",
     organizationResult: "Resultado de la Organización",
     organizedPackages: "packages organizados",
     duplicatesPending: "duplicados idénticos pendientes de revisión",
@@ -921,8 +927,11 @@ const I18N = {
     collisionReviewTitle: "Colisiones Omitidas",
     collisionReviewIntro: "Estos packages quedaron intactos porque archivos diferentes apuntan al mismo destino.",
     collisionReviewSafety: "Ningún archivo en colisión fue movido ni sobrescrito.",
-    duplicatesSkipped: "Duplicados omitidos",
-    duplicateSkipped: "Duplicado idéntico · omitido",
+    duplicatesSkipped: "Duplicados para revisar",
+    duplicateSkipped: "Duplicado idéntico · revisar",
+    moveToNotCategorized: "Mover a Sin Categorizar",
+    duplicateToReview: "Duplicado · mover a Sin Categorizar",
+    collisionToReview: "Colisión · mover a Sin Categorizar",
     blocked: "Bloqueados",
     foldersToCreate: "Carpetas",
     manifestPreview: "Vista previa del manifiesto de restauración",
@@ -2155,7 +2164,7 @@ function t(key) {
 }
 
 function eligibleForPlan(item) {
-  return item?.status === "classified" && !!item.destinationPath;
+  return !!item?.path;
 }
 
 function statusLabel(status) {
@@ -2176,6 +2185,9 @@ function planCanExecute(plan) {
 function planStatusLabel(status) {
   return {
     ready: t("readyToMove"),
+    ready_uncategorized: t("moveToNotCategorized"),
+    ready_duplicate: t("duplicateToReview"),
+    ready_collision: t("collisionToReview"),
     already_organized: t("alreadyOrganized"),
     duplicate_skipped: t("duplicateSkipped"),
     collision_same_content: t("collisionSame"),
@@ -5821,7 +5833,7 @@ async function executeOrganization() {
   const completedPlan = state.plan;
   const completedStats = completedPlan?.stats || {};
   const collisionItems = (completedPlan?.items || []).filter((item) =>
-    String(item.planStatus || "").startsWith("collision_")
+    String(item.planStatus || "").includes("collision")
   );
 
   state.organizationReview = null;
