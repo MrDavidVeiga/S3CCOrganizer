@@ -98,7 +98,6 @@ function setStaticText() {
   q("#sims3pack-files-label").textContent = tr("files");
   q("#sims3pack-destination-label").textContent = tr("destination");
   q("#sims3pack-combined-label").textContent = tr("combined");
-  q("#sims3pack-combined-hint").textContent = tr("separateHint");
   const empty = q("#sims3pack-converter-empty");
   if (empty) empty.textContent = tr("empty");
   render();
