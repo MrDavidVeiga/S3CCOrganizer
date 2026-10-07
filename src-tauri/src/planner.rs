@@ -132,6 +132,135 @@ fn add_missing_directories(root: &Path, parts: &[String], output: &mut BTreeSet<
     }
 }
 
+fn is_not_categorized_root(value: &str) -> bool {
+    matches!(
+        value.to_ascii_lowercase().as_str(),
+        "not categorized"
+            | "sem categoria"
+            | "não categorizado"
+            | "nao categorizado"
+            | "sin categorizar"
+    )
+}
+
+fn fallback_relative_path(
+    root: &Path,
+    language: AppLanguage,
+    source_relative: &str,
+    source_hash: &str,
+) -> Result<(PathBuf, Vec<String>), String> {
+    let source_relative = Path::new(source_relative);
+    let components = source_relative
+        .components()
+        .map(|component| match component {
+            Component::Normal(value) => Ok(value.to_string_lossy().to_string()),
+            _ => Err(format!(
+                "Source relative path is not safe for Not Categorized: {}",
+                source_relative.display()
+            )),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let file_name = components
+        .last()
+        .cloned()
+        .ok_or_else(|| "Source relative path has no filename.".to_string())?;
+
+    let mut parent_parts = components[..components.len().saturating_sub(1)].to_vec();
+    if parent_parts
+        .first()
+        .map(|value| is_not_categorized_root(value))
+        .unwrap_or(false)
+    {
+        parent_parts.remove(0);
+    }
+
+    let mut destination_parts = vec![language.not_categorized_folder().to_string()];
+    destination_parts.extend(parent_parts);
+
+    let mut destination_relative = PathBuf::new();
+    for part in &destination_parts {
+        destination_relative.push(part);
+    }
+    destination_relative.push(&file_name);
+
+    let source_absolute = root.join(source_relative);
+    let mut destination_absolute = root.join(&destination_relative);
+
+    if destination_absolute.exists()
+        && !same_path_case_insensitive(&source_absolute, &destination_absolute)
+    {
+        let file = Path::new(&file_name);
+        let stem = file
+            .file_stem()
+            .and_then(|value| value.to_str())
+            .unwrap_or("package");
+        let extension = file.extension().and_then(|value| value.to_str()).unwrap_or("package");
+        let short_hash = &source_hash[..source_hash.len().min(8)];
+
+        let mut attempt = 0usize;
+        loop {
+            let suffix = if attempt == 0 {
+                format!(" [{short_hash}]")
+            } else {
+                format!(" [{short_hash}-{attempt}]")
+            };
+            let candidate_name = format!("{stem}{suffix}.{extension}");
+            let mut candidate = PathBuf::new();
+            for part in &destination_parts {
+                candidate.push(part);
+            }
+            candidate.push(candidate_name);
+            let candidate_absolute = root.join(&candidate);
+            if !candidate_absolute.exists() {
+                destination_relative = candidate;
+                destination_absolute = candidate_absolute;
+                break;
+            }
+            attempt += 1;
+        }
+    }
+
+    let _ = destination_absolute;
+    Ok((destination_relative, destination_parts))
+}
+
+fn same_path_case_insensitive(left: &Path, right: &Path) -> bool {
+    relative_key(left).eq_ignore_ascii_case(&relative_key(right))
+}
+
+fn retarget_item_to_not_categorized(
+    root: &Path,
+    language: AppLanguage,
+    item: &mut PlanItem,
+    directories: &mut BTreeSet<String>,
+    status: &str,
+) -> Result<(), String> {
+    let hash = item
+        .sha256
+        .as_deref()
+        .ok_or_else(|| format!("Missing SHA-256 for {}", item.name))?;
+    let (destination_relative, destination_parts) =
+        fallback_relative_path(root, language, &item.source_relative_path, hash)?;
+    let destination = root.join(&destination_relative);
+    let destination_relative_text = relative_key(&destination_relative);
+
+    if relative_key(Path::new(&item.source_relative_path))
+        .eq_ignore_ascii_case(&destination_relative_text)
+    {
+        item.plan_status = "already_organized".to_string();
+        item.destination_path = Some(destination.to_string_lossy().to_string());
+        item.destination_relative_path = Some(destination_relative_text);
+        return Ok(());
+    }
+
+    add_missing_directories(root, &destination_parts, directories);
+    item.plan_status = status.to_string();
+    item.destination_path = Some(destination.to_string_lossy().to_string());
+    item.destination_relative_path = Some(destination_relative_text);
+    Ok(())
+}
+
 fn mark_intra_plan_destination_collisions(items: &mut [PlanItem], stats: &mut PlanStats) {
     let mut destinations = HashMap::<String, Vec<usize>>::new();
 
@@ -371,12 +500,41 @@ pub fn build_organization_plan(
             continue;
         }
 
-        if item.status != "classified" {
-            stats.blocked += 1;
-            items.push(make_blocked(
-                item,
-                format!("Classification status '{}' is not eligible for automatic organization.", item.status),
-            ));
+        if item.status != "classified" || item.destination_parts.is_empty() {
+            let source_size = fs::metadata(&source)
+                .map_err(|error| format!("Could not stat {}: {error}", source.display()))?
+                .len();
+            let mut fallback = PlanItem {
+                id: item.id.clone(),
+                name: item.name.clone(),
+                source_path: source.to_string_lossy().to_string(),
+                source_relative_path: item.relative_path.clone(),
+                destination_path: None,
+                destination_relative_path: None,
+                classification_status: item.status.clone(),
+                classification_reason: item.classification_reason.clone(),
+                plan_status: "ready_uncategorized".to_string(),
+                sha256: Some(source_hash),
+                size: source_size,
+                warnings: vec![format!(
+                    "Classification status '{}' has no safe category. The package will be moved under '{}'.",
+                    item.status,
+                    language.not_categorized_folder()
+                )],
+            };
+            retarget_item_to_not_categorized(
+                &root,
+                language,
+                &mut fallback,
+                &mut directories,
+                "ready_uncategorized",
+            )?;
+            if fallback.plan_status == "already_organized" {
+                stats.already_organized += 1;
+            } else {
+                stats.ready += 1;
+            }
+            items.push(fallback);
             continue;
         }
 
@@ -476,7 +634,7 @@ pub fn build_organization_plan(
                 stats.collision_different_content += 1;
             }
 
-            items.push(PlanItem {
+            let mut fallback = PlanItem {
                 id: item.id.clone(),
                 name: item.name.clone(),
                 source_path: source.to_string_lossy().to_string(),
@@ -486,18 +644,34 @@ pub fn build_organization_plan(
                 classification_status: item.status.clone(),
                 classification_reason: classification_reason.clone(),
                 plan_status: if same {
-                    "duplicate_skipped".to_string()
+                    "ready_duplicate".to_string()
                 } else {
-                    "collision_different_content".to_string()
+                    "ready_collision".to_string()
                 },
                 sha256: Some(source_hash),
                 size: source_size,
                 warnings: vec![if same {
-                    "Destination already contains a byte-identical file. This duplicate will be left in place and will not block organization.".to_string()
+                    format!(
+                        "The categorized destination already contains a byte-identical file. This copy will be moved under '{}' for duplicate review.",
+                        language.not_categorized_folder()
+                    )
                 } else {
-                    "Destination already contains a different file with the same name. This file will be left in place and skipped during organization.".to_string()
+                    format!(
+                        "The categorized destination already contains a different file with the same name. This package will be moved under '{}' for collision review.",
+                        language.not_categorized_folder()
+                    )
                 }],
-            });
+            };
+            retarget_item_to_not_categorized(
+                &root,
+                language,
+                &mut fallback,
+                &mut directories,
+                if same { "ready_duplicate" } else { "ready_collision" },
+            )?;
+            stats.ready += usize::from(fallback.plan_status.starts_with("ready"));
+            stats.already_organized += usize::from(fallback.plan_status == "already_organized");
+            items.push(fallback);
             continue;
         }
 
@@ -522,6 +696,30 @@ pub fn build_organization_plan(
     // Detect collisions created by the plan itself before any filesystem write occurs.
     // This catches multiple selected packages that resolve to the same final path.
     mark_intra_plan_destination_collisions(&mut items, &mut stats);
+
+    for item in items.iter_mut().filter(|item| {
+        matches!(
+            item.plan_status.as_str(),
+            "duplicate_skipped" | "collision_different_content"
+        )
+    }) {
+        let fallback_status = if item.plan_status == "duplicate_skipped" {
+            "ready_duplicate"
+        } else {
+            "ready_collision"
+        };
+        item.warnings.push(format!(
+            "The unresolved copy will be kept safely under '{}'.",
+            language.not_categorized_folder()
+        ));
+        retarget_item_to_not_categorized(
+            &root,
+            language,
+            item,
+            &mut directories,
+            fallback_status,
+        )?;
+    }
 
     for group in workspace.groups.iter().filter(|group| group.keep_together) {
         if !group
@@ -551,7 +749,7 @@ pub fn build_organization_plan(
                     .map(|hash| group.member_sha256.contains(hash))
                     .unwrap_or(false)
             }) {
-                if item.plan_status == "ready" {
+                if item.plan_status.starts_with("ready") {
                     item.plan_status = "blocked".to_string();
                     item.warnings.push(format!(
                         "Keep Together group '{}' would be split across multiple destination folders.",
@@ -562,16 +760,15 @@ pub fn build_organization_plan(
         }
     }
 
-    stats.ready = items.iter().filter(|item| item.plan_status == "ready").count();
-    stats.duplicate_skipped = items
+    stats.ready = items
         .iter()
-        .filter(|item| item.plan_status == "duplicate_skipped")
+        .filter(|item| item.plan_status.starts_with("ready"))
         .count();
     stats.blocked = items.iter().filter(|item| item.plan_status == "blocked").count();
 
     let ready_items = items
         .iter()
-        .filter(|item| item.plan_status == "ready")
+        .filter(|item| item.plan_status.starts_with("ready"))
         .cloned()
         .collect::<Vec<_>>();
 
