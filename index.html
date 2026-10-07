@@ -86,7 +86,16 @@
             <div id="results-state" class="results-state hidden">
               <div class="results-actions">
                 <div class="results-query-controls">
-                  <select id="status-filter" class="text-input results-filter-input"></select>
+                  <div id="status-filter" class="content-filter">
+                    <span id="status-filter-label" class="content-filter-label"></span>
+                    <div class="lang-dropdown content-filter-dropdown" id="status-filter-dropdown">
+                      <button id="status-filter-toggle-btn" class="lang-toggle-btn content-filter-toggle-btn" type="button" aria-haspopup="listbox" aria-expanded="false">
+                        <span id="status-filter-current" class="content-filter-current"></span>
+                        <i id="status-filter-toggle-icon" class="fa-solid fa-angle-down" aria-hidden="true"></i>
+                      </button>
+                      <div id="status-filter-menu" class="lang-menu content-filter-menu hidden" role="listbox"></div>
+                    </div>
+                  </div>
                   <input id="search-input" class="text-input results-search-input" type="search" autocomplete="off" spellcheck="false" />
                 </div>
                 <div class="results-selection-controls">
@@ -96,7 +105,12 @@
               </div>
 
               <div class="results-layout">
-                <div id="package-list" class="package-list" aria-live="polite"></div>
+                <div class="list-card manager-list-card">
+                  <div class="list-header">
+                    <span></span>
+                  </div>
+                  <div id="package-list" class="package-list" aria-live="polite"></div>
+                </div>
                 <aside id="preview-card" class="preview-card">
                   <div class="preview-empty" data-i18n="selectPackage">Select a package to see its classification.</div>
                 </aside>
