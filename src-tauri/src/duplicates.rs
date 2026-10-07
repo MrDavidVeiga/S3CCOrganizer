@@ -608,13 +608,15 @@ pub fn analyze_duplicates_core(
         return Err(format!("Folder does not exist: {}", root.display()));
     }
 
-    let mut all_paths = WalkDir::new(&root)
-        .follow_links(false)
-        .into_iter()
-        .filter_map(Result::ok)
-        .filter(|entry| entry.file_type().is_file() && is_package(entry.path()))
-        .map(|entry| entry.into_path())
-        .collect::<Vec<_>>();
+    let mut all_paths = crate::scanner::cached_scan_paths(&root).unwrap_or_else(|| {
+        WalkDir::new(&root)
+            .follow_links(false)
+            .into_iter()
+            .filter_map(Result::ok)
+            .filter(|entry| entry.file_type().is_file() && is_package(entry.path()))
+            .map(|entry| entry.into_path())
+            .collect::<Vec<_>>()
+    });
     all_paths.sort_by_key(|path| path.to_string_lossy().to_ascii_lowercase());
 
     let mut paths = if let Some(selected_paths) = selected_paths {
@@ -668,7 +670,7 @@ pub fn analyze_duplicates_core(
             operation::update(
                 kind,
                 index,
-                path.file_name().map(|value| value.to_string_lossy().to_string()),
+                None,
                 "fingerprinting",
             );
         }
@@ -700,7 +702,7 @@ pub fn analyze_duplicates_core(
             operation::update(
                 kind,
                 index + 1,
-                path.file_name().map(|value| value.to_string_lossy().to_string()),
+                None,
                 "fingerprinting",
             );
         }
