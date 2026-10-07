@@ -1661,9 +1661,11 @@ function renderCachePanel() {
   } else {
     el.cacheSummary.textContent = t("cacheNoData");
   }
-  el.openCacheBtn.disabled = !state.cacheInfo?.bytes;
+  const hasCache = !!state.cacheInfo?.bytes;
+  el.openCacheBtn.classList.toggle("hidden", !hasCache);
+  el.clearCacheBtn.classList.toggle("hidden", !hasCache);
+  el.openCacheBtn.disabled = state.cacheBusy;
   el.clearCacheBtn.disabled =
-    !state.cacheInfo?.bytes ||
     state.cacheBusy ||
     state.scanning ||
     state.duplicatesBusy ||
@@ -2069,9 +2071,15 @@ function renderAuditPanel() {
   } else {
     el.auditStatus.textContent = t("auditReportHint");
   }
+  const canExportReport = !!state.folder;
+  const hasReportFolder = !!state.lastAuditReport?.directory;
+
+  el.exportAuditBtn.classList.toggle("hidden", !canExportReport);
   el.exportAuditBtn.disabled =
-    !state.folder || state.auditBusy || state.reviewBusy || state.structureBusy;
-  el.openReportFolderBtn.disabled = !state.lastAuditReport?.directory;
+    state.auditBusy || state.reviewBusy || state.structureBusy;
+
+  el.openReportFolderBtn.classList.toggle("hidden", !hasReportFolder);
+  el.openReportFolderBtn.disabled = state.auditBusy;
 }
 
 function t(key) {
@@ -5180,13 +5188,21 @@ function renderPlan() {
 
 function renderRestore() {
   const plan = state.restorePlan;
+  const hasManifest = !!state.restoreManifest;
+  const canExecuteRestore = !!plan?.canExecute;
+
   el.restoreManifestPath.textContent = state.restoreManifest || t("noManifest");
   el.restoreManifestPath.title = state.restoreManifest;
-  el.previewRestoreBtn.disabled =
-    !state.restoreManifest || state.restoreBusy || state.structureBusy;
+
+  el.previewRestoreBtn.classList.toggle("hidden", !hasManifest);
+  el.previewRestoreBtn.disabled = state.restoreBusy || state.structureBusy;
+
+  el.openManifestFolderBtn.classList.toggle("hidden", !hasManifest);
+  el.openManifestFolderBtn.disabled = state.restoreBusy;
+
+  el.executeRestoreBtn.classList.toggle("hidden", !canExecuteRestore);
   el.executeRestoreBtn.disabled =
-    !plan?.canExecute || state.restoreBusy || state.structureBusy || workspaceReadOnly();
-  el.openManifestFolderBtn.disabled = !state.restoreManifest;
+    state.restoreBusy || state.structureBusy || workspaceReadOnly();
 
   if (plan) {
     el.restoreRootCheck.classList.remove("hidden", "match", "mismatch");
