@@ -1531,7 +1531,8 @@ function virtualRange(container, itemCount, stride) {
 
 function updateActiveVirtualRow(container, dataKey, id, className) {
   if (!container) return;
-  for (const row of container.querySelectorAll(`[${dataKey}]`)) {
+  const attribute = dataKey.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
+  for (const row of container.querySelectorAll(`[data-${attribute}]`)) {
     row.classList.toggle(className, row.dataset[dataKey] === id);
   }
 }
@@ -1981,6 +1982,7 @@ async function setConflictMark(finding, mark) {
 
   if (mark === "ignored") {
     state.conflictMarks[finding.id] = "ignored";
+    conflictMarksVersion += 1;
     renderConflicts();
     return;
   }
@@ -2007,6 +2009,7 @@ async function setConflictMark(finding, mark) {
     });
     applyPersistentDecisionRecords(records);
     delete state.conflictMarks[finding.id];
+    conflictMarksVersion += 1;
   } catch (error) {
     state.conflictsNotice = String(error);
   } finally {
