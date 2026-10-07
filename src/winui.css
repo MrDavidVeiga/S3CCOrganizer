@@ -373,29 +373,28 @@ html[data-theme-choice="mean-girls"] .winui-social-footer .social-icons-list a:h
   background: rgba(249,47,96,.10);
 }
 
-
-/* EA App — neutral light theme based on the standard EA App interface */
+/* EA App — dark standard theme based on the supplied EA App screenshot */
 html[data-theme-choice="ea-app"] {
-  color-scheme: light;
+  color-scheme: dark;
 
-  --winui-mica-base: #F4F4F4;
-  --winui-layer-fill: #FFFFFF;
-  --winui-card-fill: #FFFFFF;
-  --winui-card-fill-alt: #F7F7F7;
+  --winui-mica-base: #181B2A;
+  --winui-layer-fill: #1D2030;
+  --winui-card-fill: #232738;
+  --winui-card-fill-alt: #202434;
 
-  --winui-control-fill: #FFFFFF;
-  --winui-control-fill-hover: #F1F1F1;
-  --winui-control-fill-pressed: #E6E6E6;
-  --winui-control-stroke: rgba(28,28,28,.15);
-  --winui-control-stroke-strong: rgba(28,28,28,.30);
-  --winui-divider: rgba(28,28,28,.10);
+  --winui-control-fill: #2A2E3F;
+  --winui-control-fill-hover: #343647;
+  --winui-control-fill-pressed: #3D4052;
+  --winui-control-stroke: rgba(255,255,255,.13);
+  --winui-control-stroke-strong: rgba(255,255,255,.26);
+  --winui-divider: rgba(255,255,255,.10);
 
-  --winui-text-primary: #242424;
-  --winui-text-secondary: #5F5F5F;
-  --winui-text-tertiary: #858585;
+  --winui-text-primary: #F8F8FA;
+  --winui-text-secondary: #A0A2AE;
+  --winui-text-tertiary: #7D7F8C;
 
-  --winui-popup: #FFFFFF;
-  --winui-shadow: rgba(0,0,0,.14);
+  --winui-popup: #232738;
+  --winui-shadow: rgba(0,0,0,.42);
 
   --bg: var(--winui-mica-base);
   --panel: var(--winui-layer-fill);
@@ -408,81 +407,81 @@ html[data-theme-choice="ea-app"] {
 }
 
 .ea-app-swatch {
-  background: linear-gradient(90deg,#F4F4F4 0 54%,#FF4747 54% 100%);
+  background: linear-gradient(90deg,#181B2A 0 58%,#276AFC 58% 100%);
 }
 
 html[data-theme-choice="ea-app"] body.release-v1 {
-  background: #F4F4F4;
+  background: #181B2A;
 }
 
 html[data-theme-choice="ea-app"] .release-v1 .app-shell {
-  background: #F4F4F4;
+  background: #181B2A;
 }
 
 html[data-theme-choice="ea-app"] .winui-titlebar {
-  background: #FFFFFF;
-  color: #242424;
-  border-bottom: 1px solid rgba(28,28,28,.06);
+  background: #000000;
+  color: #FFFFFF;
+  border-bottom: 1px solid rgba(255,255,255,.08);
 }
 
 html[data-theme-choice="ea-app"] .winui-caption-buttons button {
-  color: #242424;
+  color: #FFFFFF;
 }
 
 html[data-theme-choice="ea-app"] .winui-caption-buttons button:hover {
-  background: #EEEEEE;
+  background: #222222;
 }
 
 html[data-theme-choice="ea-app"] .winui-caption-buttons button:active {
-  background: #E2E2E2;
+  background: #303030;
 }
 
 html[data-theme-choice="ea-app"] .release-v1 .topbar.winui-navview {
-  background: #F7F7F7;
-  border-bottom-color: rgba(28,28,28,.08);
+  background: #181B2A;
+  border-bottom-color: rgba(255,255,255,.08);
 }
 
 html[data-theme-choice="ea-app"] .release-v1 .left-panel {
-  background: #F8F8F8;
-  border-right: 1px solid rgba(28,28,28,.06);
+  background: #181B2A;
+  border-right: 1px solid rgba(255,255,255,.06);
 }
 
 html[data-theme-choice="ea-app"] .release-v1 .right-panel {
-  background: #FFFFFF;
-  border-color: rgba(28,28,28,.08);
+  background: #1D2030;
+  border-color: rgba(255,255,255,.08);
 }
 
 html[data-theme-choice="ea-app"] .release-v1 .mode-btn {
-  color: #4E4E4E;
+  color: #D9DAE0;
 }
 
 html[data-theme-choice="ea-app"] .release-v1 .mode-btn:hover {
-  color: #242424;
-  background: #EEEEEE;
+  color: #FFFFFF;
+  background: #2B2E3F;
 }
 
 html[data-theme-choice="ea-app"] .release-v1 .mode-btn.active {
-  color: #242424;
-  background: #EEEEEE;
+  color: #FFFFFF;
+  background: #343647;
 }
 
 html[data-theme-choice="ea-app"] .release-v1 .mode-btn.active::after {
-  background: #FF4747;
+  background: #FFFFFF;
 }
 
 html[data-theme-choice="ea-app"] .release-v1 .primary-btn {
-  background: #FF4747;
-  border-color: #E93E3E;
-  border-bottom-color: #CF3434;
+  background: #276AFC;
+  border-color: #276AFC;
+  border-bottom-color: #1F56D0;
   color: #FFFFFF;
 }
 
 html[data-theme-choice="ea-app"] .release-v1 .primary-btn:hover:not(:disabled) {
-  background: #FF5A5A;
+  background: #3978FC;
 }
 
 html[data-theme-choice="ea-app"] .release-v1 .primary-btn:active:not(:disabled) {
-  background: #E93E3E;
+  background: #215BD8;
 }
 
 html[data-theme-choice="ea-app"] .release-v1 .lang-toggle-btn,
@@ -491,8 +490,9 @@ html[data-theme-choice="ea-app"] .release-v1 .secondary-btn,
 html[data-theme-choice="ea-app"] .release-v1 .compact-btn,
 html[data-theme-choice="ea-app"] .release-v1 .filter-btn,
 html[data-theme-choice="ea-app"] .release-v1 .content-filter-toggle-btn {
-  background: #FFFFFF;
-  color: #242424;
+  background: #2A2E3F;
+  color: #FFFFFF;
+  border-color: rgba(255,255,255,.13);
 }
 
 html[data-theme-choice="ea-app"] .release-v1 .lang-toggle-btn:hover,
@@ -501,28 +501,44 @@ html[data-theme-choice="ea-app"] .release-v1 .secondary-btn:hover:not(:disabled)
 html[data-theme-choice="ea-app"] .release-v1 .compact-btn:hover:not(:disabled),
 html[data-theme-choice="ea-app"] .release-v1 .filter-btn:hover:not(:disabled),
 html[data-theme-choice="ea-app"] .release-v1 .content-filter-toggle-btn:hover:not(:disabled) {
-  background: #EEEEEE;
+  background: #343647;
 }
 
 html[data-theme-choice="ea-app"] .release-v1 .text-input,
 html[data-theme-choice="ea-app"] .release-v1 select.text-input {
   background: #FFFFFF;
-  color: #242424;
-  border-color: rgba(28,28,28,.20);
+  color: #282936;
+  border-color: #6E7080;
+}
+
+html[data-theme-choice="ea-app"] .release-v1 .text-input::placeholder {
+  color: #8B8D98;
+}
+
+html[data-theme-choice="ea-app"] .release-v1 .text-input:hover,
+html[data-theme-choice="ea-app"] .release-v1 select.text-input:hover {
+  background: #FFFFFF;
 }
 
 html[data-theme-choice="ea-app"] .release-v1 .text-input:focus,
 html[data-theme-choice="ea-app"] .release-v1 select.text-input:focus {
-  border-color: rgba(28,28,28,.18);
-  border-bottom-color: #FF4747;
+  background: #FFFFFF;
+  border-color: #276AFC;
+  border-bottom-color: #276AFC;
+}
+
+html[data-theme-choice="ea-app"] .release-v1 select.text-input option,
+html[data-theme-choice="ea-app"] .release-v1 select.text-input optgroup {
+  background: #232738;
+  color: #FFFFFF;
 }
 
 html[data-theme-choice="ea-app"] .release-v1 .stats article,
 html[data-theme-choice="ea-app"] .release-v1 .sidebar-note,
 html[data-theme-choice="ea-app"] .release-v1 .sidebar-utility,
 html[data-theme-choice="ea-app"] .release-v1 .sidebar-diagnostics {
-  background: #FFFFFF;
-  border-color: rgba(28,28,28,.10);
+  background: #232738;
+  border-color: rgba(255,255,255,.09);
 }
 
 html[data-theme-choice="ea-app"] .release-v1 .package-list,
@@ -531,30 +547,30 @@ html[data-theme-choice="ea-app"] .release-v1 #page-organizer .manager-list-card,
 html[data-theme-choice="ea-app"] .release-v1 #page-organizer .preview-card,
 html[data-theme-choice="ea-app"] .release-v1 .duplicates-list,
 html[data-theme-choice="ea-app"] .release-v1 .conflicts-list {
-  background: #F8F8F8;
-  border-color: rgba(28,28,28,.10);
+  background: #202434;
+  border-color: rgba(255,255,255,.09);
 }
 
 html[data-theme-choice="ea-app"] .release-v1 .package-row:hover,
 html[data-theme-choice="ea-app"] .release-v1 .duplicate-row:hover,
 html[data-theme-choice="ea-app"] .release-v1 .conflict-row:hover {
-  background: #EEEEEE;
+  background: #2A2E3F;
 }
 
 html[data-theme-choice="ea-app"] .release-v1 .package-row.active {
-  background: #F2F2F2;
-  box-shadow: inset 3px 0 0 #FF4747;
+  background: #343647;
+  box-shadow: inset 3px 0 0 #FFFFFF;
 }
 
 html[data-theme-choice="ea-app"] .theme-check {
-  color: #FF4747;
+  color: #276AFC;
 }
 
 html[data-theme-choice="ea-app"] .winui-social-footer .social-icons-list a {
-  color: #5F5F5F;
+  color: #A0A2AE;
 }
 
 html[data-theme-choice="ea-app"] .winui-social-footer .social-icons-list a:hover {
-  color: #242424;
-  background: #EDEDED;
+  color: #FFFFFF;
+  background: #343647;
 }
