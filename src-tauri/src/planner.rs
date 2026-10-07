@@ -258,8 +258,10 @@ pub fn build_organization_plan(
 
     let workspace = load_workspace_for_root(&root);
     let profile = active_profile(&workspace);
-    let scan = cached_scan_for(&root, language)
-        .unwrap_or(scan_packages_core(root.to_string_lossy().to_string(), language, None)?);
+    let scan = match cached_scan_for(&root, language) {
+        Some(scan) => scan,
+        None => scan_packages_core(root.to_string_lossy().to_string(), language, None)?,
+    };
 
     let mut scan_by_canonical = HashMap::<PathBuf, &ScanPackageItem>::new();
     for item in &scan.items {
@@ -640,6 +642,50 @@ mod tests {
         assert!(items
             .iter()
             .all(|item| item.plan_status == "collision_different_content"));
+    }
+
+    #[test]
+    fn identical_planned_destination_keeps_one_ready_and_skips_extra_copy() {
+        let hash = "A".repeat(64);
+        let mut items = vec![
+            PlanItem {
+                id: "1".into(),
+                name: "same.package".into(),
+                source_path: r"C:\\Mods\\A\\same.package".into(),
+                source_relative_path: r"A\\same.package".into(),
+                destination_path: Some(r"C:\\Mods\\CAS\\same.package".into()),
+                destination_relative_path: Some(r"CAS\\same.package".into()),
+                classification_status: "classified".into(),
+                classification_reason: Some("test".into()),
+                plan_status: "ready".into(),
+                sha256: Some(hash.clone()),
+                size: 10,
+                warnings: vec![],
+            },
+            PlanItem {
+                id: "2".into(),
+                name: "same.package".into(),
+                source_path: r"C:\\Mods\\B\\same.package".into(),
+                source_relative_path: r"B\\same.package".into(),
+                destination_path: Some(r"C:\\Mods\\CAS\\same.package".into()),
+                destination_relative_path: Some(r"CAS\\same.package".into()),
+                classification_status: "classified".into(),
+                classification_reason: Some("test".into()),
+                plan_status: "ready".into(),
+                sha256: Some(hash),
+                size: 10,
+                warnings: vec![],
+            },
+        ];
+        let mut stats = PlanStats::default();
+
+        mark_intra_plan_destination_collisions(&mut items, &mut stats);
+
+        assert_eq!(items[0].plan_status, "ready");
+        assert_eq!(items[1].plan_status, "duplicate_skipped");
+        assert_eq!(stats.duplicate_skipped, 1);
+        assert_eq!(stats.collision_same_content, 0);
+        assert_eq!(stats.collision_different_content, 0);
     }
 
     #[test]
