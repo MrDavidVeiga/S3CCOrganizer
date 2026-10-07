@@ -55,7 +55,7 @@ fn make_manifest_path(root: &Path) -> Result<PathBuf, String> {
 fn ready_items(plan_items: &[PlanItem]) -> Vec<&PlanItem> {
     plan_items
         .iter()
-        .filter(|item| item.plan_status == "ready")
+        .filter(|item| item.plan_status.starts_with("ready"))
         .collect()
 }
 
@@ -179,6 +179,23 @@ fn remove_empty_created_directories(root: &Path, directories: &[String]) {
         if path.is_dir() {
             let _ = fs::remove_dir(&path);
         }
+    }
+}
+
+fn remove_empty_directories_below_root(root: &Path) {
+    let mut directories = WalkDir::new(root)
+        .min_depth(1)
+        .follow_links(false)
+        .contents_first(true)
+        .into_iter()
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_type().is_dir())
+        .map(|entry| entry.into_path())
+        .collect::<Vec<_>>();
+
+    directories.sort_by_key(|path| std::cmp::Reverse(path.components().count()));
+    for directory in directories {
+        let _ = fs::remove_dir(&directory);
     }
 }
 
@@ -351,6 +368,10 @@ pub fn execute_organization(
         });
     }
 
+    // Old source folders are removed only when they are truly empty.
+    // Non-package companion files therefore remain untouched and keep their folders.
+    remove_empty_directories_below_root(&root);
+
     manifest.status = "COMPLETE".to_string();
     replace_manifest_atomic(&manifest_path, &manifest)?;
 
@@ -401,6 +422,8 @@ mod tests {
             },
         ];
 
-        assert_eq!(ready_items(&items).len(), 1);
+        let mut fallback = items[1].clone();
+        fallback.plan_status = "ready_uncategorized".into();
+        assert_eq!(ready_items(&[items[0].clone(), fallback]).len(), 2);
     }
 }
