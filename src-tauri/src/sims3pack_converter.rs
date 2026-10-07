@@ -13,6 +13,20 @@ use std::{
 const TYPE_MANIFEST: u32 = 0x73E9_3EEB;
 const TYPE_KEY: u32 = 0x0166_038C;
 const TYPE_MERGE_SKIP: u32 = 0x7672_F0C5;
+const TYPE_OBJD: u32 = 0x319E_4F1D;
+const TYPE_OBJK: u32 = 0x02DC_343F;
+const CACHE_THUMB_TYPES: &[u32] = &[
+    0x0580_A2B4, 0x0580_A2B5, 0x0580_A2B6,
+    0x0589_DC44, 0x0589_DC45, 0x0589_DC46,
+    0x05B1_7698, 0x05B1_7699, 0x05B1_769A,
+    0x05B1_B524, 0x05B1_B525, 0x05B1_B526,
+    0x2653_E3C8, 0x2653_E3C9, 0x2653_E3CA,
+    0x2D42_84F0, 0x2D42_84F1, 0x2D42_84F2,
+    0x2E75_C764, 0x2E75_C765, 0x2E75_C766, 0x2E75_C767,
+    0x5DE9_DBA0, 0x5DE9_DBA1, 0x5DE9_DBA2,
+    0x626F_60CC, 0x626F_60CD, 0x626F_60CE,
+    0xFCEA_B65B,
+];
 const MAX_XML_BYTES: usize = 16 * 1024 * 1024;
 const MAX_PAYLOAD_BYTES: usize = 1024 * 1024 * 1024;
 
@@ -480,6 +494,19 @@ fn key_names(package: &Package) -> BTreeMap<u64, String> {
     names
 }
 
+fn build_key_resource(names: &BTreeMap<u64, String>) -> Vec<u8> {
+    let mut data = Vec::new();
+    data.extend_from_slice(&1u32.to_le_bytes());
+    data.extend_from_slice(&(names.len() as u32).to_le_bytes());
+    for (instance, name) in names {
+        let bytes = name.as_bytes();
+        data.extend_from_slice(&instance.to_le_bytes());
+        data.extend_from_slice(&(bytes.len() as u32).to_le_bytes());
+        data.extend_from_slice(bytes);
+    }
+    data
+}
+
 fn package_casp_name(package: &Package) -> Option<String> {
     let key_map = key_names(package);
     for entry in package.entries.iter().filter(|entry| entry.type_id == TYPE_CASP) {
@@ -730,6 +757,17 @@ fn write_no_replace(path: &Path, data: &[u8]) -> Result<(), String> {
 
 
 #[derive(Debug, Clone)]
+struct OwnedRawResource {
+    type_id: u32,
+    group: u32,
+    instance: u64,
+    raw: Vec<u8>,
+    mem_size: u32,
+    compressed: u16,
+    unknown2: u16,
+}
+
+#[derive(Debug, Clone)]
 struct MergedResource {
     type_id: u32,
     group: u32,
@@ -756,7 +794,11 @@ fn write_empty_dbpf_header(file: &mut File) -> Result<(), String> {
     Ok(())
 }
 
-fn merge_packages_no_replace(target: &Path, packages: &[Package]) -> Result<usize, String> {
+fn write_owned_package_no_replace(
+    target: &Path,
+    raw_resources: &[OwnedRawResource],
+    key_names: &BTreeMap<u64, String>,
+) -> Result<usize, String> {
     let mut file = OpenOptions::new()
         .read(true)
         .write(true)
@@ -768,34 +810,37 @@ fn merge_packages_no_replace(target: &Path, packages: &[Package]) -> Result<usiz
         write_empty_dbpf_header(&mut file)?;
         file.seek(SeekFrom::Start(96)).map_err(|e| e.to_string())?;
 
-        let mut seen = HashSet::<(u32, u32, u64)>::new();
         let mut resources = Vec::<MergedResource>::new();
+        for resource in raw_resources {
+            let chunk_offset = file.stream_position().map_err(|e| e.to_string())? as u32;
+            file.write_all(&resource.raw).map_err(|e| e.to_string())?;
+            resources.push(MergedResource {
+                type_id: resource.type_id,
+                group: resource.group,
+                instance: resource.instance,
+                chunk_offset,
+                file_size: resource.raw.len() as u32,
+                mem_size: resource.mem_size,
+                compressed: resource.compressed,
+                unknown2: resource.unknown2,
+            });
+        }
 
-        for package in packages {
-            for entry in &package.entries {
-                if matches!(entry.type_id, TYPE_MANIFEST | TYPE_KEY | TYPE_MERGE_SKIP) {
-                    continue;
-                }
-                let key = (entry.type_id, entry.group, entry.instance);
-                if !seen.insert(key) {
-                    continue;
-                }
-
-                let raw = package.raw_data(entry)
-                    .map_err(|e| format!("Could not read resource {}: {e}", entry.key_string()))?;
-                let chunk_offset = file.stream_position().map_err(|e| e.to_string())? as u32;
-                file.write_all(&raw).map_err(|e| e.to_string())?;
-                resources.push(MergedResource {
-                    type_id: entry.type_id,
-                    group: entry.group,
-                    instance: entry.instance,
-                    chunk_offset,
-                    file_size: entry.file_size,
-                    mem_size: entry.mem_size,
-                    compressed: entry.compressed,
-                    unknown2: entry.unknown2,
-                });
-            }
+        if !key_names.is_empty() {
+            let raw = build_key_resource(key_names);
+            let chunk_offset = file.stream_position().map_err(|e| e.to_string())? as u32;
+            let size = raw.len() as u32;
+            file.write_all(&raw).map_err(|e| e.to_string())?;
+            resources.push(MergedResource {
+                type_id: TYPE_KEY,
+                group: 0,
+                instance: 0,
+                chunk_offset,
+                file_size: size,
+                mem_size: size,
+                compressed: 0,
+                unknown2: 0,
+            });
         }
 
         let index_position = file.stream_position().map_err(|e| e.to_string())? as u32;
@@ -814,8 +859,8 @@ fn merge_packages_no_replace(target: &Path, packages: &[Package]) -> Result<usiz
 
         let index_count = resources.len() as u32;
         let index_length = 4u32
-            .checked_add(index_count.checked_mul(32).ok_or_else(|| "Merged index is too large.".to_string())?)
-            .ok_or_else(|| "Merged index is too large.".to_string())?;
+            .checked_add(index_count.checked_mul(32).ok_or_else(|| "DBPF index is too large.".to_string())?)
+            .ok_or_else(|| "DBPF index is too large.".to_string())?;
 
         file.seek(SeekFrom::Start(36)).map_err(|e| e.to_string())?;
         file.write_u32::<LittleEndian>(index_count).map_err(|e| e.to_string())?;
@@ -824,7 +869,6 @@ fn merge_packages_no_replace(target: &Path, packages: &[Package]) -> Result<usiz
         file.seek(SeekFrom::Start(64)).map_err(|e| e.to_string())?;
         file.write_u32::<LittleEndian>(index_position).map_err(|e| e.to_string())?;
         file.sync_all().map_err(|e| e.to_string())?;
-
         Ok(resources.len())
     })();
 
@@ -833,6 +877,171 @@ fn merge_packages_no_replace(target: &Path, packages: &[Package]) -> Result<usiz
         let _ = fs::remove_file(target);
     }
     result
+}
+
+fn cache_thumbnail_paths() -> Vec<PathBuf> {
+    let Some(documents) = dirs::document_dir() else {
+        return Vec::new();
+    };
+    let folder = documents
+        .join("Electronic Arts")
+        .join("The Sims 3")
+        .join("Thumbnails");
+    [
+        folder.join("ObjectThumbnails.package"),
+        folder.join("CASThumbnails.package"),
+    ]
+    .into_iter()
+    .filter(|path| path.is_file())
+    .collect()
+}
+
+fn restore_cached_thumbnails(target: &Path) -> Result<usize, String> {
+    let base = Package::load(target)
+        .map_err(|e| format!("Could not reopen converted package {}: {e}", target.display()))?;
+
+    let catalog_instances = base
+        .entries
+        .iter()
+        .filter(|entry| matches!(entry.type_id, TYPE_CASP | TYPE_OBJD | TYPE_OBJK))
+        .map(|entry| entry.instance)
+        .collect::<HashSet<_>>();
+    if catalog_instances.is_empty() {
+        return Ok(0);
+    }
+
+    let mut existing = base
+        .entries
+        .iter()
+        .map(|entry| (entry.type_id, entry.group, entry.instance))
+        .collect::<HashSet<_>>();
+    let mut additions = Vec::<OwnedRawResource>::new();
+    let mut names = key_names(&base);
+
+    for cache_path in cache_thumbnail_paths() {
+        let cache = match Package::load(&cache_path) {
+            Ok(value) => value,
+            Err(_) => continue,
+        };
+        let cache_names = key_names(&cache);
+
+        for entry in &cache.entries {
+            if !CACHE_THUMB_TYPES.contains(&entry.type_id)
+                || !catalog_instances.contains(&entry.instance)
+            {
+                continue;
+            }
+            let key = (entry.type_id, entry.group, entry.instance);
+            if !existing.insert(key) {
+                continue;
+            }
+            let raw = match cache.raw_data(entry) {
+                Ok(value) => value,
+                Err(_) => continue,
+            };
+            additions.push(OwnedRawResource {
+                type_id: entry.type_id,
+                group: entry.group,
+                instance: entry.instance,
+                raw,
+                mem_size: entry.mem_size,
+                compressed: entry.compressed,
+                unknown2: entry.unknown2,
+            });
+            if let Some(name) = cache_names.get(&entry.instance) {
+                names.entry(entry.instance).or_insert_with(|| name.clone());
+            }
+        }
+    }
+
+    if additions.is_empty() {
+        return Ok(0);
+    }
+
+    let mut resources = Vec::<OwnedRawResource>::new();
+    for entry in &base.entries {
+        if entry.type_id == TYPE_KEY {
+            continue;
+        }
+        resources.push(OwnedRawResource {
+            type_id: entry.type_id,
+            group: entry.group,
+            instance: entry.instance,
+            raw: base
+                .raw_data(entry)
+                .map_err(|e| format!("Could not preserve resource {}: {e}", entry.key_string()))?,
+            mem_size: entry.mem_size,
+            compressed: entry.compressed,
+            unknown2: entry.unknown2,
+        });
+    }
+    resources.extend(additions.iter().cloned());
+
+    let parent = target.parent().unwrap_or_else(|| Path::new("."));
+    let temp = parent.join(format!(
+        ".veigas-thumbnail-{}-{}.package",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|e| e.to_string())?
+            .as_nanos()
+    ));
+    let backup = parent.join(format!(
+        ".veigas-thumbnail-backup-{}-{}.package",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|e| e.to_string())?
+            .as_nanos()
+    ));
+
+    write_owned_package_no_replace(&temp, &resources, &names)?;
+    fs::rename(target, &backup)
+        .map_err(|e| format!("Could not stage thumbnail-preserving replacement: {e}"))?;
+    if let Err(error) = fs::rename(&temp, target) {
+        let _ = fs::rename(&backup, target);
+        let _ = fs::remove_file(&temp);
+        return Err(format!("Could not install thumbnail-preserving package: {error}"));
+    }
+    let _ = fs::remove_file(&backup);
+    Ok(additions.len())
+}
+
+fn merge_packages_no_replace(target: &Path, packages: &[Package]) -> Result<usize, String> {
+    let mut seen = HashSet::<(u32, u32, u64)>::new();
+    let mut resources = Vec::<OwnedRawResource>::new();
+    let mut names = BTreeMap::<u64, String>::new();
+
+    for package in packages {
+        for (instance, name) in key_names(package) {
+            names.entry(instance).or_insert(name);
+        }
+
+        for entry in &package.entries {
+            if matches!(entry.type_id, TYPE_MANIFEST | TYPE_KEY | TYPE_MERGE_SKIP) {
+                continue;
+            }
+            let key = (entry.type_id, entry.group, entry.instance);
+            if !seen.insert(key) {
+                continue;
+            }
+
+            let raw = package
+                .raw_data(entry)
+                .map_err(|e| format!("Could not read resource {}: {e}", entry.key_string()))?;
+            resources.push(OwnedRawResource {
+                type_id: entry.type_id,
+                group: entry.group,
+                instance: entry.instance,
+                raw,
+                mem_size: entry.mem_size,
+                compressed: entry.compressed,
+                unknown2: entry.unknown2,
+            });
+        }
+    }
+
+    write_owned_package_no_replace(target, &resources, &names)
 }
 
 fn combined_output_name(source: &Path, pack: &Sims3Pack, language: AppLanguage) -> (String, String) {
@@ -963,6 +1172,7 @@ pub fn convert_sims3packs(
             }
 
             if !target.as_os_str().is_empty() {
+                let _ = restore_cached_thumbnails(&target);
                 result.converted += 1;
                 result.skipped += inspection.items.iter().filter(|item| !item.convertible).count();
                 result.items.push(Sims3PackConvertedItem {
@@ -1033,6 +1243,7 @@ pub fn convert_sims3packs(
                 continue;
             }
 
+            let _ = restore_cached_thumbnails(&target);
             result.converted += 1;
             result.items.push(Sims3PackConvertedItem {
                 source_path: source.to_string_lossy().to_string(),
