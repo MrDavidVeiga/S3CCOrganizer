@@ -732,6 +732,7 @@ button:disabled {
 }
 
 .plan-ready { border-left: 3px solid #7fad2d; }
+.plan-keep_uncategorized { border-left: 3px solid #6e7b82; }
 .plan-already_organized { border-left: 3px solid #6e7b82; }
 .plan-duplicate_skipped { border-left: 3px solid #6e7b82; }
 .plan-collision_same_content { border-left: 3px solid #b58a43; }
@@ -766,6 +767,7 @@ button:disabled {
   border-color: rgba(127,173,45,.45);
 }
 
+.plan-status-keep_uncategorized,
 .plan-status-duplicate_skipped {
   color: #cbd5d9;
   border-color: rgba(110,123,130,.5);
