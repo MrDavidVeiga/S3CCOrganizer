@@ -1945,6 +1945,7 @@ function applyPersistentDecisionRecords(records) {
       state.persistentConflictMarks[record.decisionKey] = "intentional";
     }
   }
+  conflictMarksVersion += 1;
 }
 
 async function refreshConflictDecisions() {
@@ -5593,7 +5594,7 @@ function scheduleManagerVirtualRows() {
   });
 }
 
-function renderResults() {
+function renderResults(forceRows = false) {
   const hasScan = !!state.stats;
   el.emptyState.classList.toggle("hidden", hasScan);
   el.resultsState.classList.toggle("hidden", !hasScan);
@@ -5610,7 +5611,7 @@ function renderResults() {
     state.selectedId = items[0]?.id || "";
   }
 
-  renderManagerVirtualRows(items);
+  renderManagerVirtualRows(items, forceRows);
   renderPreview();
   renderSelectionSummary();
 }
@@ -6014,7 +6015,7 @@ function render() {
     el.scanState.className = "scan-state";
   }
 
-  if (state.tab === "organizer") renderResults();
+  if (state.tab === "organizer") renderResults(true);
   if (state.plan && !el.planModal.classList.contains("hidden")) renderPlan();
 }
 
@@ -6466,7 +6467,7 @@ function selectAllVisible() {
   }
   state.plan = null;
   state.planError = "";
-  renderResults();
+  renderResults(true);
 }
 
 function selectNoneVisible() {
@@ -6475,7 +6476,7 @@ function selectNoneVisible() {
   }
   state.plan = null;
   state.planError = "";
-  renderResults();
+  renderResults(true);
 }
 
 for (const button of el.tabs) {
