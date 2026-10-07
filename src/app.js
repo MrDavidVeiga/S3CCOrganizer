@@ -57,6 +57,8 @@ const I18N = {
     simulationOnly: "Preflight preview. Nothing moves until you choose Organize Selected.",
     readyToMove: "Ready",
     collisions: "Collisions",
+    duplicatesSkipped: "Identical Skipped",
+    duplicateSkipped: "Identical duplicate · skipped",
     blocked: "Blocked",
     foldersToCreate: "Folders",
     manifestPreview: "Restore manifest preview",
@@ -462,6 +464,8 @@ const I18N = {
     simulationOnly: "Preview de segurança. Nada será movido até escolher Organizar Selecionados.",
     readyToMove: "Prontos",
     collisions: "Colisões",
+    duplicatesSkipped: "Duplicados ignorados",
+    duplicateSkipped: "Duplicado idêntico · ignorado",
     blocked: "Bloqueados",
     foldersToCreate: "Pastas",
     manifestPreview: "Preview do manifesto de restauração",
@@ -866,6 +870,8 @@ const I18N = {
     simulationOnly: "Vista previa de seguridad. Nada se moverá hasta elegir Organizar Seleccionados.",
     readyToMove: "Listos",
     collisions: "Colisiones",
+    duplicatesSkipped: "Duplicados omitidos",
+    duplicateSkipped: "Duplicado idéntico · omitido",
     blocked: "Bloqueados",
     foldersToCreate: "Carpetas",
     manifestPreview: "Vista previa del manifiesto de restauración",
@@ -1380,6 +1386,7 @@ const el = {
   manifestPreviewText: document.querySelector("#manifest-preview-text"),
   planStatSelected: document.querySelector("#plan-stat-selected"),
   planStatReady: document.querySelector("#plan-stat-ready"),
+  planStatSkipped: document.querySelector("#plan-stat-skipped"),
   planStatCollisions: document.querySelector("#plan-stat-collisions"),
   planStatBlocked: document.querySelector("#plan-stat-blocked"),
   planStatFolders: document.querySelector("#plan-stat-folders"),
@@ -2089,6 +2096,7 @@ function planStatusLabel(status) {
   return {
     ready: t("readyToMove"),
     already_organized: t("alreadyOrganized"),
+    duplicate_skipped: t("duplicateSkipped"),
     collision_same_content: t("collisionSame"),
     collision_different_content: t("collisionDifferent"),
     blocked: t("blocked"),
@@ -5077,10 +5085,16 @@ function renderPlan() {
 
   el.planStatSelected.textContent = stats.selected ?? 0;
   el.planStatReady.textContent = stats.ready ?? 0;
+  el.planStatSkipped.textContent = stats.duplicateSkipped ?? 0;
   el.planStatCollisions.textContent = collisions;
   el.planStatBlocked.textContent = stats.blocked ?? 0;
   el.planStatFolders.textContent = stats.directoriesToCreate ?? 0;
   el.planExecuteBtn.disabled = !plan.canExecute || state.executing || workspaceReadOnly();
+
+  // Keep the rendered preview in memory while the plan object is unchanged.
+  // Closing and reopening the modal must not rebuild thousands of DOM nodes.
+  if (el.planModal.__renderedPlan === plan) return;
+  el.planModal.__renderedPlan = plan;
 
   el.planItems.innerHTML = "";
   for (const item of plan.items || []) {
@@ -5510,10 +5524,15 @@ async function buildPlan() {
     state.structureBusy
   ) return;
 
+  // If nothing changed since the last preview, reopening is instantaneous.
+  if (state.plan && !state.planError) {
+    openPlanModal();
+    return;
+  }
+
   state.planning = true;
   state.planError = "";
   state.notice = "";
-  state.plan = null;
   render();
 
   try {
@@ -5523,6 +5542,7 @@ async function buildPlan() {
       selectedPaths: [...state.selectedForPlan],
     });
   } catch (error) {
+    state.plan = null;
     state.planError = String(error);
   } finally {
     state.planning = false;
