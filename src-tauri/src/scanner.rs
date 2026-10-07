@@ -319,6 +319,61 @@ fn verified_script_creator(package: &Package, name: &str) -> Option<String> {
     Some(pretty_creator_label(&candidate))
 }
 
+fn generic_container_folder(value: &str) -> bool {
+    matches!(
+        value.trim().to_ascii_lowercase().as_str(),
+        "mods" | "packages" | "downloads" | "download" | "gameplay" | "jogabilidade"
+            | "jugabilidad" | "scripts" | "objects" | "objetos" | "buy" | "compra"
+            | "build" | "construção" | "construccion" | "cakes" | "cookies" | "breads"
+            | "pies" | "pastries" | "cupcakes" | "ingredients" | "savory"
+            | "gourmet desserts" | "other baked goods" | "wedding cakes"
+            | "birthday cakes"
+    )
+}
+
+fn mod_name_from_relative(relative: &str) -> Option<String> {
+    let path = Path::new(relative);
+    let mut components = path
+        .parent()?
+        .components()
+        .filter_map(|component| match component {
+            std::path::Component::Normal(value) => Some(value.to_string_lossy().trim().to_string()),
+            _ => None,
+        });
+
+    let first = components.next()?;
+    if first.is_empty() || generic_container_folder(&first) {
+        return None;
+    }
+    Some(first)
+}
+
+fn mod_name_from_filename(name: &str) -> Option<String> {
+    let stem = Path::new(name)
+        .file_stem()
+        .map(|value| value.to_string_lossy().to_string())
+        .unwrap_or_else(|| name.to_string());
+    let stem = strip_leading_status_tags(&stem);
+    let without_creator = stem
+        .split_once('_')
+        .map(|(_, rest)| rest.trim())
+        .unwrap_or(stem.trim());
+    let lower = without_creator.to_ascii_lowercase();
+    let mod_end = lower.find(" mod").map(|index| index + 4).or_else(|| {
+        lower.starts_with("mod ").then_some(3)
+    })?;
+    let value = without_creator[..mod_end].trim();
+    if value.len() < 3 || generic_container_folder(value) {
+        None
+    } else {
+        Some(value.to_string())
+    }
+}
+
+fn inferred_script_mod_name(name: &str, relative: &str) -> Option<String> {
+    mod_name_from_relative(relative).or_else(|| mod_name_from_filename(name))
+}
+
 fn script_category(package: &Package, name: &str, language: AppLanguage) -> &'static str {
     let resource_types = [
         TYPE_S3SA,
@@ -361,6 +416,7 @@ fn special_package_classification(
     package: &Package,
     type_ids: &BTreeSet<u32>,
     name: &str,
+    relative: &str,
     language: AppLanguage,
     catalog_resource_count: usize,
 ) -> Option<PackageFamilyClassification> {
@@ -388,6 +444,7 @@ fn special_package_classification(
         let gameplay = localized_special_folder(language, "gameplay").to_string();
         let category = script_category(package, name, language).to_string();
         let creator = verified_script_creator(package, name);
+        let mod_name = inferred_script_mod_name(name, relative);
         let mut folder_parts = vec![gameplay.clone()];
         let mut detected_from = vec!["S3SA".to_string()];
 
@@ -395,15 +452,23 @@ fn special_package_classification(
             folder_parts.push(creator);
             detected_from.push("InternalCreator".to_string());
         }
-        folder_parts.push(category.clone());
+        if let Some(mod_name) = mod_name {
+            folder_parts.push(mod_name);
+            detected_from.push("ModName".to_string());
+        } else {
+            // If the mod name cannot be established safely, category remains a
+            // useful fallback. It is always retained as metadata either way.
+            folder_parts.push(category.clone());
+        }
 
         return Some(PackageFamilyClassification {
             main_category: gameplay,
-            sub_category: Some(category),
+            sub_category: Some(category.clone()),
             folder_parts: folder_parts.clone(),
             detected_from,
             technical_reason: format!(
-                "S3SA gameplay package with verified creator/category evidence => {}",
+                "S3SA gameplay package; category metadata '{}'; physical destination => {}",
+                category,
                 folder_parts.join("\\")
             ),
         });
@@ -887,6 +952,74 @@ fn apply_slider_companion_classification(
     }
 }
 
+fn top_level_relative_folder(relative: &str) -> Option<String> {
+    let mut components = Path::new(relative).components().filter_map(|component| match component {
+        std::path::Component::Normal(value) => Some(value.to_string_lossy().to_string()),
+        _ => None,
+    });
+    let first = components.next()?;
+    // A direct file at the selected root has no containing mod folder.
+    components.next().map(|_| first)
+}
+
+fn apply_named_mod_companions(items: &mut [ScanPackageItem]) {
+    let mut destinations = HashMap::<String, BTreeSet<String>>::new();
+
+    for item in items.iter() {
+        if !item.scripted || item.status != "classified" {
+            continue;
+        }
+        if !item.detected_from.iter().any(|value| value == "ModName") {
+            continue;
+        }
+        let Some(folder) = top_level_relative_folder(&item.relative_path) else {
+            continue;
+        };
+        destinations
+            .entry(folder.to_ascii_lowercase())
+            .or_default()
+            .insert(item.destination_parts.join("\\"));
+    }
+
+    let unique = destinations
+        .into_iter()
+        .filter_map(|(folder, values)| {
+            (values.len() == 1).then(|| (folder, values.into_iter().next().unwrap()))
+        })
+        .collect::<HashMap<_, _>>();
+
+    for item in items.iter_mut() {
+        if item.status == "invalid"
+            || item.detected_from.iter().any(|value| value == "NRaasInternal")
+        {
+            continue;
+        }
+        let Some(folder) = top_level_relative_folder(&item.relative_path) else {
+            continue;
+        };
+        let Some(destination) = unique.get(&folder.to_ascii_lowercase()) else {
+            continue;
+        };
+        let parts = destination.split('\\').map(str::to_string).collect::<Vec<_>>();
+        if parts.is_empty() || item.destination_parts == parts {
+            continue;
+        }
+
+        item.status = "classified".to_string();
+        item.destination_parts = parts.clone();
+        item.destination_path = Some(destination.clone());
+        item.detected_from.push("ModFolderCompanion".to_string());
+        item.detected_from.sort();
+        item.detected_from.dedup();
+        item.classification_reason = Some(format!(
+            "{} | Companion package kept with the single named script mod detected in source folder '{}' => {}",
+            item.classification_reason.clone().unwrap_or_default(),
+            folder,
+            destination
+        ));
+    }
+}
+
 fn apply_manual_classifications(root: &Path, items: &mut [ScanPackageItem]) {
     let workspace = load_workspace_for_root(root);
     if workspace.manual_classifications.is_empty() {
@@ -1080,7 +1213,7 @@ fn scan_one(
     }
 
     let special_primary =
-        special_package_classification(&package, &type_ids, &name, language, catalog_resource_count);
+        special_package_classification(&package, &type_ids, &name, &relative, language, catalog_resource_count);
     if let Some(special) = &special_primary {
         for source in &special.detected_from {
             detected_from.insert(source.clone());
@@ -1371,6 +1504,7 @@ pub fn scan_packages_core(
     }
 
     apply_slider_companion_classification(&package_paths, &mut items, &slider_instances);
+    apply_named_mod_companions(&mut items);
     apply_manual_classifications(&root, &mut items);
 
     let mut stats = ScanStats::default();
