@@ -1436,6 +1436,106 @@ const state = {
 
 if (!LANGUAGE_ORDER.includes(state.language)) state.language = "en";
 
+const MANAGER_ROW_STRIDE = 66;
+const ANALYSIS_ROW_STRIDE = 62;
+const VIRTUAL_OVERSCAN = 10;
+const SEARCH_DEBOUNCE_MS = 100;
+
+const managerSearchIndex = new WeakMap();
+const managerVisibleMemo = { items: null, status: "", search: "", result: [] };
+const duplicateVisibleMemo = { analysis: null, filter: "", search: "", result: [] };
+const conflictVisibleMemo = { analysis: null, filter: "", search: "", marksVersion: 0, result: [] };
+const virtualViews = {
+  manager: { items: null, start: -1, end: -1, raf: 0 },
+  duplicates: { items: null, start: -1, end: -1, raf: 0 },
+  conflicts: { items: null, start: -1, end: -1, raf: 0 },
+};
+let conflictMarksVersion = 0;
+
+function debounce(callback, delay = SEARCH_DEBOUNCE_MS) {
+  let timer = 0;
+  return (...args) => {
+    window.clearTimeout(timer);
+    timer = window.setTimeout(() => callback(...args), delay);
+  };
+}
+
+function normalizedInstanceQuery(query) {
+  const lower = String(query || "").trim().toLowerCase();
+  if (!lower) return null;
+  const pos = lower.lastIndexOf("0x");
+  const candidate = (pos >= 0 ? lower.slice(pos + 2) : lower).trim();
+  if (candidate.length < 8 || candidate.length > 16 || !/^[0-9a-f]+$/i.test(candidate)) {
+    return null;
+  }
+  return candidate.toUpperCase().padStart(16, "0");
+}
+
+function managerSearchText(item) {
+  if (!item) return "";
+  const cached = managerSearchIndex.get(item);
+  if (cached) return cached;
+  const text = [
+    item.name,
+    item.relativePath,
+    item.category,
+    item.subCategory,
+    item.gender,
+    item.age,
+    item.species,
+    item.classificationReason,
+    item.contentSource,
+    item.scripted ? "script scripted s3sa" : "",
+    ...(item.detectedFrom || []),
+    ...(item.usageCategories || []),
+    ...(item.resourceTypes || []),
+    ...(item.instances || []),
+  ]
+    .filter(Boolean)
+    .join("\n")
+    .toLocaleLowerCase();
+  managerSearchIndex.set(item, text);
+  return text;
+}
+
+function itemMatchesManagerSearch(item, query) {
+  const normalized = String(query || "").trim().toLocaleLowerCase();
+  if (!normalized) return true;
+  if (managerSearchText(item).includes(normalized)) return true;
+
+  const instance = normalizedInstanceQuery(normalized);
+  if (!instance) return false;
+  return (item.instances || []).some((value) =>
+    String(value).replace(/^0x/i, "").toUpperCase().padStart(16, "0") === instance
+  );
+}
+
+function virtualSpacer(height) {
+  const spacer = document.createElement("div");
+  spacer.className = "virtual-list-spacer";
+  spacer.style.height = `${Math.max(0, height)}px`;
+  spacer.setAttribute("aria-hidden", "true");
+  return spacer;
+}
+
+function virtualRange(container, itemCount, stride) {
+  const viewport = Math.max(container?.clientHeight || 0, 420);
+  const scrollTop = container?.scrollTop || 0;
+  const start = Math.max(0, Math.floor(scrollTop / stride) - VIRTUAL_OVERSCAN);
+  const end = Math.min(
+    itemCount,
+    Math.ceil((scrollTop + viewport) / stride) + VIRTUAL_OVERSCAN
+  );
+  return { start, end };
+}
+
+function updateActiveVirtualRow(container, dataKey, id, className) {
+  if (!container) return;
+  for (const row of container.querySelectorAll(`[${dataKey}]`)) {
+    row.classList.toggle(className, row.dataset[dataKey] === id);
+  }
+}
+
 const el = {
   tabs: [...document.querySelectorAll(".tabs button")],
   pages: [...document.querySelectorAll(".tool-page")],
@@ -1887,6 +1987,7 @@ async function setConflictMark(finding, mark) {
 
   if (mark === null && state.conflictMarks[finding.id] === "ignored") {
     delete state.conflictMarks[finding.id];
+    conflictMarksVersion += 1;
     renderConflicts();
     return;
   }
@@ -2385,26 +2486,46 @@ function flattenedDuplicateFindings() {
 }
 
 function visibleDuplicateFindings() {
-  const query = state.duplicatesSearch.trim().toLocaleLowerCase();
-  return flattenedDuplicateFindings().filter((item) => {
-    if (state.duplicatesFilter !== "all" && item.kind !== state.duplicatesFilter) return false;
-    if (!query) return true;
+  const analysis = state.duplicatesAnalysis;
+  const search = state.duplicatesSearch.trim().toLocaleLowerCase();
+  if (
+    duplicateVisibleMemo.analysis === analysis &&
+    duplicateVisibleMemo.filter === state.duplicatesFilter &&
+    duplicateVisibleMemo.search === search
+  ) {
+    return duplicateVisibleMemo.result;
+  }
 
-    const memberNames = item.findingType === "group"
-      ? (item.members || []).flatMap((member) => [member.name, ...(member.instances || [])])
+  const queryInstance = normalizedInstanceQuery(search);
+  const result = flattenedDuplicateFindings().filter((item) => {
+    if (state.duplicatesFilter !== "all" && item.kind !== state.duplicatesFilter) return false;
+    if (!search) return true;
+
+    const values = item.findingType === "group"
+      ? (item.members || []).flatMap((member) => [member.name, member.relativePath, ...(member.instances || [])])
       : [
           item.left?.name,
+          item.left?.relativePath,
           ...(item.left?.instances || []),
           item.right?.name,
+          item.right?.relativePath,
           ...(item.right?.instances || []),
         ];
 
-    return memberNames
-      .filter(Boolean)
-      .join(" ")
-      .toLocaleLowerCase()
-      .includes(query);
+    const haystack = values.filter(Boolean).join("\n").toLocaleLowerCase();
+    if (haystack.includes(search)) return true;
+    if (!queryInstance) return false;
+    return values.some((value) =>
+      /^0x[0-9a-f]+$/i.test(String(value)) &&
+      String(value).replace(/^0x/i, "").toUpperCase().padStart(16, "0") === queryInstance
+    );
   });
+
+  duplicateVisibleMemo.analysis = analysis;
+  duplicateVisibleMemo.filter = state.duplicatesFilter;
+  duplicateVisibleMemo.search = search;
+  duplicateVisibleMemo.result = result;
+  return result;
 }
 
 async function buildQuarantinePreview() {
@@ -2764,6 +2885,85 @@ function renderDuplicatesPreview() {
   }
 }
 
+function createDuplicateFindingRow(finding) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.dataset.duplicateId = finding.id;
+  button.className =
+    "duplicate-row" + (finding.id === state.duplicateSelectedId ? " active" : "");
+
+  const main = document.createElement("div");
+  main.className = "duplicate-row-main";
+  const kind = document.createElement("strong");
+  kind.textContent = duplicateKindLabel(finding.kind);
+  const names = document.createElement("span");
+  names.textContent = finding.findingType === "group"
+    ? (finding.members || []).map((member) => member.name).join(" · ")
+    : `${finding.left?.name || "—"} ↔ ${finding.right?.name || "—"}`;
+  main.append(kind, names);
+
+  const count = document.createElement("span");
+  count.className = `duplicate-kind duplicate-kind-${finding.kind}`;
+  count.textContent = finding.findingType === "group"
+    ? String(finding.members?.length || 0)
+    : String(finding.sharedStructuralCount ?? 0);
+
+  button.append(main, count);
+  button.addEventListener("click", () => {
+    state.duplicateSelectedId = finding.id;
+    state.quarantineSelected.clear();
+    state.quarantinePlan = null;
+    updateActiveVirtualRow(el.duplicatesList, "duplicateId", finding.id, "active");
+    openDuplicateDetails();
+  });
+  return button;
+}
+
+function renderDuplicateVirtualRows(findings, force = false) {
+  const view = virtualViews.duplicates;
+  const changed = view.items !== findings;
+  if (changed) {
+    view.items = findings;
+    view.start = -1;
+    view.end = -1;
+    el.duplicatesList.scrollTop = 0;
+  }
+
+  if (!findings.length) {
+    const empty = document.createElement("div");
+    empty.className = "list-empty";
+    empty.textContent = t("noDuplicateFindings");
+    el.duplicatesList.replaceChildren(empty);
+    return;
+  }
+
+  const { start, end } = virtualRange(el.duplicatesList, findings.length, ANALYSIS_ROW_STRIDE);
+  if (!force && !changed && start === view.start && end === view.end) return;
+  view.start = start;
+  view.end = end;
+
+  const fragment = document.createDocumentFragment();
+  if (start > 0) fragment.appendChild(virtualSpacer(start * ANALYSIS_ROW_STRIDE));
+  for (let index = start; index < end; index += 1) {
+    fragment.appendChild(createDuplicateFindingRow(findings[index]));
+  }
+  if (end < findings.length) {
+    fragment.appendChild(virtualSpacer((findings.length - end) * ANALYSIS_ROW_STRIDE));
+  }
+  el.duplicatesList.replaceChildren(fragment);
+}
+
+function scheduleDuplicateVirtualRows() {
+  const view = virtualViews.duplicates;
+  if (view.raf) return;
+  view.raf = window.requestAnimationFrame(() => {
+    view.raf = 0;
+    if (state.tab === "duplicates" && state.duplicatesAnalysis) {
+      renderDuplicateVirtualRows(visibleDuplicateFindings());
+    }
+  });
+}
+
 function renderDuplicates() {
   if (!el.analyzeDuplicatesBtn) return;
   el.analyzeDuplicatesBtn.disabled =
@@ -2794,14 +2994,10 @@ function renderDuplicates() {
   } else if (state.duplicatesAnalysis) {
     const unreadable = stats.unreadablePackages ?? 0;
     const parts = [t("duplicatesReady")];
-    if (unreadable) {
-      parts.push(`${t("unreadablePackages")}: ${unreadable}`);
-    }
+    if (unreadable) parts.push(`${t("unreadablePackages")}: ${unreadable}`);
     if (stats.cacheHits) parts.push(`${t("cacheReused")}: ${stats.cacheHits}`);
     if (stats.cacheMisses) parts.push(`${t("cacheUpdated")}: ${stats.cacheMisses}`);
-    if (stats.variantAnalysisTruncated) {
-      parts.push(t("variantAnalysisTruncated"));
-    }
+    if (stats.variantAnalysisTruncated) parts.push(t("variantAnalysisTruncated"));
     el.duplicatesState.textContent = parts.join(" · ");
     el.duplicatesState.className = "scan-state success";
   } else {
@@ -2813,55 +3009,18 @@ function renderDuplicates() {
   el.duplicatesEmpty.classList.toggle("hidden", hasAnalysis);
   el.duplicatesResults.classList.toggle("hidden", !hasAnalysis);
   if (!hasAnalysis) {
+    virtualViews.duplicates.items = null;
     renderDuplicatesPreview();
     return;
   }
 
   const findings = visibleDuplicateFindings();
-  el.duplicatesList.innerHTML = "";
-
-  if (!findings.length) {
-    const empty = document.createElement("div");
-    empty.className = "list-empty";
-    empty.textContent = t("noDuplicateFindings");
-    el.duplicatesList.appendChild(empty);
-  } else {
-    for (const finding of findings) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className =
-        "duplicate-row" + (finding.id === state.duplicateSelectedId ? " active" : "");
-
-      const main = document.createElement("div");
-      main.className = "duplicate-row-main";
-      const kind = document.createElement("strong");
-      kind.textContent = duplicateKindLabel(finding.kind);
-      const names = document.createElement("span");
-      names.textContent = finding.findingType === "group"
-        ? (finding.members || []).map((member) => member.name).join(" · ")
-        : `${finding.left?.name || "—"} ↔ ${finding.right?.name || "—"}`;
-      main.append(kind, names);
-
-      const count = document.createElement("span");
-      count.className = `duplicate-kind duplicate-kind-${finding.kind}`;
-      count.textContent = finding.findingType === "group"
-        ? String(finding.members?.length || 0)
-        : String(finding.sharedStructuralCount ?? 0);
-
-      button.append(main, count);
-      button.addEventListener("click", () => {
-        state.duplicateSelectedId = finding.id;
-        state.quarantineSelected.clear();
-        state.quarantinePlan = null;
-        renderDuplicates();
-        openDuplicateDetails();
-      });
-      el.duplicatesList.appendChild(button);
-    }
-  }
-
   if (!findings.some((item) => item.id === state.duplicateSelectedId)) {
     state.duplicateSelectedId = findings[0]?.id || "";
+  }
+  renderDuplicateVirtualRows(findings);
+  if (!el.duplicateDetailsModal || el.duplicateDetailsModal.classList.contains("hidden")) {
+    return;
   }
   renderDuplicatesPreview();
 }
@@ -2929,9 +3088,20 @@ function conflictExplanation(kind) {
 }
 
 function visibleConflictFindings() {
-  const findings = state.conflictsAnalysis?.findings || [];
-  const query = state.conflictsSearch.trim().toLocaleLowerCase();
-  return findings.filter((item) => {
+  const analysis = state.conflictsAnalysis;
+  const findings = analysis?.findings || [];
+  const search = state.conflictsSearch.trim().toLocaleLowerCase();
+  if (
+    conflictVisibleMemo.analysis === analysis &&
+    conflictVisibleMemo.filter === state.conflictsFilter &&
+    conflictVisibleMemo.search === search &&
+    conflictVisibleMemo.marksVersion === conflictMarksVersion
+  ) {
+    return conflictVisibleMemo.result;
+  }
+
+  const queryInstance = normalizedInstanceQuery(search);
+  const result = findings.filter((item) => {
     const mark = effectiveConflictMark(item);
     if (state.conflictsFilter === "ignored_session") {
       if (mark !== "ignored") return false;
@@ -2945,19 +3115,30 @@ function visibleConflictFindings() {
         if (!matchesPrimary && !matchesImpact) return false;
       }
     }
-    if (!query) return true;
+    if (!search) return true;
 
-    const haystack = [
+    const values = [
       item.left?.name,
+      item.left?.relativePath,
       item.right?.name,
+      item.right?.relativePath,
       ...(item.evidence || []).map((evidence) => evidence.instanceHex),
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLocaleLowerCase();
-
-    return haystack.includes(query);
+    ].filter(Boolean);
+    const haystack = values.join("\n").toLocaleLowerCase();
+    if (haystack.includes(search)) return true;
+    if (!queryInstance) return false;
+    return values.some((value) =>
+      /^0x[0-9a-f]+$/i.test(String(value)) &&
+      String(value).replace(/^0x/i, "").toUpperCase().padStart(16, "0") === queryInstance
+    );
   });
+
+  conflictVisibleMemo.analysis = analysis;
+  conflictVisibleMemo.filter = state.conflictsFilter;
+  conflictVisibleMemo.search = search;
+  conflictVisibleMemo.marksVersion = conflictMarksVersion;
+  conflictVisibleMemo.result = result;
+  return result;
 }
 
 function renderConflictsPreview() {
@@ -3152,6 +3333,92 @@ function renderConflictsPreview() {
   el.conflictsPreview.appendChild(evidenceList);
 }
 
+function createConflictFindingRow(finding) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.dataset.conflictId = finding.id;
+  const sessionMark = effectiveConflictMark(finding);
+  button.className =
+    "conflict-row" +
+    (finding.id === state.conflictSelectedId ? " active" : "") +
+    (sessionMark === "intentional" ? " intentional" : "") +
+    (sessionMark === "ignored" ? " ignored" : "");
+
+  const main = document.createElement("div");
+  main.className = "conflict-row-main";
+  const kind = document.createElement("strong");
+  kind.textContent = sessionMark === "intentional"
+    ? t("intentionalOverride")
+    : sessionMark === "ignored"
+      ? t("ignoredSession")
+      : conflictKindLabel(finding.kind);
+  const names = document.createElement("span");
+  names.textContent = `${finding.left?.name || "—"} ↔ ${finding.right?.name || "—"}`;
+  main.append(kind, names);
+
+  const side = document.createElement("div");
+  side.className = "conflict-row-side";
+  const count = document.createElement("span");
+  count.textContent = String(finding.differentPayloadCount ?? 0);
+  const dot = document.createElement("span");
+  dot.className = `conflict-severity conflict-severity-${finding.severity}`;
+  side.append(count, dot);
+
+  button.append(main, side);
+  button.addEventListener("click", () => {
+    if (state.conflictSelectedId === finding.id) return;
+    state.conflictSelectedId = finding.id;
+    updateActiveVirtualRow(el.conflictsList, "conflictId", finding.id, "active");
+    renderConflictsPreview();
+  });
+  return button;
+}
+
+function renderConflictVirtualRows(findings, force = false) {
+  const view = virtualViews.conflicts;
+  const changed = view.items !== findings;
+  if (changed) {
+    view.items = findings;
+    view.start = -1;
+    view.end = -1;
+    el.conflictsList.scrollTop = 0;
+  }
+
+  if (!findings.length) {
+    const empty = document.createElement("div");
+    empty.className = "list-empty";
+    empty.textContent = t("noConflictFindings");
+    el.conflictsList.replaceChildren(empty);
+    return;
+  }
+
+  const { start, end } = virtualRange(el.conflictsList, findings.length, ANALYSIS_ROW_STRIDE);
+  if (!force && !changed && start === view.start && end === view.end) return;
+  view.start = start;
+  view.end = end;
+
+  const fragment = document.createDocumentFragment();
+  if (start > 0) fragment.appendChild(virtualSpacer(start * ANALYSIS_ROW_STRIDE));
+  for (let index = start; index < end; index += 1) {
+    fragment.appendChild(createConflictFindingRow(findings[index]));
+  }
+  if (end < findings.length) {
+    fragment.appendChild(virtualSpacer((findings.length - end) * ANALYSIS_ROW_STRIDE));
+  }
+  el.conflictsList.replaceChildren(fragment);
+}
+
+function scheduleConflictVirtualRows() {
+  const view = virtualViews.conflicts;
+  if (view.raf) return;
+  view.raf = window.requestAnimationFrame(() => {
+    view.raf = 0;
+    if (state.tab === "conflicts" && state.conflictsAnalysis) {
+      renderConflictVirtualRows(visibleConflictFindings());
+    }
+  });
+}
+
 function renderConflicts() {
   if (!el.analyzeConflictsBtn) return;
   el.analyzeConflictsBtn.disabled =
@@ -3189,14 +3456,10 @@ function renderConflicts() {
     el.conflictsState.className = "scan-state";
   } else if (analysis) {
     const parts = [t("conflictsReady")];
-    if (stats.unreadablePackages) {
-      parts.push(`${t("unreadablePackages")}: ${stats.unreadablePackages}`);
-    }
+    if (stats.unreadablePackages) parts.push(`${t("unreadablePackages")}: ${stats.unreadablePackages}`);
     if (stats.cacheHits) parts.push(`${t("cacheReused")}: ${stats.cacheHits}`);
     if (stats.cacheMisses) parts.push(`${t("cacheUpdated")}: ${stats.cacheMisses}`);
-    if (stats.analysisTruncated) {
-      parts.push(t("conflictAnalysisTruncated"));
-    }
+    if (stats.analysisTruncated) parts.push(t("conflictAnalysisTruncated"));
     el.conflictsState.textContent = parts.join(" · ");
     el.conflictsState.className = "scan-state success";
   } else {
@@ -3207,65 +3470,17 @@ function renderConflicts() {
   const hasAnalysis = !!analysis;
   el.conflictsEmpty.classList.toggle("hidden", hasAnalysis);
   el.conflictsResults.classList.toggle("hidden", !hasAnalysis);
-
   if (!hasAnalysis) {
+    virtualViews.conflicts.items = null;
     renderConflictsPreview();
     return;
   }
 
   const findings = visibleConflictFindings();
-  el.conflictsList.innerHTML = "";
-
-  if (!findings.length) {
-    const empty = document.createElement("div");
-    empty.className = "list-empty";
-    empty.textContent = t("noConflictFindings");
-    el.conflictsList.appendChild(empty);
-  } else {
-    for (const finding of findings) {
-      const button = document.createElement("button");
-      button.type = "button";
-      const sessionMark = effectiveConflictMark(finding);
-      button.className =
-        "conflict-row" +
-        (finding.id === state.conflictSelectedId ? " active" : "") +
-        (sessionMark === "intentional" ? " intentional" : "") +
-        (sessionMark === "ignored" ? " ignored" : "");
-
-      const main = document.createElement("div");
-      main.className = "conflict-row-main";
-      const kind = document.createElement("strong");
-      kind.textContent = sessionMark === "intentional"
-        ? t("intentionalOverride")
-        : sessionMark === "ignored"
-          ? t("ignoredSession")
-          : conflictKindLabel(finding.kind);
-      const names = document.createElement("span");
-      names.textContent =
-        `${finding.left?.name || "—"} ↔ ${finding.right?.name || "—"}`;
-      main.append(kind, names);
-
-      const side = document.createElement("div");
-      side.className = "conflict-row-side";
-      const count = document.createElement("span");
-      count.textContent = String(finding.differentPayloadCount ?? 0);
-      const dot = document.createElement("span");
-      dot.className = `conflict-severity conflict-severity-${finding.severity}`;
-      side.append(count, dot);
-
-      button.append(main, side);
-      button.addEventListener("click", () => {
-        state.conflictSelectedId = finding.id;
-        renderConflicts();
-      });
-      el.conflictsList.appendChild(button);
-    }
-  }
-
   if (!findings.some((item) => item.id === state.conflictSelectedId)) {
     state.conflictSelectedId = findings[0]?.id || "";
   }
-
+  renderConflictVirtualRows(findings);
   renderConflictsPreview();
 }
 
@@ -5021,16 +5236,25 @@ function metadataForItem(item) {
 }
 
 function visibleItems() {
-  const query = state.search.trim().toLocaleLowerCase();
-  return state.items.filter((item) => {
+  const search = state.search.trim().toLocaleLowerCase();
+  if (
+    managerVisibleMemo.items === state.items &&
+    managerVisibleMemo.status === state.status &&
+    managerVisibleMemo.search === search
+  ) {
+    return managerVisibleMemo.result;
+  }
+
+  const result = state.items.filter((item) => {
     if (state.status !== "all" && item.status !== state.status) return false;
-    if (!query) return true;
-    return [item.name, ...(item.instances || [])]
-      .filter(Boolean)
-      .join(" ")
-      .toLocaleLowerCase()
-      .includes(query);
+    return itemMatchesManagerSearch(item, search);
   });
+
+  managerVisibleMemo.items = state.items;
+  managerVisibleMemo.status = state.status;
+  managerVisibleMemo.search = search;
+  managerVisibleMemo.result = result;
+  return result;
 }
 
 function renderSelectionSummary() {
@@ -5259,6 +5483,7 @@ function createPackageRow(item) {
     (item.id === state.selectedId ? " active" : "") +
     (state.selectedForPlan.has(item.id) ? " plan-selected" : "");
   row.title = item.path;
+  row.dataset.packageId = item.id;
   row.tabIndex = 0;
   row.setAttribute("role", "button");
 
@@ -5302,8 +5527,10 @@ function createPackageRow(item) {
   row.append(selection, main, side);
 
   const choose = () => {
+    if (state.selectedId === item.id) return;
     state.selectedId = item.id;
-    renderResults();
+    updateActiveVirtualRow(el.packageList, "packageId", item.id, "active");
+    renderPreview();
   };
   row.addEventListener("click", choose);
   row.addEventListener("keydown", (event) => {
@@ -5316,33 +5543,71 @@ function createPackageRow(item) {
   return row;
 }
 
+function renderManagerVirtualRows(items, force = false) {
+  const view = virtualViews.manager;
+  const changed = view.items !== items;
+  if (changed) {
+    view.items = items;
+    view.start = -1;
+    view.end = -1;
+    el.packageList.scrollTop = 0;
+  }
+
+  if (!items.length) {
+    view.start = 0;
+    view.end = 0;
+    const empty = document.createElement("div");
+    empty.className = "list-empty";
+    empty.textContent = t("noResults");
+    el.packageList.replaceChildren(empty);
+    return;
+  }
+
+  const { start, end } = virtualRange(el.packageList, items.length, MANAGER_ROW_STRIDE);
+  if (!force && !changed && start === view.start && end === view.end) return;
+  view.start = start;
+  view.end = end;
+
+  const fragment = document.createDocumentFragment();
+  if (start > 0) fragment.appendChild(virtualSpacer(start * MANAGER_ROW_STRIDE));
+  for (let index = start; index < end; index += 1) {
+    fragment.appendChild(createPackageRow(items[index]));
+  }
+  if (end < items.length) {
+    fragment.appendChild(virtualSpacer((items.length - end) * MANAGER_ROW_STRIDE));
+  }
+  el.packageList.replaceChildren(fragment);
+}
+
+function scheduleManagerVirtualRows() {
+  const view = virtualViews.manager;
+  if (view.raf) return;
+  view.raf = window.requestAnimationFrame(() => {
+    view.raf = 0;
+    if (state.tab === "organizer" && state.stats) {
+      renderManagerVirtualRows(visibleItems());
+    }
+  });
+}
+
 function renderResults() {
   const hasScan = !!state.stats;
   el.emptyState.classList.toggle("hidden", hasScan);
   el.resultsState.classList.toggle("hidden", !hasScan);
 
   if (!hasScan) {
+    virtualViews.manager.items = null;
     renderPreview();
     renderSelectionSummary();
     return;
   }
 
   const items = visibleItems();
-  el.packageList.innerHTML = "";
-
-  if (!items.length) {
-    const empty = document.createElement("div");
-    empty.className = "list-empty";
-    empty.textContent = t("noResults");
-    el.packageList.appendChild(empty);
-  } else {
-    for (const item of items) el.packageList.appendChild(createPackageRow(item));
-  }
-
   if (!items.some((item) => item.id === state.selectedId)) {
     state.selectedId = items[0]?.id || "";
   }
 
+  renderManagerVirtualRows(items);
   renderPreview();
   renderSelectionSummary();
 }
@@ -5676,17 +5941,19 @@ function closeConfirm() {
 function render() {
   renderLanguage();
   renderTabs();
-  renderStats();
-  renderRestore();
-  renderDuplicates();
-  renderConflicts();
-  renderRestoreHistory();
+  if (state.tab === "organizer") renderStats();
+  if (state.tab === "restore") {
+    renderRestore();
+    renderRestoreHistory();
+  }
+  if (state.tab === "duplicates") renderDuplicates();
+  if (state.tab === "conflicts") renderConflicts();
+  if (state.tab === "tools") renderTools();
   renderAllOperationProgress();
   renderCachePanel();
   renderDiagnostics();
   renderAuditPanel();
   renderStructure();
-  renderTools();
   renderOrganizationReview();
 
   el.folderPath.textContent = state.folder || t("noFolder");
@@ -5744,7 +6011,7 @@ function render() {
     el.scanState.className = "scan-state";
   }
 
-  renderResults();
+  if (state.tab === "organizer") renderResults();
   if (state.plan && !el.planModal.classList.contains("hidden")) renderPlan();
 }
 
@@ -5900,6 +6167,7 @@ async function scanFolder(preserveSelection = false, preserveNotice = false) {
 
     state.items = result.items || [];
     state.stats = result.stats || null;
+    virtualViews.manager.items = null;
 
     const eligibleIds = new Set(
       state.items.filter(eligibleForPlan).map((item) => item.id)
@@ -6366,6 +6634,9 @@ el.clearListBtn.addEventListener("click", clearLoadedLibrary);
 el.planBtn.addEventListener("click", buildPlan);
 el.selectAllBtn.addEventListener("click", selectAllVisible);
 el.selectNoneBtn.addEventListener("click", selectNoneVisible);
+el.packageList.addEventListener("scroll", scheduleManagerVirtualRows, { passive: true });
+el.duplicatesList.addEventListener("scroll", scheduleDuplicateVirtualRows, { passive: true });
+el.conflictsList.addEventListener("scroll", scheduleConflictVirtualRows, { passive: true });
 el.planCloseBtn.addEventListener("click", closePlanModal);
 el.planCloseFooterBtn.addEventListener("click", closePlanModal);
 el.planExecuteBtn.addEventListener("click", () => openConfirm("organize"));
@@ -6393,20 +6664,26 @@ el.planModal.addEventListener("click", (event) => {
 
 el.analyzeDuplicatesBtn.addEventListener("click", analyzeDuplicates);
 el.analyzeConflictsBtn.addEventListener("click", analyzeConflicts);
-el.conflictsSearch.addEventListener("input", (event) => {
-  state.conflictsSearch = event.currentTarget.value;
+const applyConflictSearch = debounce((value) => {
+  state.conflictsSearch = value;
   persistPreferences();
   renderConflicts();
+});
+el.conflictsSearch.addEventListener("input", (event) => {
+  applyConflictSearch(event.currentTarget.value);
 });
 el.conflictsFilter.addEventListener("change", (event) => {
   state.conflictsFilter = event.currentTarget.value;
   persistPreferences();
   renderConflicts();
 });
-el.duplicatesSearch.addEventListener("input", (event) => {
-  state.duplicatesSearch = event.currentTarget.value;
+const applyDuplicateSearch = debounce((value) => {
+  state.duplicatesSearch = value;
   persistPreferences();
   renderDuplicates();
+});
+el.duplicatesSearch.addEventListener("input", (event) => {
+  applyDuplicateSearch(event.currentTarget.value);
 });
 el.duplicatesFilter.addEventListener("change", (event) => {
   state.duplicatesFilter = event.currentTarget.value;
@@ -6454,10 +6731,13 @@ el.confirmModal.addEventListener("click", (event) => {
   if (event.target === el.confirmModal) closeConfirm();
 });
 
-el.searchInput.addEventListener("input", (event) => {
-  state.search = event.currentTarget.value;
+const applyManagerSearch = debounce((value) => {
+  state.search = value;
   persistPreferences();
   renderResults();
+});
+el.searchInput.addEventListener("input", (event) => {
+  applyManagerSearch(event.currentTarget.value);
 });
 
 el.statusFilterToggleBtn.addEventListener("click", (event) => {
