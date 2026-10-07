@@ -110,10 +110,14 @@ function updateControls() {
   q("#sims3pack-files-path").title = state.paths.join("\n");
   q("#sims3pack-destination-path").textContent = state.destination || "—";
   q("#sims3pack-destination-path").title = state.destination || "";
-  q("#sims3pack-convert").disabled =
-    state.busy ||
-    !state.destination ||
-    !state.inspections.some(group => (group.items || []).some(item => item.convertible));
+
+  const convertButton = q("#sims3pack-convert");
+  const hasConvertible =
+    state.inspections.some(group => (group.items || []).some(item => item.convertible));
+  const canShowConvert = !!state.destination && hasConvertible;
+
+  convertButton.classList.toggle("hidden", !canShowConvert);
+  convertButton.disabled = state.busy;
 }
 
 function renderInspection() {
