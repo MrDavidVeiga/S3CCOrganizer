@@ -187,6 +187,10 @@ fn mark_intra_plan_destination_collisions(items: &mut [PlanItem], stats: &mut Pl
     }
 }
 
+fn plan_can_execute(stats: &PlanStats, read_only: bool) -> bool {
+    !read_only && stats.ready > 0 && stats.blocked == 0
+}
+
 fn manifest_preview(
     root: &Path,
     language: AppLanguage,
@@ -573,9 +577,7 @@ pub fn build_organization_plan(
 
     stats.directories_to_create = directories.len();
 
-    let can_execute = !workspace.read_only
-        && stats.ready > 0
-        && stats.blocked == 0;
+    let can_execute = plan_can_execute(&stats, workspace.read_only);
 
     Ok(OrganizationPlan {
         root: root.to_string_lossy().to_string(),
@@ -684,6 +686,33 @@ mod tests {
         assert_eq!(stats.duplicate_skipped, 1);
         assert_eq!(stats.collision_same_content, 0);
         assert_eq!(stats.collision_different_content, 0);
+    }
+
+    #[test]
+    fn skippable_collisions_do_not_block_ready_organization() {
+        let stats = PlanStats {
+            selected: 1356,
+            ready: 1060,
+            duplicate_skipped: 171,
+            collision_different_content: 125,
+            blocked: 0,
+            ..PlanStats::default()
+        };
+
+        assert!(plan_can_execute(&stats, false));
+    }
+
+    #[test]
+    fn true_blockers_still_prevent_organization() {
+        let stats = PlanStats {
+            selected: 2,
+            ready: 1,
+            blocked: 1,
+            ..PlanStats::default()
+        };
+
+        assert!(!plan_can_execute(&stats, false));
+        assert!(!plan_can_execute(&PlanStats { ready: 1, ..PlanStats::default() }, true));
     }
 
     #[test]
