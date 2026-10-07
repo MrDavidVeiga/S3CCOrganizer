@@ -28,6 +28,7 @@ const I18N = {
     unknown: "Unknown",
     chooseToBegin: "Choose a Mods folder to begin.",
     search: "Search by name or Instance ID",
+    filter: "Filter",
     allStatuses: "All statuses",
     selectPackage: "Select a package to see its classification.",
     detectedFrom: "Detected from",
@@ -432,6 +433,7 @@ const I18N = {
     unknown: "Desconhecidos",
     chooseToBegin: "Escolha uma pasta de Mods para começar.",
     search: "Buscar por nome ou Instance ID",
+    filter: "Filtro",
     allStatuses: "Todos os estados",
     selectPackage: "Selecione um package para ver a classificação.",
     detectedFrom: "Detectado por",
@@ -835,6 +837,7 @@ const I18N = {
     unknown: "Desconocidos",
     chooseToBegin: "Elige una carpeta de Mods para comenzar.",
     search: "Buscar por nombre o Instance ID",
+    filter: "Filtro",
     allStatuses: "Todos los estados",
     selectPackage: "Selecciona un package para ver su clasificación.",
     detectedFrom: "Detectado por",
@@ -1245,6 +1248,7 @@ const state = {
   selectedForPlan: new Set(),
   search: typeof preferences.search === "string" ? preferences.search : "",
   status: typeof preferences.status === "string" ? preferences.status : "all",
+  isStatusFilterOpen: false,
   scanning: false,
   planning: false,
   executing: false,
@@ -1353,6 +1357,12 @@ const el = {
   previewCard: document.querySelector("#preview-card"),
   searchInput: document.querySelector("#search-input"),
   statusFilter: document.querySelector("#status-filter"),
+  statusFilterLabel: document.querySelector("#status-filter-label"),
+  statusFilterDropdown: document.querySelector("#status-filter-dropdown"),
+  statusFilterToggleBtn: document.querySelector("#status-filter-toggle-btn"),
+  statusFilterCurrent: document.querySelector("#status-filter-current"),
+  statusFilterToggleIcon: document.querySelector("#status-filter-toggle-icon"),
+  statusFilterMenu: document.querySelector("#status-filter-menu"),
   selectAllBtn: document.querySelector("#select-all-btn"),
   selectNoneBtn: document.querySelector("#select-none-btn"),
   statPackages: document.querySelector("#stat-packages"),
@@ -2135,6 +2145,8 @@ function renderTestStatusFilter() {
 }
 
 function renderStatusFilter() {
+  if (!el.statusFilterMenu) return;
+
   const options = [
     ["all", t("allStatuses")],
     ["classified", t("classified")],
@@ -2143,14 +2155,39 @@ function renderStatusFilter() {
     ["unknown", t("unknown")],
     ["invalid", t("invalid")],
   ];
-  const current = state.status;
-  el.statusFilter.innerHTML = "";
+
+  const counts = { all: state.items.length };
+  for (const [value] of options) {
+    if (value === "all") continue;
+    counts[value] = state.items.filter((item) => item.status === value).length;
+  }
+
+  const active = options.find(([value]) => value === state.status) || options[0];
+  el.statusFilterLabel.textContent = `${t("filter")}:`;
+  el.statusFilterCurrent.textContent = `${active[1]} (${counts[active[0]] ?? 0})`;
+  el.statusFilterToggleBtn.setAttribute("aria-expanded", String(state.isStatusFilterOpen));
+  el.statusFilterToggleIcon.className =
+    `fa-solid ${state.isStatusFilterOpen ? "fa-angle-up" : "fa-angle-down"}`;
+  el.statusFilterMenu.classList.toggle("hidden", !state.isStatusFilterOpen);
+  el.statusFilterMenu.innerHTML = "";
+
   for (const [value, label] of options) {
-    const option = document.createElement("option");
-    option.value = value;
-    option.textContent = label;
-    option.selected = value === current;
-    el.statusFilter.appendChild(option);
+    const button = document.createElement("button");
+    const activeFilter = value === state.status;
+    button.type = "button";
+    button.className =
+      "lang-menu-item content-filter-menu-item" + (activeFilter ? " active" : "");
+    button.textContent = `${label} (${counts[value] ?? 0})`;
+    button.disabled = activeFilter;
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      state.status = value;
+      state.isStatusFilterOpen = false;
+      persistPreferences();
+      renderStatusFilter();
+      renderResults();
+    });
+    el.statusFilterMenu.appendChild(button);
   }
 }
 
@@ -5714,6 +5751,7 @@ for (const button of el.tabs) {
 
 el.languageButton.addEventListener("click", (event) => {
   event.stopPropagation();
+  state.isStatusFilterOpen = false;
   el.languageMenu?.classList.toggle("hidden");
   renderLanguage();
 });
@@ -5725,6 +5763,7 @@ for (const button of el.languageMenuItems) {
     if (!LANGUAGE_ORDER.includes(nextLanguage)) return;
 
     el.languageMenu?.classList.add("hidden");
+    state.isStatusFilterOpen = false;
     if (nextLanguage === state.language) {
       renderLanguage();
       return;
@@ -5741,14 +5780,34 @@ for (const button of el.languageMenuItems) {
 }
 
 document.addEventListener("click", (event) => {
-  if (!event.target.closest("#lang-dropdown")) {
+  let changed = false;
+
+  if (!event.target.closest("#lang-dropdown") && !el.languageMenu?.classList.contains("hidden")) {
     el.languageMenu?.classList.add("hidden");
+    changed = true;
+  }
+
+  if (
+    state.isStatusFilterOpen &&
+    !el.statusFilterDropdown?.contains(event.target)
+  ) {
+    state.isStatusFilterOpen = false;
+    changed = true;
+  }
+
+  if (changed) {
     renderLanguage();
+    renderStatusFilter();
   }
 });
 
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
+  if (state.isStatusFilterOpen) {
+    state.isStatusFilterOpen = false;
+    renderStatusFilter();
+    return;
+  }
   if (!el.structureModal.classList.contains("hidden")) closeStructureModal();
   else if (!el.confirmModal.classList.contains("hidden")) closeConfirm();
   else if (!el.planModal.classList.contains("hidden")) closePlanModal();
@@ -5902,10 +5961,11 @@ el.searchInput.addEventListener("input", (event) => {
   renderResults();
 });
 
-el.statusFilter.addEventListener("change", (event) => {
-  state.status = event.currentTarget.value;
-  persistPreferences();
-  renderResults();
+el.statusFilterToggleBtn.addEventListener("click", (event) => {
+  event.stopPropagation();
+  state.isStatusFilterOpen = !state.isStatusFilterOpen;
+  el.languageMenu?.classList.add("hidden");
+  renderStatusFilter();
 });
 
 el.searchInput.value = state.search;
