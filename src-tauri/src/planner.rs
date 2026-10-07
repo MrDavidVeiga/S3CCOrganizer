@@ -179,7 +179,7 @@ fn mark_intra_plan_destination_collisions(items: &mut [PlanItem], stats: &mut Pl
                 item.plan_status = "collision_different_content".to_string();
                 stats.collision_different_content += 1;
                 item.warnings.push(
-                    "Multiple selected packages resolve to the same destination but contain different data. Nothing will be overwritten."
+                    "Multiple selected packages resolve to the same destination but contain different data. These files will be left in place and skipped during organization."
                         .to_string(),
                 );
             }
@@ -491,7 +491,7 @@ pub fn build_organization_plan(
                 warnings: vec![if same {
                     "Destination already contains a byte-identical file. This duplicate will be left in place and will not block organization.".to_string()
                 } else {
-                    "Destination already contains a different file with the same name. No overwrite is allowed.".to_string()
+                    "Destination already contains a different file with the same name. This file will be left in place and skipped during organization.".to_string()
                 }],
             });
             continue;
@@ -575,9 +575,7 @@ pub fn build_organization_plan(
 
     let can_execute = !workspace.read_only
         && stats.ready > 0
-        && stats.blocked == 0
-        && stats.collision_same_content == 0
-        && stats.collision_different_content == 0;
+        && stats.blocked == 0;
 
     Ok(OrganizationPlan {
         root: root.to_string_lossy().to_string(),
