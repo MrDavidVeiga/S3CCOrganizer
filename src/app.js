@@ -2103,6 +2103,11 @@ function statusLabel(status) {
   }[status] || status;
 }
 
+function planCanExecute(plan) {
+  const stats = plan?.stats || {};
+  return (stats.ready ?? 0) > 0 && (stats.blocked ?? 0) === 0 && !workspaceReadOnly();
+}
+
 function planStatusLabel(status) {
   return {
     ready: t("readyToMove"),
@@ -5100,7 +5105,7 @@ function renderPlan() {
   el.planStatCollisions.textContent = collisions;
   el.planStatBlocked.textContent = stats.blocked ?? 0;
   el.planStatFolders.textContent = stats.directoriesToCreate ?? 0;
-  el.planExecuteBtn.disabled = !plan.canExecute || state.executing || workspaceReadOnly();
+  el.planExecuteBtn.disabled = !planCanExecute(plan) || state.executing;
 
   // Keep the rendered preview in memory while the plan object is unchanged.
   // Closing and reopening the modal must not rebuild thousands of DOM nodes.
@@ -5571,7 +5576,7 @@ async function buildPlan() {
 }
 
 async function executeOrganization() {
-  if (!state.plan?.canExecute || state.executing || state.structureBusy) return;
+  if (!planCanExecute(state.plan) || state.executing || state.structureBusy) return;
 
   state.executing = true;
   state.planError = "";
