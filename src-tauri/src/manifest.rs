@@ -397,7 +397,7 @@ mod tests {
                 AppLanguage::Pt,
                 Path::new("CAS/Cabelos/Feminino/new.package")
             ),
-            PathBuf::from("Não Categorizado/CAS/Cabelos/Feminino/new.package")
+            PathBuf::from("Sem Categoria/CAS/Cabelos/Feminino/new.package")
         );
     }
 
