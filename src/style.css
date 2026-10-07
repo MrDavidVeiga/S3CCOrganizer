@@ -392,6 +392,8 @@ button:disabled {
 
 .package-row {
   width: 100%;
+  height: 56px;
+  min-height: 56px;
   flex: 0 0 auto;
   padding: 10px 9px;
   border: 1px solid transparent;
@@ -1189,6 +1191,9 @@ button:disabled {
 
 .duplicate-row {
   width: 100%;
+  height: 53px;
+  min-height: 53px;
+  flex: 0 0 auto;
   border: 1px solid transparent;
   border-radius: 12px;
   background: rgba(255,255,255,.04);
@@ -1547,6 +1552,9 @@ button:disabled {
 
 .conflict-row {
   width: 100%;
+  height: 53px;
+  min-height: 53px;
+  flex: 0 0 auto;
   border: 1px solid transparent;
   border-radius: 12px;
   background: rgba(255,255,255,.04);
@@ -4429,4 +4437,26 @@ button:disabled {
     grid-template-columns: 1fr;
     gap: 2px;
   }
+}
+
+
+/* Large-list virtualization */
+.virtual-list-spacer {
+  width: 100%;
+  min-height: 0;
+  flex: 0 0 auto;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.package-list,
+.duplicates-list,
+.conflicts-list {
+  contain: layout paint;
+}
+
+.package-row,
+.duplicate-row,
+.conflict-row {
+  contain: layout paint style;
 }
