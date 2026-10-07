@@ -190,15 +190,10 @@ pub fn execute_organization(
 ) -> Result<ExecutionResult, String> {
     let plan = build_organization_plan(folder, language, selected_paths)?;
 
-    if plan.stats.blocked > 0
-        || plan.stats.collision_same_content > 0
-        || plan.stats.collision_different_content > 0
-    {
+    if plan.stats.blocked > 0 {
         return Err(format!(
-            "Execution blocked by preflight: {} blocked, {} identical collision(s), {} different collision(s).",
-            plan.stats.blocked,
-            plan.stats.collision_same_content,
-            plan.stats.collision_different_content
+            "Execution blocked by preflight: {} blocked item(s).",
+            plan.stats.blocked
         ));
     }
 
