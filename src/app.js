@@ -356,6 +356,15 @@ const I18N = {
     relatedVariants: "Related Variants",
     analyzeDuplicatesToBegin: "Analyze the selected Mods folder to find duplicate relationships.",
     selectDuplicateFinding: "Select a finding to see why it was detected.",
+    duplicateDetailsTitle: "Duplicate Details",
+    duplicateDetailsIntro: "Compare the detected files, previews and evidence before taking any action.",
+    duplicateDetailsSafety: "No file is changed while reviewing duplicate details.",
+    openLocation: "Open Location",
+    contentType: "Content Type",
+    contentSource: "Source",
+    scriptedContent: "Scripted",
+    yes: "Yes",
+    no: "No",
     duplicateMembers: "Files in this group",
     duplicateReason: "Why it was flagged",
     fileHash: "File SHA-256",
@@ -783,6 +792,15 @@ const I18N = {
     relatedVariants: "Variantes Relacionadas",
     analyzeDuplicatesToBegin: "Analise a pasta de Mods selecionada para encontrar relações de duplicidade.",
     selectDuplicateFinding: "Selecione um resultado para ver por que ele foi detectado.",
+    duplicateDetailsTitle: "Detalhes dos Duplicados",
+    duplicateDetailsIntro: "Compare os arquivos detectados, previews e evidências antes de realizar qualquer ação.",
+    duplicateDetailsSafety: "Nenhum arquivo é alterado durante a revisão dos duplicados.",
+    openLocation: "Abrir Local",
+    contentType: "Tipo de Conteúdo",
+    contentSource: "Origem",
+    scriptedContent: "Script",
+    yes: "Sim",
+    no: "Não",
     duplicateMembers: "Arquivos deste grupo",
     duplicateReason: "Por que foi marcado",
     fileHash: "SHA-256 do arquivo",
@@ -1209,6 +1227,15 @@ const I18N = {
     relatedVariants: "Variantes Relacionadas",
     analyzeDuplicatesToBegin: "Analiza la carpeta de Mods seleccionada para encontrar relaciones de duplicidad.",
     selectDuplicateFinding: "Selecciona un resultado para ver por qué fue detectado.",
+    duplicateDetailsTitle: "Detalles de Duplicados",
+    duplicateDetailsIntro: "Compara los archivos detectados, vistas previas y evidencias antes de realizar cualquier acción.",
+    duplicateDetailsSafety: "Ningún archivo se modifica durante la revisión de duplicados.",
+    openLocation: "Abrir Ubicación",
+    contentType: "Tipo de Contenido",
+    contentSource: "Origen",
+    scriptedContent: "Script",
+    yes: "Sí",
+    no: "No",
     duplicateMembers: "Archivos de este grupo",
     duplicateReason: "Por qué fue marcado",
     fileHash: "SHA-256 del archivo",
@@ -1486,7 +1513,10 @@ const el = {
   duplicatesEmpty: document.querySelector("#duplicates-empty"),
   duplicatesResults: document.querySelector("#duplicates-results"),
   duplicatesList: document.querySelector("#duplicates-list"),
-  duplicatesPreview: document.querySelector("#duplicates-preview"),
+  duplicatesPreview: document.querySelector("#duplicate-details-content"),
+  duplicateDetailsModal: document.querySelector("#duplicate-details-modal"),
+  duplicateDetailsCloseBtn: document.querySelector("#duplicate-details-close-btn"),
+  duplicateDetailsCloseFooterBtn: document.querySelector("#duplicate-details-close-footer-btn"),
   dupStatPackages: document.querySelector("#dup-stat-packages"),
   dupStatExact: document.querySelector("#dup-stat-exact"),
   dupStatContent: document.querySelector("#dup-stat-content"),
@@ -2420,6 +2450,129 @@ async function executeQuarantine() {
   }
 }
 
+function openDuplicateDetails() {
+  if (!state.duplicateSelectedId || !el.duplicateDetailsModal) return;
+  renderDuplicatesPreview();
+  el.duplicateDetailsModal.classList.remove("hidden");
+  el.duplicateDetailsModal.setAttribute("aria-hidden", "false");
+}
+
+function closeDuplicateDetails() {
+  if (!el.duplicateDetailsModal) return;
+  el.duplicateDetailsModal.classList.add("hidden");
+  el.duplicateDetailsModal.setAttribute("aria-hidden", "true");
+}
+
+function libraryItemForDuplicateMember(member) {
+  if (!member) return null;
+  return state.items.find((candidate) =>
+    candidate.path === member.path ||
+    candidate.relativePath === member.relativePath
+  ) || null;
+}
+
+function readableContentSource(value) {
+  if (value === "the_sims_3_store") return "The Sims 3 Store";
+  if (value === "custom_content") return "Custom Content";
+  return value || "—";
+}
+
+async function loadDuplicateMemberPreview(member) {
+  const path = member?.path;
+  if (!path || !state.folder || state.packagePreviewLoading[path] || path in state.packagePreviews) {
+    return;
+  }
+
+  state.packagePreviewLoading[path] = true;
+  try {
+    state.packagePreviews[path] = await invoke("get_package_preview", {
+      folder: state.folder,
+      packagePath: path,
+    });
+  } catch (error) {
+    state.packagePreviewErrors[path] = String(error);
+    state.packagePreviews[path] = { thumbnailBase64: null, mimeType: null };
+  } finally {
+    delete state.packagePreviewLoading[path];
+    if (el.duplicateDetailsModal && !el.duplicateDetailsModal.classList.contains("hidden")) {
+      renderDuplicatesPreview();
+    }
+  }
+}
+
+function appendDuplicateMemberDetails(card, member, label = "") {
+  const visual = document.createElement("div");
+  visual.className = "duplicate-member-visual";
+
+  const preview = state.packagePreviews[member?.path];
+  if (preview?.thumbnailBase64) {
+    const image = document.createElement("img");
+    image.className = "duplicate-member-thumb";
+    image.alt = member?.name || "";
+    image.src = `data:${preview.mimeType || "image/png"};base64,${preview.thumbnailBase64}`;
+    visual.appendChild(image);
+  } else {
+    const fallback = document.createElement("div");
+    fallback.className = "duplicate-member-thumb duplicate-member-thumb-fallback";
+    fallback.innerHTML = '<i class="fa-regular fa-image" aria-hidden="true"></i>';
+    visual.appendChild(fallback);
+    if (member?.path && !(member.path in state.packagePreviews) && !state.packagePreviewLoading[member.path]) {
+      queueMicrotask(() => loadDuplicateMemberPreview(member));
+    }
+  }
+
+  const body = document.createElement("div");
+  body.className = "duplicate-member-body";
+
+  if (label) {
+    const mark = document.createElement("b");
+    mark.className = "duplicate-member-mark";
+    mark.textContent = label;
+    body.appendChild(mark);
+  }
+
+  const name = document.createElement("strong");
+  name.textContent = member?.name || "—";
+  const path = document.createElement("code");
+  path.textContent = member?.relativePath || "";
+  body.append(name, path);
+
+  const libraryItem = libraryItemForDuplicateMember(member);
+  const details = document.createElement("div");
+  details.className = "duplicate-member-meta-grid";
+
+  const rows = [
+    [t("contentType"), [libraryItem?.category, libraryItem?.subCategory].filter(Boolean).join(" · ") || "—"],
+    [t("contentSource"), readableContentSource(libraryItem?.contentSource)],
+    [t("scriptedContent"), libraryItem?.scripted ? t("yes") : t("no")],
+    [t("resourceCount"), String(member?.resourceCount ?? 0)],
+    [t("fileSize"), bytesLabel(member?.size ?? 0)],
+    [t("fileHash"), member?.fileSha256 ? `${member.fileSha256.slice(0, 16)}…` : "—"],
+  ];
+
+  for (const [keyText, valueText] of rows) {
+    const row = document.createElement("div");
+    const key = document.createElement("span");
+    key.textContent = keyText;
+    const value = document.createElement("strong");
+    value.textContent = valueText;
+    row.append(key, value);
+    details.appendChild(row);
+  }
+
+  const actions = document.createElement("div");
+  actions.className = "duplicate-member-actions";
+  const openButton = document.createElement("button");
+  openButton.type = "button";
+  openButton.className = "secondary-btn";
+  openButton.textContent = t("openLocation");
+  openButton.addEventListener("click", () => revealSafe(member?.path));
+  actions.appendChild(openButton);
+
+  body.append(details, actions);
+  card.append(visual, body);
+}
+
 function renderDuplicatesPreview() {
   if (!el.duplicatesPreview) return;
   const item = flattenedDuplicateFindings().find(
@@ -2485,14 +2638,7 @@ function renderDuplicatesPreview() {
         card.appendChild(selector);
       }
 
-      const name = document.createElement("strong");
-      name.textContent = member.name;
-      const path = document.createElement("code");
-      path.textContent = member.relativePath;
-      const meta = document.createElement("small");
-      const hash = member.fileSha256 ? member.fileSha256.slice(0, 16) : "—";
-      meta.textContent = `${t("fileHash")}: ${hash}… · ${t("resourceCount")}: ${member.resourceCount}`;
-      card.append(name, path, meta);
+      appendDuplicateMemberDetails(card, member);
       members.appendChild(card);
     }
     el.duplicatesPreview.appendChild(members);
@@ -2551,13 +2697,7 @@ function renderDuplicatesPreview() {
     pair.className = "duplicate-pair";
     for (const [label, member] of [["A", item.left], ["B", item.right]]) {
       const card = document.createElement("article");
-      const mark = document.createElement("b");
-      mark.textContent = label;
-      const name = document.createElement("strong");
-      name.textContent = member?.name || "—";
-      const path = document.createElement("code");
-      path.textContent = member?.relativePath || "";
-      card.append(mark, name, path);
+      appendDuplicateMemberDetails(card, member, label);
       pair.appendChild(card);
     }
     el.duplicatesPreview.appendChild(pair);
@@ -2711,6 +2851,7 @@ function renderDuplicates() {
         state.quarantineSelected.clear();
         state.quarantinePlan = null;
         renderDuplicates();
+        openDuplicateDetails();
       });
       el.duplicatesList.appendChild(button);
     }
@@ -5654,6 +5795,7 @@ function clearLoadedLibrary() {
 
   state.operations = { scan: null, duplicates: null, conflicts: null };
   closePlanModal();
+  closeDuplicateDetails();
   closeCollisionReview();
   persistPreferences();
   render();
@@ -6131,6 +6273,10 @@ document.addEventListener("click", (event) => {
 
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
+  if (!el.duplicateDetailsModal.classList.contains("hidden")) {
+    closeDuplicateDetails();
+    return;
+  }
   if (!el.collisionReviewModal.classList.contains("hidden")) {
     closeCollisionReview();
     return;
@@ -6227,6 +6373,11 @@ el.reviewDuplicatesBtn.addEventListener("click", async () => {
   if (state.folder) await analyzeDuplicates();
 });
 el.reviewCollisionsBtn.addEventListener("click", openCollisionReview);
+el.duplicateDetailsCloseBtn.addEventListener("click", closeDuplicateDetails);
+el.duplicateDetailsCloseFooterBtn.addEventListener("click", closeDuplicateDetails);
+el.duplicateDetailsModal.addEventListener("click", (event) => {
+  if (event.target === el.duplicateDetailsModal) closeDuplicateDetails();
+});
 el.collisionReviewCloseBtn.addEventListener("click", closeCollisionReview);
 el.collisionReviewCloseFooterBtn.addEventListener("click", closeCollisionReview);
 el.collisionReviewModal.addEventListener("click", (event) => {
