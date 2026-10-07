@@ -996,10 +996,15 @@ fn scan_one(
         )
     };
 
-    let mut family_primary: Option<PackageFamilyClassification> = special_primary;
-    let mut classification_reason = primary
+    let mut classification_reason = special_primary
         .as_ref()
-        .map(|classification| classification.technical_reason.clone());
+        .map(|classification| classification.technical_reason.clone())
+        .or_else(|| {
+            primary
+                .as_ref()
+                .map(|classification| classification.technical_reason.clone())
+        });
+    let mut family_primary: Option<PackageFamilyClassification> = special_primary;
 
     if status == "unknown" && catalog_resource_count == 0 {
         match classify_package_family(&type_ids, language) {
