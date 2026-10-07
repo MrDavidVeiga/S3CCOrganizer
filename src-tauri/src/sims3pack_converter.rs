@@ -103,7 +103,7 @@ fn localized_name(manifest: &ManifestNames, language: AppLanguage) -> Option<Str
             .find(|(locale, _)| locale.eq_ignore_ascii_case(wanted))
         {
             if !value.trim().is_empty() {
-                return Some(value.trim().to_string());
+                return Some(clean_manifest_text(value));
             }
         }
     }
@@ -119,7 +119,7 @@ fn localized_name(manifest: &ManifestNames, language: AppLanguage) -> Option<Str
         .find(|(locale, _)| locale.to_ascii_lowercase().starts_with(prefix))
     {
         if !value.trim().is_empty() {
-            return Some(value.trim().to_string());
+            return Some(clean_manifest_text(value));
         }
     }
 
@@ -132,9 +132,30 @@ fn best_manifest_name(manifest: &ManifestNames, language: AppLanguage) -> Option
         .or_else(|| manifest.display_name.as_ref().filter(|v| !v.trim().is_empty()).cloned())
 }
 
+fn clean_manifest_text(value: &str) -> String {
+    let mut text = value.trim().to_string();
+
+    for prefix in ["<![CDATA[", "![CDATA[", "[CDATA["] {
+        if text.starts_with(prefix) {
+            text = text[prefix.len()..].to_string();
+            break;
+        }
+    }
+    for suffix in ["]]>", "]]"] {
+        if text.ends_with(suffix) {
+            let new_len = text.len().saturating_sub(suffix.len());
+            text.truncate(new_len);
+            break;
+        }
+    }
+
+    text.trim().to_string()
+}
+
 fn sanitize_file_stem(value: &str) -> String {
-    let mut out = String::with_capacity(value.len());
-    for ch in value.chars() {
+    let cleaned = clean_manifest_text(value);
+    let mut out = String::with_capacity(cleaned.len());
+    for ch in cleaned.chars() {
         match ch {
             '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*' => out.push('_'),
             c if c.is_control() => out.push('_'),
@@ -206,20 +227,23 @@ fn parse_manifest_and_files(xml: &str) -> Result<(ManifestNames, Vec<PackagedFil
                     "localizedname" if in_localized_names => {
                         let locale = attr_language(&event, &reader).unwrap_or_default();
                         let value = reader.read_text(event.name()).unwrap_or_default().into_owned();
-                        if !locale.trim().is_empty() && !value.trim().is_empty() {
-                            manifest.localized_names.insert(locale, value.trim().to_string());
+                        let value = clean_manifest_text(&value);
+                        if !locale.trim().is_empty() && !value.is_empty() {
+                            manifest.localized_names.insert(locale, value);
                         }
                     }
                     "displayname" if !in_packaged_file => {
                         let value = reader.read_text(event.name()).unwrap_or_default().into_owned();
-                        if !value.trim().is_empty() {
-                            manifest.display_name = Some(value.trim().to_string());
+                        let value = clean_manifest_text(&value);
+                        if !value.is_empty() {
+                            manifest.display_name = Some(value);
                         }
                     }
                     "packagetitle" if !in_packaged_file => {
                         let value = reader.read_text(event.name()).unwrap_or_default().into_owned();
-                        if !value.trim().is_empty() {
-                            manifest.package_title = Some(value.trim().to_string());
+                        let value = clean_manifest_text(&value);
+                        if !value.is_empty() {
+                            manifest.package_title = Some(value);
                         }
                     }
                     "packageid" if !in_packaged_file => {
