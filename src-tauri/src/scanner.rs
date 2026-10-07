@@ -16,6 +16,7 @@ use std::{
     collections::{BTreeSet, HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
+    sync::{Mutex, OnceLock},
     time::Instant,
 };
 use walkdir::WalkDir;
@@ -68,6 +69,39 @@ pub struct ScanResult {
     pub root: String,
     pub items: Vec<ScanPackageItem>,
     pub stats: ScanStats,
+}
+
+#[derive(Debug, Clone)]
+struct LatestScan {
+    root: PathBuf,
+    language: AppLanguage,
+    result: ScanResult,
+}
+
+static LATEST_SCAN: OnceLock<Mutex<Option<LatestScan>>> = OnceLock::new();
+
+fn latest_scan_slot() -> &'static Mutex<Option<LatestScan>> {
+    LATEST_SCAN.get_or_init(|| Mutex::new(None))
+}
+
+fn remember_latest_scan(result: &ScanResult, language: AppLanguage) {
+    let root = PathBuf::from(&result.root)
+        .canonicalize()
+        .unwrap_or_else(|_| PathBuf::from(&result.root));
+    if let Ok(mut slot) = latest_scan_slot().lock() {
+        *slot = Some(LatestScan {
+            root,
+            language,
+            result: result.clone(),
+        });
+    }
+}
+
+pub fn cached_scan_for(root: &Path, language: AppLanguage) -> Option<ScanResult> {
+    let canonical = root.canonicalize().ok()?;
+    let slot = latest_scan_slot().lock().ok()?;
+    let cached = slot.as_ref()?;
+    (cached.language == language && cached.root == canonical).then(|| cached.result.clone())
 }
 
 fn package_extension(path: &Path) -> bool {
@@ -1036,7 +1070,10 @@ pub async fn scan_packages(folder: String, language: AppLanguage) -> Result<Scan
     };
 
     match &result {
-        Ok(_) => operation::finish(KIND, "complete", None),
+        Ok(scan) => {
+            remember_latest_scan(scan, language);
+            operation::finish(KIND, "complete", None);
+        }
         Err(error) if error == CANCELLED_ERROR => operation::mark_cancelled(KIND),
         Err(error) => operation::finish(KIND, "error", Some(error.clone())),
     }
