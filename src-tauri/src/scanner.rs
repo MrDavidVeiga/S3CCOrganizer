@@ -199,6 +199,30 @@ fn localized_special_folder(language: AppLanguage, key: &str) -> &'static str {
         (AppLanguage::En, "poses") => "Poses and Animations",
         (AppLanguage::Pt, "poses") => "Poses e Animações",
         (AppLanguage::Es, "poses") => "Poses y Animaciones",
+        (AppLanguage::En, "gameplay") => "Gameplay",
+        (AppLanguage::Pt, "gameplay") => "Jogabilidade",
+        (AppLanguage::Es, "gameplay") => "Jugabilidad",
+        (AppLanguage::En, "scripts") => "Scripts",
+        (AppLanguage::Pt, "scripts") => "Scripts",
+        (AppLanguage::Es, "scripts") => "Scripts",
+        (AppLanguage::En, "cooking_food") => "Cooking & Food",
+        (AppLanguage::Pt, "cooking_food") => "Culinária e Comida",
+        (AppLanguage::Es, "cooking_food") => "Cocina y Comida",
+        (AppLanguage::En, "careers") => "Careers",
+        (AppLanguage::Pt, "careers") => "Carreiras",
+        (AppLanguage::Es, "careers") => "Carreras",
+        (AppLanguage::En, "relationships") => "Relationships",
+        (AppLanguage::Pt, "relationships") => "Relacionamentos",
+        (AppLanguage::Es, "relationships") => "Relaciones",
+        (AppLanguage::En, "story_progression") => "Story Progression",
+        (AppLanguage::Pt, "story_progression") => "Progressão da História",
+        (AppLanguage::Es, "story_progression") => "Progresión de la Historia",
+        (AppLanguage::En, "ui") => "UI",
+        (AppLanguage::Pt, "ui") => "Interface",
+        (AppLanguage::Es, "ui") => "Interfaz",
+        (AppLanguage::En, "utilities") => "Utilities",
+        (AppLanguage::Pt, "utilities") => "Utilitários",
+        (AppLanguage::Es, "utilities") => "Utilidades",
         _ => "Unknown",
     }
 }
@@ -224,9 +248,119 @@ fn internal_signature(
     None
 }
 
+fn strip_leading_status_tags(value: &str) -> String {
+    let mut text = value.trim().to_string();
+    loop {
+        let trimmed = text.trim_start();
+        if !trimmed.starts_with('[') {
+            return trimmed.to_string();
+        }
+        let Some(end) = trimmed.find(']') else {
+            return trimmed.to_string();
+        };
+        text = trimmed[end + 1..].trim_start().to_string();
+    }
+}
+
+fn creator_candidate_from_filename(name: &str) -> Option<String> {
+    let stem = Path::new(name)
+        .file_stem()
+        .map(|value| value.to_string_lossy().to_string())
+        .unwrap_or_else(|| name.to_string());
+    let stem = strip_leading_status_tags(&stem);
+    let candidate = stem
+        .split(|ch: char| ch == '_' || ch == '-' || ch.is_whitespace())
+        .next()?
+        .trim();
+    if !(2..=40).contains(&candidate.len())
+        || !candidate.chars().any(|ch| ch.is_ascii_alphabetic())
+    {
+        return None;
+    }
+    let lower = candidate.to_ascii_lowercase();
+    if matches!(
+        lower.as_str(),
+        "mod" | "mods" | "script" | "scripts" | "package" | "update" | "updated"
+            | "new" | "fix" | "override" | "ts3" | "sims3" | "the"
+    ) {
+        return None;
+    }
+    Some(candidate.to_string())
+}
+
+fn pretty_creator_label(candidate: &str) -> String {
+    match candidate.to_ascii_lowercase().as_str() {
+        "twinsimming" => "TwinSimming".to_string(),
+        "nraas" => "NRaas".to_string(),
+        _ => {
+            let mut chars = candidate.chars();
+            match chars.next() {
+                Some(first) => format!("{}{}", first.to_uppercase(), chars.as_str()),
+                None => candidate.to_string(),
+            }
+        }
+    }
+}
+
+fn verified_script_creator(package: &Package, name: &str) -> Option<String> {
+    let candidate = creator_candidate_from_filename(name)?;
+    internal_signature(
+        package,
+        &[
+            TYPE_S3SA,
+            TYPE_NMAP_LOCAL,
+            TYPE_XML_LOCAL,
+            TYPE_ITUN_LOCAL,
+            TYPE_STBL_LOCAL,
+            TYPE_MANIFEST_LOCAL,
+        ],
+        &[candidate.as_str()],
+    )?;
+    Some(pretty_creator_label(&candidate))
+}
+
+fn script_category(package: &Package, name: &str, language: AppLanguage) -> &'static str {
+    let resource_types = [
+        TYPE_S3SA,
+        TYPE_NMAP_LOCAL,
+        TYPE_XML_LOCAL,
+        TYPE_ITUN_LOCAL,
+        TYPE_STBL_LOCAL,
+        TYPE_MANIFEST_LOCAL,
+    ];
+
+    let filename = name.to_ascii_lowercase();
+    let matches_any = |needles: &[&str]| {
+        needles.iter().any(|needle| filename.contains(needle))
+            || internal_signature(package, &resource_types, needles).is_some()
+    };
+
+    if matches_any(&["baking", "recipe", "food", "cooking", "cake", "pastry"]) {
+        return localized_special_folder(language, "cooking_food");
+    }
+    if matches_any(&["career", "skillbasedcareer", "profession"]) {
+        return localized_special_folder(language, "careers");
+    }
+    if matches_any(&["storyprogression", "story progression"]) {
+        return localized_special_folder(language, "story_progression");
+    }
+    if matches_any(&["relationship", "romance", "woohoo"]) {
+        return localized_special_folder(language, "relationships");
+    }
+    if matches_any(&["hud", "userinterface", "user interface", "dialog", "ui mod"]) {
+        return localized_special_folder(language, "ui");
+    }
+    if matches_any(&["utility", "utilities", "framework", "loader", "core mod"]) {
+        return localized_special_folder(language, "utilities");
+    }
+
+    localized_special_folder(language, "scripts")
+}
+
 fn special_package_classification(
     package: &Package,
     type_ids: &BTreeSet<u32>,
+    name: &str,
     language: AppLanguage,
     catalog_resource_count: usize,
 ) -> Option<PackageFamilyClassification> {
@@ -244,6 +378,34 @@ fn special_package_classification(
             folder_parts: vec![folder.clone()],
             detected_from: vec!["NRaasInternal".to_string()],
             technical_reason: format!("Internal NRaas signature ({evidence}) => {folder}"),
+        });
+    }
+
+    // Script packages are gameplay content even when the same package also
+    // carries OBJD/CASP resources. A creator is used only when the filename
+    // prefix is corroborated by the package's own internal resources.
+    if type_ids.contains(&TYPE_S3SA) {
+        let gameplay = localized_special_folder(language, "gameplay").to_string();
+        let category = script_category(package, name, language).to_string();
+        let creator = verified_script_creator(package, name);
+        let mut folder_parts = vec![gameplay.clone()];
+        let mut detected_from = vec!["S3SA".to_string()];
+
+        if let Some(creator) = creator {
+            folder_parts.push(creator);
+            detected_from.push("InternalCreator".to_string());
+        }
+        folder_parts.push(category.clone());
+
+        return Some(PackageFamilyClassification {
+            main_category: gameplay,
+            sub_category: Some(category),
+            folder_parts: folder_parts.clone(),
+            detected_from,
+            technical_reason: format!(
+                "S3SA gameplay package with verified creator/category evidence => {}",
+                folder_parts.join("\\")
+            ),
         });
     }
 
@@ -918,7 +1080,7 @@ fn scan_one(
     }
 
     let special_primary =
-        special_package_classification(&package, &type_ids, language, catalog_resource_count);
+        special_package_classification(&package, &type_ids, &name, language, catalog_resource_count);
     if let Some(special) = &special_primary {
         for source in &special.detected_from {
             detected_from.insert(source.clone());
