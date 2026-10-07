@@ -3547,15 +3547,19 @@ button:disabled {
 .sims3pack-converter-actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 7px;
   margin-top: 11px;
 }
 
 .sims3pack-converter-actions .primary-btn,
 .sims3pack-converter-actions .secondary-btn {
-  width: auto;
+  flex: 0 0 190px;
+  width: 190px;
+  min-width: 190px;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 7px;
 }
 
