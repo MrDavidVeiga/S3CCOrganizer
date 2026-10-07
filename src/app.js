@@ -4268,7 +4268,7 @@ async function recoverQuarantineFromHistory(item) {
 function renderHistoryTools() {
   el.toolsHistoryUndo.disabled = !state.folder || workspaceReadOnly() || state.toolsBusy || state.structureBusy;
   el.toolsOperationHistory.innerHTML = "";
-  for (const item of state.operationHistory || []) {
+  for (const item of (state.operationHistory || []).filter((entry) => ["restore_manifest", "quarantine"].includes(entry.kind))) {
     const row = toolListItem(
       `${item.kind}: ${item.title}`,
       `${item.timestamp} · ${item.source || ""}${item.destination ? " → " + item.destination : ""} · ${item.status}`
