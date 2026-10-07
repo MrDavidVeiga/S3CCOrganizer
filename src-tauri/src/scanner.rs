@@ -1010,6 +1010,7 @@ fn apply_named_mod_companions(items: &mut [ScanPackageItem]) {
         }
 
         item.status = "classified".to_string();
+        item.classification_confidence = "medium".to_string();
         item.destination_parts = parts.clone();
         item.destination_path = Some(destination.clone());
         item.detected_from.push("ModFolderCompanion".to_string());
@@ -1050,6 +1051,7 @@ fn apply_manual_classifications(root: &Path, items: &mut [ScanPackageItem]) {
         }
 
         item.status = "classified".to_string();
+        item.classification_confidence = "manual".to_string();
         item.destination_parts = parts.clone();
         item.destination_path = Some(parts.join("\\"));
         item.detected_from.push("ManualReview".to_string());
