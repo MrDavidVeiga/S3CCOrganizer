@@ -148,6 +148,7 @@ const I18N = {
     confidenceHigh: "High",
     confidenceMedium: "Medium",
     confidenceLow: "Low",
+    confidenceManual: "Manual",
     keptUncategorized: "Kept in place",
     openManifestFolder: "Open Manifest Folder",
     manifestRoot: "Manifest root",
@@ -593,6 +594,7 @@ const I18N = {
     confidenceHigh: "Alta",
     confidenceMedium: "Média",
     confidenceLow: "Baixa",
+    confidenceManual: "Manual",
     keptUncategorized: "Mantidos no lugar",
     openManifestFolder: "Abrir Pasta do Manifesto",
     manifestRoot: "Raiz do manifesto",
@@ -1037,6 +1039,7 @@ const I18N = {
     confidenceHigh: "Alta",
     confidenceMedium: "Media",
     confidenceLow: "Baja",
+    confidenceManual: "Manual",
     keptUncategorized: "Mantenidos en su lugar",
     openManifestFolder: "Abrir Carpeta del Manifiesto",
     manifestRoot: "Raíz del manifiesto",
@@ -2373,6 +2376,7 @@ function confidenceLabel(value) {
     high: t("confidenceHigh"),
     medium: t("confidenceMedium"),
     low: t("confidenceLow"),
+    manual: t("confidenceManual"),
   }[value] || value || "—";
 }
 
