@@ -1240,7 +1240,7 @@ const savedLanguage =
 
 const state = {
   language: savedLanguage,
-  tab: VALID_TABS.has(preferences.tab) ? preferences.tab : "organizer",
+  tab: "organizer",
   folder: typeof preferences.folder === "string" ? preferences.folder : "",
   items: [],
   stats: null,
@@ -4709,7 +4709,10 @@ function renderTools() {
 
 function renderTabs() {
   for (const button of el.tabs) {
-    button.classList.toggle("active", button.dataset.tab === state.tab);
+    const active = button.dataset.tab === state.tab;
+    button.classList.toggle("active", active);
+    button.disabled = false;
+    button.setAttribute("aria-selected", String(active));
   }
   for (const page of el.pages) {
     page.classList.toggle("hidden", page.id !== `page-${state.tab}`);
