@@ -1085,7 +1085,7 @@ pub fn scan_packages_core(
 
         if let Some(kind) = operation_kind {
             let processed = index + 1;
-            if processed == paths.len() || processed % 8 == 0 {
+            if processed == package_paths.len() || processed % 8 == 0 {
                 operation::update(kind, processed, None, "scanning");
             }
         }
