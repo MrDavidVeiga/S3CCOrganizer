@@ -297,10 +297,6 @@ pub fn build_organization_plan(
     }
 
     let mut partial_group_hashes = HashSet::<String>::new();
-    // Detect collisions created by the plan itself before any filesystem write occurs.
-    // Without this check, two selected files with the same filename/category can both
-    // appear ready, and the first move creates the destination that makes the second fail.
-    mark_intra_plan_destination_collisions(&mut items, &mut stats);
 
     for group in workspace.groups.iter().filter(|group| group.keep_together) {
         let intersects = group
@@ -510,6 +506,10 @@ pub fn build_organization_plan(
             warnings: Vec::new(),
         });
     }
+
+    // Detect collisions created by the plan itself before any filesystem write occurs.
+    // This catches multiple selected packages that resolve to the same final path.
+    mark_intra_plan_destination_collisions(&mut items, &mut stats);
 
     for group in workspace.groups.iter().filter(|group| group.keep_together) {
         if !group
