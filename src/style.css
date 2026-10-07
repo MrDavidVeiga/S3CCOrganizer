@@ -3981,3 +3981,164 @@ button:disabled {
   }
 }
 
+/* Packer parity — Manager filter + results list */
+.release-v1 #page-organizer .content-filter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+}
+
+.release-v1 #page-organizer .content-filter-label {
+  color: var(--muted);
+  font-weight: 700;
+  font-size: .9rem;
+}
+
+.release-v1 #page-organizer .content-filter-dropdown {
+  min-width: 210px;
+}
+
+.release-v1 #page-organizer .content-filter-toggle-btn {
+  width: 100%;
+  min-width: 210px;
+}
+
+.release-v1 #page-organizer .content-filter-current {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.release-v1 #page-organizer .content-filter-menu {
+  min-width: 100%;
+  max-height: min(58vh, 520px);
+  overflow-y: auto;
+  z-index: 30;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,.35) transparent;
+}
+
+.release-v1 #page-organizer .content-filter-menu-item {
+  white-space: nowrap;
+}
+
+.release-v1 #page-organizer .content-filter-menu-item.active,
+.release-v1 #page-organizer .content-filter-menu-item:disabled {
+  color: var(--text);
+  background: rgba(97,132,34,.18);
+  opacity: 1;
+  cursor: default;
+}
+
+.release-v1 #page-organizer .manager-list-card,
+.release-v1 #page-organizer .preview-card {
+  height: 100%;
+  min-height: 0;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: var(--surface);
+}
+
+.release-v1 #page-organizer .manager-list-card {
+  --list-end-gap: 28px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  padding-bottom: var(--list-end-gap);
+}
+
+.release-v1 #page-organizer .list-header {
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  min-height: var(--list-end-gap);
+  padding: 14px 14px 10px;
+  border-bottom: 0 solid rgba(255,255,255,.08);
+  color: var(--muted);
+  font-size: .78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  flex: 0 0 auto;
+}
+
+.release-v1 #page-organizer .manager-list-card .package-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+  max-height: none;
+  overflow-x: hidden;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 8px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,.35) transparent;
+}
+
+.release-v1 #page-organizer .manager-list-card .package-list::-webkit-scrollbar {
+  width: 10px;
+}
+
+.release-v1 #page-organizer .manager-list-card .package-list::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 999px;
+}
+
+.release-v1 #page-organizer .manager-list-card .package-list::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,.28);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.release-v1 #page-organizer .manager-list-card .package-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,.45);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+@media (max-width: 1100px) {
+  .release-v1 #page-organizer .content-filter-dropdown,
+  .release-v1 #page-organizer .content-filter-toggle-btn {
+    min-width: 170px;
+  }
+}
+
+@media (max-width: 920px) {
+  .release-v1 #page-organizer .results-query-controls {
+    gap: 7px;
+  }
+
+  .release-v1 #page-organizer .content-filter {
+    gap: 7px;
+  }
+
+  .release-v1 #page-organizer .content-filter-dropdown,
+  .release-v1 #page-organizer .content-filter-toggle-btn {
+    min-width: 145px;
+  }
+}
+
+@media (max-width: 700px) {
+  .release-v1 #page-organizer .results-query-controls {
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .release-v1 #page-organizer .content-filter,
+  .release-v1 #page-organizer .content-filter-dropdown,
+  .release-v1 #page-organizer .content-filter-toggle-btn,
+  .release-v1 #page-organizer .results-search-input {
+    width: 100%;
+    max-width: none;
+  }
+}
+
