@@ -16,7 +16,14 @@ const I18N = {
     chooseModsFolder: "Choose Mods Folder",
     noFolder: "No folder selected.",
     scanCcs: "Scan CCs",
+    clearList: "Clear List",
     scanning: "Scanning packages…",
+    progressStarting: "Preparing analysis…",
+    progressScanning: "Scanning packages…",
+    progressFingerprinting: "Fingerprinting packages…",
+    progressIndexing: "Indexing resources…",
+    progressComparing: "Comparing candidates…",
+    progressCancelling: "Cancelling…",
     analyzeBefore: "Analyze before organizing",
     safetyMessage: "Packages are classified from their actual resources. Review the plan before any move.",
     readOnlyStage: "Analyze first, preview every move, then organize.",
@@ -433,7 +440,14 @@ const I18N = {
     chooseModsFolder: "Escolher Pasta de Mods",
     noFolder: "Nenhuma pasta selecionada.",
     scanCcs: "Analisar CCs",
+    clearList: "Limpar Lista",
     scanning: "Analisando packages…",
+    progressStarting: "Preparando análise…",
+    progressScanning: "Analisando packages…",
+    progressFingerprinting: "Gerando fingerprints…",
+    progressIndexing: "Indexando resources…",
+    progressComparing: "Comparando candidatos…",
+    progressCancelling: "Cancelando…",
     analyzeBefore: "Analise antes de organizar",
     safetyMessage: "Os packages são classificados pelos resources reais. Revise o plano antes de qualquer movimentação.",
     readOnlyStage: "Analise primeiro, visualize cada movimento e só depois organize.",
@@ -845,11 +859,18 @@ const I18N = {
     maintenance: "Mantenimiento",
     converterIntro: "Convierte archivos Sims3Pack a .package de forma segura, por separado o en conjunto.",
     restore: "Restaurar",
-    language: "Idioma",
+    language: "Idioma:",
     chooseModsFolder: "Elegir Carpeta de Mods",
     noFolder: "Ninguna carpeta seleccionada.",
     scanCcs: "Analizar CCs",
+    clearList: "Limpiar Lista",
     scanning: "Analizando packages…",
+    progressStarting: "Preparando análisis…",
+    progressScanning: "Analizando packages…",
+    progressFingerprinting: "Generando fingerprints…",
+    progressIndexing: "Indexando resources…",
+    progressComparing: "Comparando candidatos…",
+    progressCancelling: "Cancelando…",
     analyzeBefore: "Analiza antes de organizar",
     safetyMessage: "Los packages se clasifican por sus resources reales. Revisa el plan antes de cualquier movimiento.",
     readOnlyStage: "Analiza primero, revisa cada movimiento y luego organiza.",
@@ -1385,6 +1406,7 @@ const el = {
   languageMenuItems: [...document.querySelectorAll(".lang-menu-item")],
   chooseFolderBtn: document.querySelector("#choose-folder-btn"),
   scanBtn: document.querySelector("#scan-btn"),
+  clearListBtn: document.querySelector("#clear-list-btn"),
   planBtn: document.querySelector("#plan-btn"),
   selectionSummary: document.querySelector("#selection-summary"),
   folderPath: document.querySelector("#folder-path"),
@@ -1477,14 +1499,20 @@ const el = {
   scanProgress: document.querySelector("#scan-progress"),
   scanProgressBar: document.querySelector("#scan-progress-bar"),
   scanProgressText: document.querySelector("#scan-progress-text"),
+  scanProgressPercent: document.querySelector("#scan-progress-percent"),
+  scanProgressCount: document.querySelector("#scan-progress-count"),
   scanCancelBtn: document.querySelector("#scan-cancel-btn"),
   duplicatesProgress: document.querySelector("#duplicates-progress"),
   duplicatesProgressBar: document.querySelector("#duplicates-progress-bar"),
   duplicatesProgressText: document.querySelector("#duplicates-progress-text"),
+  duplicatesProgressPercent: document.querySelector("#duplicates-progress-percent"),
+  duplicatesProgressCount: document.querySelector("#duplicates-progress-count"),
   duplicatesCancelBtn: document.querySelector("#duplicates-cancel-btn"),
   conflictsProgress: document.querySelector("#conflicts-progress"),
   conflictsProgressBar: document.querySelector("#conflicts-progress-bar"),
   conflictsProgressText: document.querySelector("#conflicts-progress-text"),
+  conflictsProgressPercent: document.querySelector("#conflicts-progress-percent"),
+  conflictsProgressCount: document.querySelector("#conflicts-progress-count"),
   conflictsCancelBtn: document.querySelector("#conflicts-cancel-btn"),
   restoreHistoryList: document.querySelector("#restore-history-list"),
   refreshRestoreHistoryBtn: document.querySelector("#refresh-restore-history-btn"),
@@ -3096,33 +3124,68 @@ function operationBusy(kind) {
 
 function operationUi(kind) {
   return {
-    scan: [el.scanProgress, el.scanProgressBar, el.scanProgressText, el.scanCancelBtn],
-    duplicates: [el.duplicatesProgress, el.duplicatesProgressBar, el.duplicatesProgressText, el.duplicatesCancelBtn],
-    conflicts: [el.conflictsProgress, el.conflictsProgressBar, el.conflictsProgressText, el.conflictsCancelBtn],
+    scan: [
+      el.scanProgress,
+      el.scanProgressBar,
+      el.scanProgressText,
+      el.scanProgressPercent,
+      el.scanProgressCount,
+      el.scanCancelBtn,
+    ],
+    duplicates: [
+      el.duplicatesProgress,
+      el.duplicatesProgressBar,
+      el.duplicatesProgressText,
+      el.duplicatesProgressPercent,
+      el.duplicatesProgressCount,
+      el.duplicatesCancelBtn,
+    ],
+    conflicts: [
+      el.conflictsProgress,
+      el.conflictsProgressBar,
+      el.conflictsProgressText,
+      el.conflictsProgressPercent,
+      el.conflictsProgressCount,
+      el.conflictsCancelBtn,
+    ],
   }[kind];
+}
+
+function operationPhaseLabel(phase) {
+  return {
+    starting: t("progressStarting"),
+    scanning: t("progressScanning"),
+    fingerprinting: t("progressFingerprinting"),
+    indexing: t("progressIndexing"),
+    comparing: t("progressComparing"),
+    cancelling: t("progressCancelling"),
+  }[phase] || t("progressStarting");
 }
 
 function renderOperationProgress(kind) {
   const ui = operationUi(kind);
   if (!ui) return;
-  const [container, bar, text, cancelButton] = ui;
+  const [container, bar, text, percentText, countText, cancelButton] = ui;
   const status = state.operations[kind];
   const visible = operationBusy(kind) || status?.running || status?.phase === "cancelling";
   container.classList.toggle("hidden", !visible);
   if (!visible) return;
 
-  const total = status?.total || 0;
-  const processed = Math.min(status?.processed || 0, total || Number.MAX_SAFE_INTEGER);
-  const percent = total > 0 ? Math.max(0, Math.min(100, (processed / total) * 100)) : 0;
+  const total = Number(status?.total || 0);
+  const processed = Math.min(Number(status?.processed || 0), total || Number.MAX_SAFE_INTEGER);
+  const percent = total > 0
+    ? Math.max(0, Math.min(100, (processed / total) * 100))
+    : 0;
+  const roundedPercent = Math.round(percent);
+
   bar.style.width = `${percent}%`;
+  percentText.textContent = `${roundedPercent}%`;
+  countText.textContent = total > 0
+    ? `${integerLabel(processed)} / ${integerLabel(total)}`
+    : "—";
+  text.textContent = operationPhaseLabel(status?.phase);
 
-  const pieces = [];
-  if (total > 0) pieces.push(`${processed}/${total}`);
-  if (status?.current) pieces.push(status.current);
-  else if (status?.phase) pieces.push(status.phase);
-  if (status?.message) pieces.push(status.message);
-  text.textContent = pieces.join(" · ");
-
+  // Never show status.current here; it contains package file names.
   cancelButton.disabled = !!status?.cancelRequested;
   cancelButton.textContent = status?.cancelRequested ? t("cancelling") : t("cancelAnalysis");
 }
@@ -5481,6 +5544,19 @@ function render() {
     state.toolsBusy ||
     state.planning ||
     state.executing;
+  const hasLoadedLibrary =
+    state.items.length > 0 ||
+    !!state.duplicatesAnalysis ||
+    !!state.conflictsAnalysis;
+  el.clearListBtn.classList.toggle("hidden", !hasLoadedLibrary);
+  el.clearListBtn.disabled =
+    state.scanning ||
+    state.duplicatesBusy ||
+    state.conflictsBusy ||
+    state.structureBusy ||
+    state.planning ||
+    state.executing;
+
   el.chooseFolderBtn.disabled =
     state.scanning ||
     state.duplicatesBusy ||
@@ -5514,6 +5590,61 @@ function render() {
 
   renderResults();
   if (state.plan && !el.planModal.classList.contains("hidden")) renderPlan();
+}
+
+function clearLoadedLibrary() {
+  if (
+    state.scanning ||
+    state.planning ||
+    state.executing ||
+    state.duplicatesBusy ||
+    state.conflictsBusy ||
+    state.restoreBusy ||
+    state.structureBusy
+  ) return;
+
+  state.items = [];
+  state.stats = null;
+  state.selectedId = "";
+  state.selectedForPlan.clear();
+  state.search = "";
+  state.status = "all";
+  state.plan = null;
+  state.planError = "";
+  state.notice = "";
+  state.error = "";
+  state.organizationReview = null;
+  state.organizationCollisionItems = [];
+
+  state.duplicatesAnalysis = null;
+  state.duplicatesError = "";
+  state.duplicatesNotice = "";
+  state.duplicatesSearch = "";
+  state.duplicatesFilter = "all";
+  state.duplicateSelectedId = "";
+
+  state.conflictsAnalysis = null;
+  state.conflictsError = "";
+  state.conflictsNotice = "";
+  state.conflictsSearch = "";
+  state.conflictsFilter = "all";
+  state.conflictSelectedId = "";
+  state.conflictMarks = {};
+
+  state.quarantineSelected.clear();
+  state.quarantinePlan = null;
+  state.packagePreviews = {};
+  state.packagePreviewLoading = {};
+  state.packagePreviewErrors = {};
+  state.technicalDetails = {};
+  state.technicalDetailsErrors = {};
+  state.technicalDetailsOpen.clear();
+
+  state.operations = { scan: null, duplicates: null, conflicts: null };
+  closePlanModal();
+  closeCollisionReview();
+  persistPreferences();
+  render();
 }
 
 async function chooseFolder() {
@@ -6070,6 +6201,7 @@ el.toolsDependencies.addEventListener("click", analyzeDependenciesTool);
 el.toolsRefreshHistory.addEventListener("click", refreshOperationHistory);
 
 el.scanBtn.addEventListener("click", () => scanFolder(false));
+el.clearListBtn.addEventListener("click", clearLoadedLibrary);
 el.planBtn.addEventListener("click", buildPlan);
 el.selectAllBtn.addEventListener("click", selectAllVisible);
 el.selectNoneBtn.addEventListener("click", selectNoneVisible);
