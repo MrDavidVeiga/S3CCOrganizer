@@ -2,8 +2,9 @@ import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
 const THEME_KEY = "s3cc-manager-theme";
-const VALID_THEMES = new Set(["system","veiga-light","veiga-dark","winui-light","winui-dark"]);
+const VALID_THEMES = new Set(["system","veiga-light","veiga-dark","mean-girls","winui-light","winui-dark"]);
 const VEIGA_ACCENT = "#7FAD2D";
+const MEAN_GIRLS_ACCENT = "#F92F60";
 const WINUI_ACCENT_FALLBACK = "#0078D4";
 const osDark = window.matchMedia("(prefers-color-scheme: dark)");
 
@@ -60,6 +61,7 @@ function accentRamp(base,mode,useNative) {
 function resolvedTheme(choice) {
   if (choice==="veiga-light") return accentRamp(VEIGA_ACCENT,"light",false);
   if (choice==="veiga-dark") return accentRamp(VEIGA_ACCENT,"dark",false);
+  if (choice==="mean-girls") return accentRamp(MEAN_GIRLS_ACCENT,"light",false);
   if (choice==="winui-light") return accentRamp(systemAccent(),"light",true);
   if (choice==="winui-dark") return accentRamp(systemAccent(),"dark",true);
   return accentRamp(systemAccent(),systemMode(),true);

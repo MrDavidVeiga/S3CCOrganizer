@@ -247,3 +247,128 @@ html[data-resolved-mode="light"] .release-v1 * { scrollbar-color:rgba(0,0,0,.28)
   .release-v1 .mode-btn { padding-inline:8px; }
   .release-v1 .language-switcher > span { display:none; }
 }
+
+
+/* Mean Girls x The Sims — palette derived from the EA App campaign artwork */
+html[data-theme-choice="mean-girls"] {
+  color-scheme: light;
+
+  --winui-mica-base: #FFBDDB;
+  --winui-layer-fill: #FEF9FD;
+  --winui-card-fill: #FFFAFE;
+  --winui-card-fill-alt: #FFF4FA;
+
+  --winui-control-fill: #FFFFFF;
+  --winui-control-fill-hover: #FFF0F7;
+  --winui-control-fill-pressed: #FADBE9;
+  --winui-control-stroke: rgba(77,19,50,.14);
+  --winui-control-stroke-strong: rgba(77,19,50,.28);
+  --winui-divider: rgba(77,19,50,.14);
+
+  --winui-text-primary: #4D1332;
+  --winui-text-secondary: #7F4361;
+  --winui-text-tertiary: #A26884;
+
+  --winui-popup: #FFF9FD;
+  --winui-shadow: rgba(95,27,63,.18);
+
+  --bg: var(--winui-mica-base);
+  --panel: var(--winui-layer-fill);
+  --panel-border: var(--winui-control-stroke);
+  --surface: var(--winui-card-fill-alt);
+  --text: var(--winui-text-primary);
+  --muted: var(--winui-text-secondary);
+  --green: var(--accent);
+  --green-dark: var(--accent-dark-1);
+}
+
+.mean-girls-swatch {
+  background: linear-gradient(90deg,#5F1B3F 0 48%,#F92F60 48% 100%);
+}
+
+html[data-theme-choice="mean-girls"] body.release-v1 {
+  background: #FFBDDB;
+}
+
+html[data-theme-choice="mean-girls"] .release-v1 .app-shell {
+  background:
+    radial-gradient(900px 520px at 82% -12%, rgba(255,255,255,.34), transparent 60%),
+    #FFBDDB;
+}
+
+html[data-theme-choice="mean-girls"] .winui-titlebar {
+  background: #5F1B3F;
+  color: #FFFFFF;
+}
+
+html[data-theme-choice="mean-girls"] .winui-caption-buttons button {
+  color: #FFFFFF;
+}
+
+html[data-theme-choice="mean-girls"] .winui-caption-buttons button:hover {
+  background: rgba(255,255,255,.10);
+}
+
+html[data-theme-choice="mean-girls"] .winui-caption-buttons button:active {
+  background: rgba(255,255,255,.06);
+}
+
+html[data-theme-choice="mean-girls"] .release-v1 .topbar.winui-navview {
+  background: rgba(255,255,255,.14);
+  border-bottom-color: rgba(77,19,50,.12);
+}
+
+html[data-theme-choice="mean-girls"] .release-v1 .right-panel {
+  background: #FEF9FD;
+  border-color: rgba(77,19,50,.10);
+}
+
+html[data-theme-choice="mean-girls"] .release-v1 .left-panel {
+  background: transparent;
+}
+
+html[data-theme-choice="mean-girls"] .release-v1 .mode-btn.active {
+  background: rgba(249,47,96,.10);
+}
+
+html[data-theme-choice="mean-girls"] .release-v1 .mode-btn.active::after {
+  background: #F92F60;
+}
+
+html[data-theme-choice="mean-girls"] .release-v1 .primary-btn {
+  background: #F92F60;
+  border-color: rgba(77,19,50,.12);
+  border-bottom-color: rgba(77,19,50,.24);
+  color: #FFFFFF;
+}
+
+html[data-theme-choice="mean-girls"] .release-v1 .primary-btn:hover:not(:disabled) {
+  background: #FB5980;
+}
+
+html[data-theme-choice="mean-girls"] .release-v1 .primary-btn:active:not(:disabled) {
+  background: #D92955;
+}
+
+html[data-theme-choice="mean-girls"] .release-v1 .package-row.active {
+  background: rgba(249,47,96,.09);
+  box-shadow: inset 3px 0 0 #F92F60;
+}
+
+html[data-theme-choice="mean-girls"] .release-v1 .text-input:focus,
+html[data-theme-choice="mean-girls"] .release-v1 select.text-input:focus {
+  border-bottom-color: #F92F60;
+}
+
+html[data-theme-choice="mean-girls"] .theme-check {
+  color: #F92F60;
+}
+
+html[data-theme-choice="mean-girls"] .winui-social-footer .social-icons-list a {
+  color: #7F4361;
+}
+
+html[data-theme-choice="mean-girls"] .winui-social-footer .social-icons-list a:hover {
+  color: #4D1332;
+  background: rgba(249,47,96,.10);
+}
