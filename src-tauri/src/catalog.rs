@@ -206,6 +206,9 @@ fn tr(language: AppLanguage, key: &str) -> &'static str {
         (AppLanguage::En, "Buy") => "Buy",
         (AppLanguage::Pt, "Buy") => "Compra",
         (AppLanguage::Es, "Buy") => "Compra",
+        (AppLanguage::En, "Objects") => "Objects",
+        (AppLanguage::Pt, "Objects") => "Objetos",
+        (AppLanguage::Es, "Objects") => "Objetos",
         (AppLanguage::En, "Build") => "Build",
         (AppLanguage::Pt, "Build") => "Construção",
         (AppLanguage::Es, "Build") => "Construcción",
@@ -388,6 +391,21 @@ fn tr(language: AppLanguage, key: &str) -> &'static str {
         (AppLanguage::En, "Curtains & Blinds") => "Curtains & Blinds",
         (AppLanguage::Pt, "Curtains & Blinds") => "Cortinas e Persianas",
         (AppLanguage::Es, "Curtains & Blinds") => "Cortinas y Persianas",
+        (AppLanguage::En, "Tomb Objects") => "Tomb Objects",
+        (AppLanguage::Pt, "Tomb Objects") => "Objetos de Tumba",
+        (AppLanguage::Es, "Tomb Objects") => "Objetos de Tumba",
+        (AppLanguage::En, "Fish Spawners") => "Fish Spawners",
+        (AppLanguage::Pt, "Fish Spawners") => "Geradores de Peixes",
+        (AppLanguage::Es, "Fish Spawners") => "Generadores de Peces",
+        (AppLanguage::En, "Plant & Seed Spawners") => "Plant & Seed Spawners",
+        (AppLanguage::Pt, "Plant & Seed Spawners") => "Geradores de Plantas e Sementes",
+        (AppLanguage::Es, "Plant & Seed Spawners") => "Generadores de Plantas y Semillas",
+        (AppLanguage::En, "Rock, Gem & Metal Spawners") => "Rock, Gem & Metal Spawners",
+        (AppLanguage::Pt, "Rock, Gem & Metal Spawners") => "Geradores de Rochas, Gemas e Metais",
+        (AppLanguage::Es, "Rock, Gem & Metal Spawners") => "Generadores de Rocas, Gemas y Metales",
+        (AppLanguage::En, "Insect Spawners") => "Insect Spawners",
+        (AppLanguage::Pt, "Insect Spawners") => "Geradores de Insetos",
+        (AppLanguage::Es, "Insect Spawners") => "Generadores de Insectos",
 
         // Build
         (AppLanguage::En, "Doors") => "Doors",
@@ -968,7 +986,7 @@ fn decode_buy_sub_all(main: &str, sub1: u64, sub2: u64) -> Vec<&'static str> {
         ],
         "Comfort" => &[
             (0x0000_0000_0000_4000, "Living Chairs"),
-            (0x0000_0000_0001_0000, "Lounge Chairs"),
+            (0x0000_0000_0100_0000, "Lounge Chairs"),
             (0x0000_0040_0000_0000, "Dining Chairs"),
             (0x0000_0080_0000_0000, "Sofas & Loveseats"),
             (0x0000_0100_0000_0000, "Miscellaneous"),
@@ -983,16 +1001,16 @@ fn decode_buy_sub_all(main: &str, sub1: u64, sub2: u64) -> Vec<&'static str> {
             (0x0100_0000_0000_0000, "Miscellaneous"),
         ],
         "Plumbing" => &[
-            (0x0000_0000_0002_0000, "Sinks"),
-            (0x0000_0000_0004_0000, "Toilets"),
-            (0x0000_0000_0008_0000, "Showers & Tubs"),
+            (0x0000_0000_0200_0000, "Sinks"),
+            (0x0000_0000_0400_0000, "Toilets"),
+            (0x0000_0000_0800_0000, "Showers & Tubs"),
             (0x0200_0000_0000_0000, "Miscellaneous"),
         ],
         "Decor" => &[
-            (0x0000_0000_0010_0000, "Miscellaneous"),
-            (0x0000_0000_0020_0000, "Sculptures"),
-            (0x0000_0000_0040_0000, "Paintings & Posters"),
-            (0x0000_0000_0080_0000, "Plants"),
+            (0x0000_0000_1000_0000, "Miscellaneous"),
+            (0x0000_0000_2000_0000, "Sculptures"),
+            (0x0000_0000_4000_0000, "Paintings & Posters"),
+            (0x0000_0000_8000_0000, "Plants"),
             (0x0000_0001_0000_0000, "Mirrors"),
             (0x0040_0000_0000_0000, "Curtains & Blinds"),
             (0x2000_0000_0000_0000, "Rugs"),
@@ -1027,6 +1045,14 @@ fn decode_buy_sub_all(main: &str, sub1: u64, sub2: u64) -> Vec<&'static str> {
             (0x0000_0002_0000_0000, "Dogs"),
             (0x4000_0000_0000_0000, "Cats"),
         ],
+        "Debug" => &[
+            (0x0000_0000_0000_0010, "Tomb Objects"),
+            (0x0000_0000_0000_0020, "Fish Spawners"),
+            (0x0000_0000_0000_0040, "Plant & Seed Spawners"),
+            (0x0000_0000_0000_0200, "Rock, Gem & Metal Spawners"),
+            (0x0000_0000_0001_0000, "Insect Spawners"),
+            (0x0000_0004_0000_0000, "Miscellaneous"),
+        ],
         _ => &[],
     };
 
@@ -1038,7 +1064,7 @@ fn decode_buy_sub_all(main: &str, sub1: u64, sub2: u64) -> Vec<&'static str> {
     match main {
         "Show Stage" => {
             if (sub2 & 0x2) != 0 { found.push("Lighting"); }
-            if (sub2 & 0x4) != 0 { found.push("Decor"); }
+            if (sub2 & 0x4) != 0 { found.push("Props"); }
             if (sub2 & 0x8) != 0 { found.push("Miscellaneous"); }
         }
         "Resort" => {
@@ -1112,7 +1138,7 @@ pub fn classify_objd(data: &[u8], language: AppLanguage) -> Option<CatalogClassi
         return None;
     }
 
-    let root = tr(language, "Buy").to_string();
+    let root = tr(language, "Objects").to_string();
     let mut candidate_folder_parts = Vec::new();
 
     for main in &buy_options {
@@ -1208,6 +1234,17 @@ fn room_usage(flags: u32, language: AppLanguage) -> Vec<String> {
         (0x0000_0200, "Community"),
         (0x0000_0400, "Residential"),
         (0x0000_0800, "Pool"),
+        (0x0000_1000, "Fountain"),
+        (0x0000_2000, "Resort Lobby"),
+        (0x0000_4000, "Resort Spa"),
+        (0x0000_8000, "Resort Gym"),
+        (0x0001_0000, "Resort Restaurant"),
+        (0x0002_0000, "Resort Tiki Lounge"),
+        (0x0004_0000, "Resort Arcade"),
+        (0x0008_0000, "Resort Art Gallery"),
+        (0x0010_0000, "Resort Dance Hall"),
+        (0x0020_0000, "Resort Outdoor Party Area"),
+        (0x0040_0000, "Resort Pool Area"),
     ];
 
     definitions
@@ -1236,6 +1273,28 @@ fn room_usage(flags: u32, language: AppLanguage) -> Vec<String> {
             (AppLanguage::Es, "Residential") => "Residencial".to_string(),
             (AppLanguage::Pt, "Pool") => "Piscina".to_string(),
             (AppLanguage::Es, "Pool") => "Piscina".to_string(),
+            (AppLanguage::Pt, "Fountain") => "Fonte".to_string(),
+            (AppLanguage::Es, "Fountain") => "Fuente".to_string(),
+            (AppLanguage::Pt, "Resort Lobby") => "Lobby do Resort".to_string(),
+            (AppLanguage::Es, "Resort Lobby") => "Vestíbulo del Resort".to_string(),
+            (AppLanguage::Pt, "Resort Spa") => "Spa do Resort".to_string(),
+            (AppLanguage::Es, "Resort Spa") => "Spa del Resort".to_string(),
+            (AppLanguage::Pt, "Resort Gym") => "Academia do Resort".to_string(),
+            (AppLanguage::Es, "Resort Gym") => "Gimnasio del Resort".to_string(),
+            (AppLanguage::Pt, "Resort Restaurant") => "Restaurante do Resort".to_string(),
+            (AppLanguage::Es, "Resort Restaurant") => "Restaurante del Resort".to_string(),
+            (AppLanguage::Pt, "Resort Tiki Lounge") => "Lounge Tiki do Resort".to_string(),
+            (AppLanguage::Es, "Resort Tiki Lounge") => "Salón Tiki del Resort".to_string(),
+            (AppLanguage::Pt, "Resort Arcade") => "Fliperama do Resort".to_string(),
+            (AppLanguage::Es, "Resort Arcade") => "Sala de Juegos del Resort".to_string(),
+            (AppLanguage::Pt, "Resort Art Gallery") => "Galeria de Arte do Resort".to_string(),
+            (AppLanguage::Es, "Resort Art Gallery") => "Galería de Arte del Resort".to_string(),
+            (AppLanguage::Pt, "Resort Dance Hall") => "Salão de Dança do Resort".to_string(),
+            (AppLanguage::Es, "Resort Dance Hall") => "Salón de Baile del Resort".to_string(),
+            (AppLanguage::Pt, "Resort Outdoor Party Area") => "Área Externa de Festas do Resort".to_string(),
+            (AppLanguage::Es, "Resort Outdoor Party Area") => "Área Exterior de Fiestas del Resort".to_string(),
+            (AppLanguage::Pt, "Resort Pool Area") => "Área da Piscina do Resort".to_string(),
+            (AppLanguage::Es, "Resort Pool Area") => "Área de Piscina del Resort".to_string(),
             _ => key.to_string(),
         })
         .collect()
@@ -1434,13 +1493,13 @@ mod tests {
         );
         assert_eq!(
             classification.folder_parts,
-            vec!["Buy", "Comfort", "Sofas & Loveseats"]
+            vec!["Objects", "Comfort", "Sofas & Loveseats"]
         );
         assert_eq!(classification.usage_categories, vec!["Living Room"]);
         assert!(!classification.ambiguous);
         assert_eq!(
             classification.candidate_folder_parts,
-            vec![vec!["Buy", "Comfort", "Sofas & Loveseats"]]
+            vec![vec!["Objects", "Comfort", "Sofas & Loveseats"]]
         );
     }
 

@@ -189,6 +189,102 @@ fn detect_store_source(package: &Package, name: &str, relative: &str, has_s3sa: 
 const TYPE_NMAP_LOCAL: u32 = 0x0166_038C;
 const TYPE_STBL_LOCAL: u32 = 0x2205_57DA;
 const TYPE_MANIFEST_LOCAL: u32 = 0x73E9_3EEB;
+const TYPE_XML_LOCAL: u32 = 0x0333_406C;
+const TYPE_ITUN_LOCAL: u32 = 0x03B3_3DDF;
+const TYPE_CLIP_LOCAL: u32 = 0x6B20_C4F3;
+
+fn localized_special_folder(language: AppLanguage, key: &str) -> &'static str {
+    match (language, key) {
+        (_, "nraas") => "NRaas Mods",
+        (AppLanguage::En, "poses") => "Poses and Animations",
+        (AppLanguage::Pt, "poses") => "Poses e Animações",
+        (AppLanguage::Es, "poses") => "Poses y Animaciones",
+        _ => "Unknown",
+    }
+}
+
+fn internal_signature(
+    package: &Package,
+    resource_types: &[u32],
+    needles: &[&str],
+) -> Option<String> {
+    for entry in &package.entries {
+        if !resource_types.contains(&entry.type_id) {
+            continue;
+        }
+        let Ok(data) = package.data(entry) else {
+            continue;
+        };
+        for needle in needles {
+            if contains_ascii_case_insensitive(&data, needle) {
+                return Some(format!("{} contains '{}'", resource_type_label(entry.type_id), needle));
+            }
+        }
+    }
+    None
+}
+
+fn special_package_classification(
+    package: &Package,
+    type_ids: &BTreeSet<u32>,
+    language: AppLanguage,
+    catalog_resource_count: usize,
+) -> Option<PackageFamilyClassification> {
+    // NRaas is detected from package internals rather than filenames. NMAP is
+    // present in the supplied NRaas corpus, including tuning-only modules.
+    if let Some(evidence) = internal_signature(
+        package,
+        &[TYPE_NMAP_LOCAL, TYPE_XML_LOCAL, TYPE_ITUN_LOCAL, TYPE_STBL_LOCAL, TYPE_MANIFEST_LOCAL],
+        &["nraas"],
+    ) {
+        let folder = localized_special_folder(language, "nraas").to_string();
+        return Some(PackageFamilyClassification {
+            main_category: folder.clone(),
+            sub_category: None,
+            folder_parts: vec![folder.clone()],
+            detected_from: vec!["NRaasInternal".to_string()],
+            technical_reason: format!("Internal NRaas signature ({evidence}) => {folder}"),
+        });
+    }
+
+    // A CLIP-only/content package is an animation/pose asset. Do not let CLIP
+    // override authored gameplay scripts or CAS/OBJD catalog content.
+    let clip_asset = type_ids.contains(&TYPE_CLIP_LOCAL)
+        && !type_ids.contains(&TYPE_S3SA)
+        && catalog_resource_count == 0;
+    let pose_list = catalog_resource_count == 0
+        && !type_ids.contains(&TYPE_S3SA)
+        && internal_signature(
+            package,
+            &[TYPE_XML_LOCAL, TYPE_NMAP_LOCAL, TYPE_STBL_LOCAL, TYPE_MANIFEST_LOCAL],
+            &["poselist", "pose list", "poseplayer", "pose player"],
+        )
+        .is_some();
+
+    if clip_asset || pose_list {
+        let folder = localized_special_folder(language, "poses").to_string();
+        let mut detected = Vec::new();
+        if clip_asset {
+            detected.push("CLIP".to_string());
+        }
+        if pose_list {
+            detected.push("PoseList".to_string());
+        }
+        return Some(PackageFamilyClassification {
+            main_category: folder.clone(),
+            sub_category: None,
+            folder_parts: vec![folder.clone()],
+            detected_from: detected.clone(),
+            technical_reason: format!(
+                "Pose/animation evidence [{}] => {}",
+                detected.join(", "),
+                folder
+            ),
+        });
+    }
+
+    None
+}
 
 fn nmap_names(data: &[u8]) -> Vec<String> {
     if data.len() < 8 {
@@ -695,6 +791,7 @@ fn resource_type_label(type_id: u32) -> String {
         0x00B2_D882 => "IMG".to_string(),
         0x015A_1849 => "GEOM".to_string(),
         0x7368_84F1 => "VPXY".to_string(),
+        TYPE_CLIP_LOCAL => "CLIP".to_string(),
         0xD4D9_FBE5 => "Pattern".to_string(),
         other => format!("0x{other:08X}"),
     }
@@ -820,6 +917,14 @@ fn scan_one(
         }
     }
 
+    let special_primary =
+        special_package_classification(&package, &type_ids, language, catalog_resource_count);
+    if let Some(special) = &special_primary {
+        for source in &special.detected_from {
+            detected_from.insert(source.clone());
+        }
+    }
+
     let mut destinations: HashMap<String, CatalogClassification> = HashMap::new();
     let mut candidate_destinations = BTreeSet::new();
     let mut has_ambiguous = false;
@@ -844,7 +949,14 @@ fn scan_one(
         }
     }
 
-    let (mut status, primary, mut destination_parts, mut destination_path) = if has_ambiguous {
+    let (mut status, primary, mut destination_parts, mut destination_path) = if let Some(special) = &special_primary {
+        (
+            "classified".to_string(),
+            None,
+            special.folder_parts.clone(),
+            Some(special.folder_parts.join("\\")),
+        )
+    } else if has_ambiguous {
         warnings.push(localized_warning(language, "ambiguous").to_string());
         (
             "needs_review".to_string(),
@@ -884,7 +996,7 @@ fn scan_one(
         )
     };
 
-    let mut family_primary: Option<PackageFamilyClassification> = None;
+    let mut family_primary: Option<PackageFamilyClassification> = special_primary;
     let mut classification_reason = primary
         .as_ref()
         .map(|classification| classification.technical_reason.clone());
