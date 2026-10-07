@@ -1001,6 +1001,19 @@ mod tests {
     }
 
     #[test]
+    fn unresolved_packages_can_stay_in_place_while_safe_moves_execute() {
+        let stats = PlanStats {
+            selected: 2,
+            kept_uncategorized: 1,
+            ready: 1,
+            blocked: 0,
+            ..PlanStats::default()
+        };
+
+        assert!(plan_can_execute(&stats, false));
+    }
+
+    #[test]
     fn true_blockers_still_prevent_organization() {
         let stats = PlanStats {
             selected: 2,
