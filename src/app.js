@@ -58,6 +58,15 @@ const I18N = {
     readyToMove: "Ready",
     collisions: "Collisions",
     planCollisionsSkipped: "Collisions Skipped",
+    organizationResult: "Organization Result",
+    organizedPackages: "packages organized",
+    duplicatesPending: "identical duplicates pending review",
+    collisionsPending: "collisions pending review",
+    reviewDuplicates: "Review Duplicates",
+    reviewCollisions: "Review Collisions",
+    collisionReviewTitle: "Skipped Collisions",
+    collisionReviewIntro: "These packages were left untouched because different files resolve to the same destination.",
+    collisionReviewSafety: "No collided file was moved or overwritten.",
     duplicatesSkipped: "Identical Skipped",
     duplicateSkipped: "Identical duplicate · skipped",
     blocked: "Blocked",
@@ -466,6 +475,15 @@ const I18N = {
     readyToMove: "Prontos",
     collisions: "Colisões",
     planCollisionsSkipped: "Colisões ignoradas",
+    organizationResult: "Resultado da Organização",
+    organizedPackages: "packages organizados",
+    duplicatesPending: "duplicados idênticos pendentes de revisão",
+    collisionsPending: "colisões pendentes de revisão",
+    reviewDuplicates: "Revisar Duplicados",
+    reviewCollisions: "Revisar Colisões",
+    collisionReviewTitle: "Colisões Ignoradas",
+    collisionReviewIntro: "Estes packages ficaram intactos porque arquivos diferentes apontam para o mesmo destino.",
+    collisionReviewSafety: "Nenhum arquivo em colisão foi movido ou sobrescrito.",
     duplicatesSkipped: "Duplicados ignorados",
     duplicateSkipped: "Duplicado idêntico · ignorado",
     blocked: "Bloqueados",
@@ -873,6 +891,15 @@ const I18N = {
     readyToMove: "Listos",
     collisions: "Colisiones",
     planCollisionsSkipped: "Colisiones omitidas",
+    organizationResult: "Resultado de la Organización",
+    organizedPackages: "packages organizados",
+    duplicatesPending: "duplicados idénticos pendientes de revisión",
+    collisionsPending: "colisiones pendientes de revisión",
+    reviewDuplicates: "Revisar Duplicados",
+    reviewCollisions: "Revisar Colisiones",
+    collisionReviewTitle: "Colisiones Omitidas",
+    collisionReviewIntro: "Estos packages quedaron intactos porque archivos diferentes apuntan al mismo destino.",
+    collisionReviewSafety: "Ningún archivo en colisión fue movido ni sobrescrito.",
     duplicatesSkipped: "Duplicados omitidos",
     duplicateSkipped: "Duplicado idéntico · omitido",
     blocked: "Bloqueados",
@@ -1265,6 +1292,8 @@ const state = {
   planError: "",
   notice: "",
   plan: null,
+  organizationReview: null,
+  organizationCollisionItems: [],
   restoreManifest: "",
   restorePlan: null,
   restoreBusy: false,
@@ -1393,6 +1422,14 @@ const el = {
   planStatCollisions: document.querySelector("#plan-stat-collisions"),
   planStatBlocked: document.querySelector("#plan-stat-blocked"),
   planStatFolders: document.querySelector("#plan-stat-folders"),
+  organizationReviewPanel: document.querySelector("#organization-review-panel"),
+  organizationReviewSummary: document.querySelector("#organization-review-summary"),
+  reviewDuplicatesBtn: document.querySelector("#review-duplicates-btn"),
+  reviewCollisionsBtn: document.querySelector("#review-collisions-btn"),
+  collisionReviewModal: document.querySelector("#collision-review-modal"),
+  collisionReviewList: document.querySelector("#collision-review-list"),
+  collisionReviewCloseBtn: document.querySelector("#collision-review-close-btn"),
+  collisionReviewCloseFooterBtn: document.querySelector("#collision-review-close-footer-btn"),
   chooseManifestBtn: document.querySelector("#choose-manifest-btn"),
   previewRestoreBtn: document.querySelector("#preview-restore-btn"),
   executeRestoreBtn: document.querySelector("#execute-restore-btn"),
@@ -5091,6 +5128,71 @@ function renderResults() {
   renderSelectionSummary();
 }
 
+function renderOrganizationReview() {
+  const review = state.organizationReview;
+  const visible = !!review && ((review.moved ?? 0) > 0 || (review.duplicates ?? 0) > 0 || (review.collisions ?? 0) > 0);
+
+  el.organizationReviewPanel?.classList.toggle("hidden", !visible);
+  if (!visible) return;
+
+  el.organizationReviewSummary.textContent =
+    `${review.moved ?? 0} ${t("organizedPackages")} · ${review.duplicates ?? 0} ${t("duplicatesPending")} · ${review.collisions ?? 0} ${t("collisionsPending")}`;
+
+  el.reviewDuplicatesBtn.classList.toggle("hidden", !(review.duplicates > 0));
+  el.reviewCollisionsBtn.classList.toggle("hidden", !(review.collisions > 0));
+}
+
+function renderCollisionReview() {
+  if (!el.collisionReviewList) return;
+  el.collisionReviewList.innerHTML = "";
+
+  for (const item of state.organizationCollisionItems || []) {
+    const card = document.createElement("article");
+    card.className = "collision-review-item";
+
+    const title = document.createElement("strong");
+    title.textContent = item.name || item.sourceRelativePath || "package";
+
+    const paths = document.createElement("div");
+    paths.className = "collision-review-paths";
+    for (const [label, value] of [
+      [t("current"), item.sourceRelativePath],
+      [t("proposed"), item.destinationRelativePath || t("noDestination")],
+    ]) {
+      const line = document.createElement("div");
+      const key = document.createElement("span");
+      key.textContent = label;
+      const code = document.createElement("code");
+      code.textContent = value || "—";
+      line.append(key, code);
+      paths.appendChild(line);
+    }
+
+    card.append(title, paths);
+
+    if (item.warnings?.length) {
+      const note = document.createElement("div");
+      note.className = "collision-review-warning";
+      note.textContent = item.warnings.join(" ");
+      card.appendChild(note);
+    }
+
+    el.collisionReviewList.appendChild(card);
+  }
+}
+
+function openCollisionReview() {
+  if (!state.organizationCollisionItems?.length) return;
+  renderCollisionReview();
+  el.collisionReviewModal.classList.remove("hidden");
+  el.collisionReviewModal.setAttribute("aria-hidden", "false");
+}
+
+function closeCollisionReview() {
+  el.collisionReviewModal.classList.add("hidden");
+  el.collisionReviewModal.setAttribute("aria-hidden", "true");
+}
+
 function renderPlan() {
   const plan = state.plan;
   if (!plan) return;
@@ -5366,6 +5468,7 @@ function render() {
   renderAuditPanel();
   renderStructure();
   renderTools();
+  renderOrganizationReview();
 
   el.folderPath.textContent = state.folder || t("noFolder");
   el.folderPath.title = state.folder;
@@ -5432,6 +5535,8 @@ async function chooseFolder() {
   state.planError = "";
   state.notice = "";
   state.plan = null;
+  state.organizationReview = null;
+  state.organizationCollisionItems = [];
   state.duplicatesAnalysis = null;
   state.duplicatesError = "";
   state.duplicatesNotice = "";
@@ -5491,7 +5596,11 @@ async function scanFolder(preserveSelection = false, preserveNotice = false) {
   state.error = "";
   state.planError = "";
   state.plan = null;
-  if (!preserveNotice) state.notice = "";
+  if (!preserveNotice) {
+    state.notice = "";
+    state.organizationReview = null;
+    state.organizationCollisionItems = [];
+  }
   closePlanModal();
   render();
 
@@ -5578,6 +5687,12 @@ async function buildPlan() {
 async function executeOrganization() {
   if (!planCanExecute(state.plan) || state.executing || state.structureBusy) return;
 
+  const completedPlan = state.plan;
+  const completedStats = completedPlan?.stats || {};
+  const collisionItems = (completedPlan?.items || []).filter((item) =>
+    String(item.planStatus || "").startsWith("collision_")
+  );
+
   state.executing = true;
   state.planError = "";
   el.confirmActionBtn.disabled = true;
@@ -5590,10 +5705,19 @@ async function executeOrganization() {
       selectedPaths: [...state.selectedForPlan],
     });
 
-    if (result.status === "COMPLETE") {
-      state.notice = `${t("executionComplete")}: ${result.moved}`;
-    } else if (result.status === "NO_CHANGES") {
-      state.notice = t("executionNoChanges");
+    if (result.status === "COMPLETE" || result.status === "NO_CHANGES") {
+      state.organizationReview = {
+        moved: result.moved ?? 0,
+        duplicates: completedStats.duplicateSkipped ?? 0,
+        collisions:
+          (completedStats.collisionSameContent ?? 0) +
+          (completedStats.collisionDifferentContent ?? 0),
+      };
+      state.organizationCollisionItems = collisionItems;
+
+      state.notice = result.status === "COMPLETE"
+        ? `${t("executionComplete")}: ${result.moved}`
+        : t("executionNoChanges");
     } else {
       state.planError = `${t("executionRolledBack")}: ${(result.errors || []).join(" ")}`;
     }
@@ -5860,6 +5984,10 @@ document.addEventListener("click", (event) => {
 
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
+  if (!el.collisionReviewModal.classList.contains("hidden")) {
+    closeCollisionReview();
+    return;
+  }
   if (state.isStatusFilterOpen) {
     state.isStatusFilterOpen = false;
     renderStatusFilter();
@@ -5944,6 +6072,18 @@ el.selectNoneBtn.addEventListener("click", selectNoneVisible);
 el.planCloseBtn.addEventListener("click", closePlanModal);
 el.planCloseFooterBtn.addEventListener("click", closePlanModal);
 el.planExecuteBtn.addEventListener("click", () => openConfirm("organize"));
+el.reviewDuplicatesBtn.addEventListener("click", async () => {
+  state.tab = "duplicates";
+  persistPreferences();
+  render();
+  if (state.folder) await analyzeDuplicates();
+});
+el.reviewCollisionsBtn.addEventListener("click", openCollisionReview);
+el.collisionReviewCloseBtn.addEventListener("click", closeCollisionReview);
+el.collisionReviewCloseFooterBtn.addEventListener("click", closeCollisionReview);
+el.collisionReviewModal.addEventListener("click", (event) => {
+  if (event.target === el.collisionReviewModal) closeCollisionReview();
+});
 
 el.planModal.addEventListener("click", (event) => {
   if (event.target === el.planModal) closePlanModal();
