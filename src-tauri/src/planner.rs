@@ -1,6 +1,7 @@
 use crate::{
     i18n::AppLanguage,
     manifest::sha256_file,
+    resource_cfg::{find_resource_cfg, package_priority, parse_resource_cfg, ResourceCfgInfo},
     scanner::{cached_scan_for, scan_packages_core, ScanPackageItem},
     workspace::{
         active_profile, is_protected, load_workspace_for_root, matching_rule,
@@ -44,6 +45,80 @@ pub struct PlanStats {
     pub blocked: usize,
     pub directories_to_create: usize,
 }
+
+#[derive(Debug, Clone)]
+struct ResourceCfgContext {
+    info: ResourceCfgInfo,
+    directory: PathBuf,
+}
+
+fn resource_cfg_context(root: &Path) -> Option<ResourceCfgContext> {
+    let path = find_resource_cfg(root)?;
+    let info = parse_resource_cfg(&path).ok()?;
+    if !info.precedence_reliable || info.rules.is_empty() {
+        return None;
+    }
+    let directory = path.parent()?.to_path_buf();
+    Some(ResourceCfgContext { info, directory })
+}
+
+fn destination_path(root: &Path, parts: &[String], file_name: &std::ffi::OsStr) -> PathBuf {
+    let mut path = root.to_path_buf();
+    for part in parts {
+        path.push(part);
+    }
+    path.push(file_name);
+    path
+}
+
+fn fit_destination_to_resource_cfg(
+    root: &Path,
+    source: &Path,
+    file_name: &std::ffi::OsStr,
+    parts: &[String],
+    context: Option<&ResourceCfgContext>,
+) -> Result<(Vec<String>, Option<String>), String> {
+    let Some(context) = context else {
+        return Ok((parts.to_vec(), None));
+    };
+
+    // Only enforce/compact when the current package is actually covered by
+    // this Resource.cfg. This avoids making assumptions for custom layouts
+    // whose traversal is outside the parser's reliable subset.
+    if package_priority(&context.info, &context.directory, source).is_none() {
+        return Ok((parts.to_vec(), None));
+    }
+
+    let direct = destination_path(root, parts, file_name);
+    if package_priority(&context.info, &context.directory, &direct).is_some() {
+        return Ok((parts.to_vec(), None));
+    }
+
+    let mut compacted = parts.to_vec();
+    while compacted.len() > 1 {
+        let last = compacted.pop().unwrap();
+        let previous = compacted.pop().unwrap();
+        compacted.push(format!("{previous} - {last}"));
+
+        let candidate = destination_path(root, &compacted, file_name);
+        if package_priority(&context.info, &context.directory, &candidate).is_some() {
+            return Ok((
+                compacted.clone(),
+                Some(format!(
+                    "Resource.cfg depth adaptation: '{}' was compacted to '{}' so the game can load the organized package.",
+                    parts.join("\\"),
+                    compacted.join("\\")
+                )),
+            ));
+        }
+    }
+
+    Err(format!(
+        "Resource.cfg does not load the proposed destination '{}' and it could not be compacted into a covered depth.",
+        parts.join("\\")
+    ))
+}
+
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -391,6 +466,7 @@ pub fn build_organization_plan(
 
     let workspace = load_workspace_for_root(&root);
     let profile = active_profile(&workspace);
+    let resource_cfg = resource_cfg_context(&root);
     let scan = match cached_scan_for(&root, language) {
         Some(scan) => scan,
         None => scan_packages_core(root.to_string_lossy().to_string(), language, None)?,
@@ -575,6 +651,34 @@ pub fn build_organization_plan(
             destination_parts = prefixed;
         }
 
+        let file_name = source
+            .file_name()
+            .ok_or_else(|| format!("Source has no filename: {}", source.display()))?;
+
+        match fit_destination_to_resource_cfg(
+            &root,
+            &source_canonical,
+            file_name,
+            &destination_parts,
+            resource_cfg.as_ref(),
+        ) {
+            Ok((fitted, note)) => {
+                destination_parts = fitted;
+                if let Some(note) = note {
+                    classification_reason = Some(format!(
+                        "{} | {}",
+                        classification_reason.unwrap_or_default(),
+                        note
+                    ));
+                }
+            }
+            Err(reason) => {
+                stats.blocked += 1;
+                items.push(make_blocked(item, reason));
+                continue;
+            }
+        }
+
         if let Err(reason) = validate_destination_parts(&destination_parts) {
             stats.blocked += 1;
             items.push(make_blocked(item, reason));
@@ -588,9 +692,6 @@ pub fn build_organization_plan(
             ));
         }
 
-        let file_name = source
-            .file_name()
-            .ok_or_else(|| format!("Source has no filename: {}", source.display()))?;
         let mut destination_relative = PathBuf::new();
         for part in &destination_parts {
             destination_relative.push(part);
