@@ -1079,23 +1079,15 @@ pub fn scan_packages_core(
             if operation::is_cancelled(kind) {
                 return Err(CANCELLED_ERROR.to_string());
             }
-            operation::update(
-                kind,
-                index,
-                None,
-                "scanning",
-            );
         }
 
         items.push(scan_one(&root, path, language, &mut slider_instances));
 
         if let Some(kind) = operation_kind {
-            operation::update(
-                kind,
-                index + 1,
-                None,
-                "scanning",
-            );
+            let processed = index + 1;
+            if processed == paths.len() || processed % 8 == 0 {
+                operation::update(kind, processed, None, "scanning");
+            }
         }
     }
 
