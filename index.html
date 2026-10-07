@@ -125,6 +125,17 @@
                 </div>
                 <div class="manager-plan-footer-spacer" aria-hidden="true"></div>
               </div>
+
+              <section id="organization-review-panel" class="organization-review-panel hidden" aria-live="polite">
+                <div class="organization-review-copy">
+                  <strong data-i18n="organizationResult">Organization Result</strong>
+                  <span id="organization-review-summary"></span>
+                </div>
+                <div class="organization-review-actions">
+                  <button id="review-duplicates-btn" class="secondary-btn hidden" type="button" data-i18n="reviewDuplicates">Review Duplicates</button>
+                  <button id="review-collisions-btn" class="secondary-btn hidden" type="button" data-i18n="reviewCollisions">Review Collisions</button>
+                </div>
+              </section>
             </div>
           </section>
 
@@ -761,6 +772,25 @@
             <button id="plan-close-footer-btn" class="secondary-btn" type="button" data-i18n="close">Close</button>
             <button id="plan-execute-btn" class="primary-btn planner-execute-btn" type="button" disabled data-i18n="organizeSelected">Organize Selected</button>
           </div>
+        </footer>
+      </section>
+    </div>
+
+    <div id="collision-review-modal" class="modal-backdrop hidden" aria-hidden="true">
+      <section class="collision-review-modal card" role="dialog" aria-modal="true" aria-labelledby="collision-review-title">
+        <header class="planner-modal-header">
+          <div>
+            <h2 id="collision-review-title" data-i18n="collisionReviewTitle">Skipped Collisions</h2>
+            <p data-i18n="collisionReviewIntro">These packages were left untouched because different files resolve to the same destination.</p>
+          </div>
+          <button id="collision-review-close-btn" class="icon-btn" type="button" aria-label="Close">
+            <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+          </button>
+        </header>
+        <div id="collision-review-list" class="collision-review-list"></div>
+        <footer class="planner-footer collision-review-footer">
+          <span><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> <span data-i18n="collisionReviewSafety">No collided file was moved or overwritten.</span></span>
+          <button id="collision-review-close-footer-btn" class="secondary-btn" type="button" data-i18n="close">Close</button>
         </footer>
       </section>
     </div>
