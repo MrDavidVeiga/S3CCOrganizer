@@ -37,6 +37,10 @@ pub struct ScanPackageItem {
     pub content_source: String,
     pub source_confidence: Option<String>,
     pub status: String,
+    pub classification_confidence: String,
+    pub creator: Option<String>,
+    pub mod_name: Option<String>,
+    pub gameplay_category: Option<String>,
     pub detected_from: Vec<String>,
     pub category: Option<String>,
     pub sub_category: Option<String>,
@@ -1108,6 +1112,15 @@ fn localized_mixed(language: AppLanguage) -> &'static str {
     }
 }
 
+fn classification_confidence(status: &str) -> &'static str {
+    match status {
+        "classified" => "high",
+        "needs_review" | "mixed" => "medium",
+        "unknown" | "invalid" => "low",
+        _ => "low",
+    }
+}
+
 fn localized_warning(language: AppLanguage, key: &str) -> &'static str {
     match (language, key) {
         (AppLanguage::En, "parse") => "A CASP/OBJD resource could not be fully interpreted.",
@@ -1165,6 +1178,10 @@ fn scan_one(
                 content_source: "unknown".to_string(),
                 source_confidence: None,
                 status: "invalid".to_string(),
+                classification_confidence: "low".to_string(),
+                creator: None,
+                mod_name: None,
+                gameplay_category: None,
                 detected_from: Vec::new(),
                 category: None,
                 sub_category: None,
@@ -1421,6 +1438,26 @@ fn scan_one(
     let (content_source, source_confidence) =
         detect_store_source(&package, &name, &relative, scripted);
 
+    let is_nraas = detected_from.contains("NRaasInternal");
+    let creator = if is_nraas {
+        Some("NRaas".to_string())
+    } else if scripted {
+        verified_script_creator(&package, &name)
+    } else {
+        None
+    };
+    let mod_name = if scripted && !is_nraas {
+        inferred_script_mod_name(&name, &relative)
+    } else {
+        None
+    };
+    let gameplay_category = if scripted && !is_nraas {
+        Some(script_category(&package, &name, language).to_string())
+    } else {
+        None
+    };
+    let classification_confidence = classification_confidence(&status).to_string();
+
     ScanPackageItem {
         id,
         name,
@@ -1439,6 +1476,10 @@ fn scan_one(
         content_source,
         source_confidence,
         status,
+        classification_confidence,
+        creator,
+        mod_name,
+        gameplay_category,
         detected_from: detected_from.into_iter().collect(),
         category,
         sub_category,
