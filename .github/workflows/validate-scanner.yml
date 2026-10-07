@@ -38,15 +38,18 @@ jobs:
         run: cargo test --manifest-path src-tauri/Cargo.toml --lib
 
       - name: Set up Python
+        if: github.event_name == 'workflow_dispatch'
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
       - name: Install gdown
+        if: github.event_name == 'workflow_dispatch'
         run: python -m pip install --disable-pip-version-check gdown
 
       - name: Try public Drive sample download
         id: sample_download
+        if: github.event_name == 'workflow_dispatch'
         continue-on-error: true
         shell: pwsh
         run: |
@@ -57,7 +60,7 @@ jobs:
 
       - name: Prepare sample packages
         id: sample_prepare
-        if: steps.sample_download.outcome == 'success'
+        if: github.event_name == 'workflow_dispatch' && steps.sample_download.outcome == 'success'
         continue-on-error: true
         shell: pwsh
         run: |
@@ -65,7 +68,7 @@ jobs:
           Get-ChildItem sample-packages | Select-Object Name,Length
 
       - name: Scan real sample packages
-        if: steps.sample_prepare.outcome == 'success'
+        if: github.event_name == 'workflow_dispatch' && steps.sample_prepare.outcome == 'success'
         shell: pwsh
         run: |
           cargo run --manifest-path src-tauri/Cargo.toml --bin scan_sample -- sample-packages en | Tee-Object -FilePath sample-scan.json
