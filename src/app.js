@@ -2338,7 +2338,8 @@ function t(key) {
 }
 
 function eligibleForPlan(item) {
-  return !!item?.path;
+  if (!item?.path || item.status !== "classified" || !item.destinationPath) return false;
+  return item.classificationConfidence === "high" || item.classificationConfidence === "manual";
 }
 
 function statusLabel(status) {
