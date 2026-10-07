@@ -295,7 +295,7 @@ fn pretty_creator_label(candidate: &str) -> String {
         _ => {
             let mut chars = candidate.chars();
             match chars.next() {
-                Some(first) => format!("{}{}", first.to_uppercase(), chars.as_str()),
+                Some(first) => format!("{}{}", first.to_uppercase().collect::<String>(), chars.as_str()),
                 None => candidate.to_string(),
             }
         }
@@ -1669,6 +1669,30 @@ mod tests {
     fn ambiguous_internal_name_stays_at_slider_root() {
         assert!(slider_destination_from_internal_name("Tip Width", AppLanguage::En).is_none());
         assert!(slider_destination_from_internal_name("Outer Curve", AppLanguage::En).is_none());
+    }
+
+    #[test]
+    fn script_mod_name_prefers_named_source_folder() {
+        assert_eq!(
+            inferred_script_mod_name(
+                "twinsimming_Chocolate Cake.package",
+                "Baking Mod/Cakes/twinsimming_Chocolate Cake.package"
+            )
+            .as_deref(),
+            Some("Baking Mod")
+        );
+    }
+
+    #[test]
+    fn script_mod_name_can_be_read_from_main_package_filename() {
+        assert_eq!(
+            mod_name_from_filename("twinsimming_Baking Mod V2.1.package").as_deref(),
+            Some("Baking Mod")
+        );
+        assert_eq!(
+            mod_name_from_filename("twinsimming_Baking Mod [Home Baker Career].package").as_deref(),
+            Some("Baking Mod")
+        );
     }
 
     #[test]

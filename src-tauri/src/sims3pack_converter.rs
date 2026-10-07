@@ -1281,6 +1281,31 @@ mod tests {
     }
 
     #[test]
+    fn cdata_wrappers_are_removed_from_localized_names() {
+        assert_eq!(
+            clean_manifest_text("![CDATA[Cadeira Aconfortada]]"),
+            "Cadeira Aconfortada"
+        );
+        assert_eq!(
+            clean_manifest_text("<![CDATA[Cadeira Aconfortada]]>"),
+            "Cadeira Aconfortada"
+        );
+        assert_eq!(
+            sanitize_file_stem("![CDATA[Cadeira Aconfortada]]"),
+            "Cadeira Aconfortada"
+        );
+    }
+
+    #[test]
+    fn rebuilt_key_resource_has_nmap_version_and_count() {
+        let mut names = BTreeMap::new();
+        names.insert(0x1234u64, "Cadeira Aconfortada".to_string());
+        let data = build_key_resource(&names);
+        assert_eq!(read_u32(&data, 0), Some(1));
+        assert_eq!(read_u32(&data, 4), Some(1));
+    }
+
+    #[test]
     fn file_name_sanitizer_keeps_readable_names() {
         assert_eq!(sanitize_file_stem("Cool: Hair / Set"), "Cool_ Hair _ Set");
     }
