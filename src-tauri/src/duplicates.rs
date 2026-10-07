@@ -667,12 +667,6 @@ pub fn analyze_duplicates_core(
                 let _ = save_cache(&root, &cache);
                 return Err(CANCELLED_ERROR.to_string());
             }
-            operation::update(
-                kind,
-                index,
-                None,
-                "fingerprinting",
-            );
         }
 
         match build_package_fingerprint(&root, path, &mut cache) {
@@ -699,12 +693,10 @@ pub fn analyze_duplicates_core(
         }
 
         if let Some(kind) = operation_kind {
-            operation::update(
-                kind,
-                index + 1,
-                None,
-                "fingerprinting",
-            );
+            let processed = index + 1;
+            if processed == paths.len() || processed % 8 == 0 {
+                operation::update(kind, processed, None, "fingerprinting");
+            }
         }
     }
 
