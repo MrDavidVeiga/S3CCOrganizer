@@ -1447,6 +1447,7 @@ const el = {
   cacheSummary: document.querySelector("#cache-summary"),
   openCacheBtn: document.querySelector("#open-cache-btn"),
   clearCacheBtn: document.querySelector("#clear-cache-btn"),
+  diagnosticsPanel: document.querySelector("#diagnostics-panel"),
   diagnosticsContent: document.querySelector("#diagnostics-content"),
   openManifestFolderBtn: document.querySelector("#open-manifest-folder-btn"),
   restoreRootCheck: document.querySelector("#restore-root-check"),
@@ -1677,6 +1678,15 @@ function appendDiagnostic(label, value) {
 
 function renderDiagnostics() {
   if (!el.diagnosticsContent) return;
+
+  const hasScanDiagnostics = !!state.stats;
+  el.diagnosticsPanel?.classList.toggle("hidden", !hasScanDiagnostics);
+  if (!hasScanDiagnostics) {
+    if (el.diagnosticsPanel) el.diagnosticsPanel.open = false;
+    el.diagnosticsContent.innerHTML = "";
+    return;
+  }
+
   el.diagnosticsContent.innerHTML = "";
   if (state.stats?.totalMs != null) {
     appendDiagnostic(t("scanTime"), formatMs(state.stats.totalMs));
