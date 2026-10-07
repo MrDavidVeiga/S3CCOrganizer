@@ -5,7 +5,8 @@ use crate::{
 };
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use serde::Serialize;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use tauri::{AppHandle, Manager};
 
 use crate::dbpf::Package;
 
@@ -124,6 +125,89 @@ fn preview_mime(data: &[u8]) -> Option<&'static str> {
     }
 }
 
+fn game_thumbnails_dir(app: &AppHandle) -> Option<PathBuf> {
+    let documents = app.path().document_dir().ok()?;
+    let path = documents
+        .join("Electronic Arts")
+        .join("The Sims 3")
+        .join("Thumbnails");
+    path.is_dir().then_some(path)
+}
+
+fn thumbnail_cache_file_order(has_casp: bool, has_objd: bool) -> [&'static str; 3] {
+    const CAS: &str = "CASThumbnails.package";
+    const OBJECTS: &str = "ObjectThumbnails.package";
+    const DOWNLOADS: &str = "DownloadsThumbnails.package";
+
+    if has_casp && !has_objd {
+        [CAS, OBJECTS, DOWNLOADS]
+    } else if has_objd && !has_casp {
+        [OBJECTS, CAS, DOWNLOADS]
+    } else {
+        [CAS, OBJECTS, DOWNLOADS]
+    }
+}
+
+fn best_preview_from_cache_package(path: &Path, instances: &std::collections::HashSet<u64>) -> Option<PackagePreview> {
+    if !path.is_file() || instances.is_empty() {
+        return None;
+    }
+
+    let package = Package::load(path).ok()?;
+    let mut candidates = Vec::<(usize, Vec<u8>, &'static str)>::new();
+
+    for entry in &package.entries {
+        if !instances.contains(&entry.instance) || entry.mem_size > 16 * 1024 * 1024 {
+            continue;
+        }
+        let Ok(data) = package.data(entry) else { continue };
+        let Some(mime) = preview_mime(&data) else { continue };
+        candidates.push((data.len(), data, mime));
+    }
+
+    candidates.sort_by(|a, b| b.0.cmp(&a.0));
+    let (_, data, mime) = candidates.into_iter().next()?;
+    Some(PackagePreview {
+        thumbnail_base64: Some(STANDARD.encode(data)),
+        mime_type: Some(mime.to_string()),
+    })
+}
+
+fn external_game_thumbnail(app: &AppHandle, package_path: &Path) -> Option<PackagePreview> {
+    let thumbnails_dir = game_thumbnails_dir(app)?;
+    let package = Package::load(package_path).ok()?;
+
+    let has_casp = package.entries.iter().any(|entry| entry.type_id == TYPE_CASP);
+    let has_objd = package.entries.iter().any(|entry| entry.type_id == TYPE_OBJD);
+
+    let mut instances = package
+        .entries
+        .iter()
+        .filter(|entry| matches!(entry.type_id, TYPE_CASP | TYPE_OBJD))
+        .map(|entry| entry.instance)
+        .collect::<std::collections::HashSet<_>>();
+
+    // Some custom content keeps the catalog thumbnail keyed to a related visual
+    // resource rather than CASP/OBJD itself. Use a conservative secondary set.
+    if instances.is_empty() {
+        instances.extend(
+            package.entries.iter()
+                .filter(|entry| matches!(entry.type_id, TYPE_VPXY | TYPE_MODL | TYPE_MLOD | TYPE_OBJK))
+                .map(|entry| entry.instance)
+        );
+    }
+
+    for file_name in thumbnail_cache_file_order(has_casp, has_objd) {
+        if let Some(preview) =
+            best_preview_from_cache_package(&thumbnails_dir.join(file_name), &instances)
+        {
+            return Some(preview);
+        }
+    }
+
+    None
+}
+
 fn package_preview_data(path: &std::path::Path) -> Result<PackagePreview, String> {
     let package = Package::load(path).map_err(|error| error.to_string())?;
     let catalog_instances = package.entries.iter()
@@ -168,7 +252,11 @@ fn package_preview_data(path: &std::path::Path) -> Result<PackagePreview, String
 }
 
 #[tauri::command]
-pub fn get_package_preview(folder: String, package_path: String) -> Result<PackagePreview, String> {
+pub fn get_package_preview(
+    app: AppHandle,
+    folder: String,
+    package_path: String,
+) -> Result<PackagePreview, String> {
     let root = PathBuf::from(folder.trim())
         .canonicalize()
         .map_err(|error| format!("Could not resolve root folder: {error}"))?;
@@ -178,7 +266,13 @@ pub fn get_package_preview(folder: String, package_path: String) -> Result<Packa
     if !path.starts_with(&root) || !path.is_file() {
         return Err("Package is outside the selected root.".to_string());
     }
-    package_preview_data(&path)
+
+    let internal = package_preview_data(&path)?;
+    if internal.thumbnail_base64.is_some() {
+        return Ok(internal);
+    }
+
+    Ok(external_game_thumbnail(&app, &path).unwrap_or(internal))
 }
 
 #[tauri::command]
