@@ -1,7 +1,7 @@
 use crate::{
     i18n::AppLanguage,
     manifest::sha256_file,
-    scanner::{scan_packages_core, ScanPackageItem},
+    scanner::{cached_scan_for, scan_packages_core, ScanPackageItem},
     workspace::{
         active_profile, is_protected, load_workspace_for_root, matching_rule,
         split_destination,
@@ -38,6 +38,7 @@ pub struct PlanStats {
     pub selected: usize,
     pub ready: usize,
     pub already_organized: usize,
+    pub duplicate_skipped: usize,
     pub collision_same_content: usize,
     pub collision_different_content: usize,
     pub blocked: usize,
@@ -146,7 +147,8 @@ fn mark_intra_plan_destination_collisions(items: &mut [PlanItem], stats: &mut Pl
     }
 
     for indices in destinations.values().filter(|indices| indices.len() > 1) {
-        let first = &items[indices[0]];
+        let first_index = indices[0];
+        let first = &items[first_index];
         let first_hash = first.sha256.as_deref().unwrap_or_default();
         let first_size = first.size;
         let same_content = indices.iter().all(|index| {
@@ -159,16 +161,21 @@ fn mark_intra_plan_destination_collisions(items: &mut [PlanItem], stats: &mut Pl
                     .unwrap_or(false)
         });
 
-        for index in indices {
-            let item = &mut items[*index];
-            if same_content {
-                item.plan_status = "collision_same_content".to_string();
-                stats.collision_same_content += 1;
+        if same_content {
+            // Keep one representative ready for the destination. Extra byte-identical
+            // sources stay in place and can later be handled from Duplicates/Quarantine.
+            for index in indices.iter().skip(1) {
+                let item = &mut items[*index];
+                item.plan_status = "duplicate_skipped".to_string();
+                stats.duplicate_skipped += 1;
                 item.warnings.push(
-                    "Multiple selected packages resolve to the same destination and are byte-identical. Resolve the duplicate before organizing."
+                    "Another selected package with identical bytes will be moved to this destination. This duplicate will be left in place."
                         .to_string(),
                 );
-            } else {
+            }
+        } else {
+            for index in indices {
+                let item = &mut items[*index];
                 item.plan_status = "collision_different_content".to_string();
                 stats.collision_different_content += 1;
                 item.warnings.push(
@@ -251,7 +258,8 @@ pub fn build_organization_plan(
 
     let workspace = load_workspace_for_root(&root);
     let profile = active_profile(&workspace);
-    let scan = scan_packages_core(root.to_string_lossy().to_string(), language, None)?;
+    let scan = cached_scan_for(&root, language)
+        .unwrap_or(scan_packages_core(root.to_string_lossy().to_string(), language, None)?);
 
     let mut scan_by_canonical = HashMap::<PathBuf, &ScanPackageItem>::new();
     for item in &scan.items {
@@ -429,8 +437,6 @@ pub fn build_organization_plan(
         let destination_relative_text = relative_key(&destination_relative);
 
         if relative_key(Path::new(&item.relative_path)).eq_ignore_ascii_case(&destination_relative_text) {
-            let (hash, size) = sha256_file(&source)
-                .map_err(|error| format!("Could not hash {}: {error}", source.display()))?;
             stats.already_organized += 1;
             items.push(PlanItem {
                 id: item.id.clone(),
@@ -442,8 +448,8 @@ pub fn build_organization_plan(
                 classification_status: item.status.clone(),
                 classification_reason: classification_reason.clone(),
                 plan_status: "already_organized".to_string(),
-                sha256: Some(hash),
-                size,
+                sha256: Some(source_hash),
+                size: item.file_size,
                 warnings: Vec::new(),
             });
             continue;
@@ -459,7 +465,7 @@ pub fn build_organization_plan(
 
             let same = source_size == target_size && source_hash.eq_ignore_ascii_case(&target_hash);
             if same {
-                stats.collision_same_content += 1;
+                stats.duplicate_skipped += 1;
             } else {
                 stats.collision_different_content += 1;
             }
@@ -474,14 +480,14 @@ pub fn build_organization_plan(
                 classification_status: item.status.clone(),
                 classification_reason: classification_reason.clone(),
                 plan_status: if same {
-                    "collision_same_content".to_string()
+                    "duplicate_skipped".to_string()
                 } else {
                     "collision_different_content".to_string()
                 },
                 sha256: Some(source_hash),
                 size: source_size,
                 warnings: vec![if same {
-                    "Destination already contains a byte-identical file. No overwrite is allowed.".to_string()
+                    "Destination already contains a byte-identical file. This duplicate will be left in place and will not block organization.".to_string()
                 } else {
                     "Destination already contains a different file with the same name. No overwrite is allowed.".to_string()
                 }],
@@ -551,6 +557,10 @@ pub fn build_organization_plan(
     }
 
     stats.ready = items.iter().filter(|item| item.plan_status == "ready").count();
+    stats.duplicate_skipped = items
+        .iter()
+        .filter(|item| item.plan_status == "duplicate_skipped")
+        .count();
     stats.blocked = items.iter().filter(|item| item.plan_status == "blocked").count();
 
     let ready_items = items
