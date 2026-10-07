@@ -35,6 +35,7 @@ struct CaspCore {
 struct ObjdCatalogFlags {
     object_type_flags: u32,
     room_flags: u32,
+    room_sub_category_flags: u64,
     function_category_flags: u32,
     sub_category1_flags: u64,
     sub_category2_flags: u64,
@@ -901,12 +902,13 @@ fn parse_objd_flags(data: &[u8]) -> Option<ObjdCatalogFlags> {
     } else {
         0
     };
-    cur.read_u64::<LittleEndian>().ok()?; // sub-room flags
+    let room_sub_category_flags = cur.read_u64::<LittleEndian>().ok()?;
     let build_category_flags = cur.read_u32::<LittleEndian>().ok()?;
 
     Some(ObjdCatalogFlags {
         object_type_flags,
         room_flags,
+        room_sub_category_flags,
         function_category_flags,
         sub_category1_flags,
         sub_category2_flags,
@@ -1189,10 +1191,11 @@ pub fn classify_objd(data: &[u8], language: AppLanguage) -> Option<CatalogClassi
     };
 
     let technical_reason = format!(
-        "OBJD functionCategory=0x{:08X}; subCategory1=0x{:016X}; subCategory2=0x{:016X}; buildCategory=0x{:08X} => {}",
+        "OBJD functionCategory=0x{:08X}; subCategory1=0x{:016X}; subCategory2=0x{:016X}; roomSubCategory=0x{:016X}; buildCategory=0x{:08X} => {}",
         flags.function_category_flags,
         flags.sub_category1_flags,
         flags.sub_category2_flags,
+        flags.room_sub_category_flags,
         flags.build_category_flags,
         if folder_parts.is_empty() {
             candidate_folder_parts
@@ -1213,12 +1216,89 @@ pub fn classify_objd(data: &[u8], language: AppLanguage) -> Option<CatalogClassi
         gender: None,
         age: None,
         species: None,
-        usage_categories: room_usage(flags.room_flags, language),
+        usage_categories: {
+            let mut usage = room_usage(flags.room_flags, language);
+            usage.extend(room_subcategory_usage(flags.room_sub_category_flags, language));
+            usage
+        },
         folder_parts,
         candidate_folder_parts,
         ambiguous,
         technical_reason,
     })
+}
+
+fn room_subcategory_usage(flags: u64, language: AppLanguage) -> Vec<String> {
+    let definitions: &[(u64, &str, &str, &str)] = &[
+        (0x0000_0000_0000_0002, "Dishwashers", "Lava-louças", "Lavavajillas"),
+        (0x0000_0000_0000_0004, "Small Appliances", "Pequenos Eletrodomésticos", "Pequeños Electrodomésticos"),
+        (0x0000_0000_0000_0008, "Refrigerators", "Geladeiras", "Refrigeradores"),
+        (0x0000_0000_0000_0010, "Trash", "Lixo", "Basura"),
+        (0x0000_0000_0000_0020, "Alarms", "Alarmes", "Alarmas"),
+        (0x0000_0000_0000_0040, "Phones", "Telefones", "Teléfonos"),
+        (0x0000_0000_0000_0080, "TVs", "TVs", "TVs"),
+        (0x0000_0000_0000_0100, "Smoke Alarms", "Detectores de Fumaça", "Detectores de Humo"),
+        (0x0000_0000_0000_0400, "Audio", "Áudio", "Audio"),
+        (0x0000_0000_0000_0800, "Computers", "Computadores", "Ordenadores"),
+        (0x0000_0000_0000_1000, "Hobbies & Skills", "Hobbies e Habilidades", "Aficiones y Habilidades"),
+        (0x0000_0000_0000_2000, "Indoor Activities", "Atividades Internas", "Actividades de Interior"),
+        (0x0000_0000_0000_4000, "Living Chairs", "Poltronas", "Sillones"),
+        (0x0000_0000_0000_8000, "Office Chairs", "Cadeiras de Escritório", "Sillas de Oficina"),
+        (0x0000_0000_0001_0000, "Stoves", "Fogões", "Cocinas"),
+        (0x0000_0000_0002_0000, "Eating Out", "Refeições Fora", "Comer Fuera"),
+        (0x0000_0000_0004_0000, "Outdoor Activities", "Atividades Externas", "Actividades al Aire Libre"),
+        (0x0000_0000_0008_0000, "Ceiling Lights", "Luzes de Teto", "Luces de Techo"),
+        (0x0000_0000_0010_0000, "Floor Lamps", "Luminárias de Piso", "Lámparas de Pie"),
+        (0x0000_0000_0020_0000, "Table Lamps", "Luminárias de Mesa", "Lámparas de Mesa"),
+        (0x0000_0000_0040_0000, "Wall Lamps", "Luzes de Parede", "Luces de Pared"),
+        (0x0000_0000_0080_0000, "Outdoor Lights", "Iluminação Externa", "Iluminación Exterior"),
+        (0x0000_0000_0100_0000, "Showers", "Chuveiros", "Duchas"),
+        (0x0000_0000_0200_0000, "Sinks", "Pias", "Lavabos"),
+        (0x0000_0000_0400_0000, "Toilets", "Vasos Sanitários", "Inodoros"),
+        (0x0000_0000_0800_0000, "Tubs", "Banheiras", "Bañeras"),
+        (0x0000_0000_1000_0000, "Accents", "Acessórios Decorativos", "Detalles Decorativos"),
+        (0x0000_0000_2000_0000, "Lawn Decor", "Decoração de Jardim", "Decoración de Jardín"),
+        (0x0000_0000_4000_0000, "Wall Art - Adult", "Arte de Parede - Adulto", "Arte de Pared - Adulto"),
+        (0x0000_0000_8000_0000, "Plants", "Plantas", "Plantas"),
+        (0x0000_0001_0000_0000, "Mirrors", "Espelhos", "Espejos"),
+        (0x0000_0002_0000_0000, "Video Games", "Videogames", "Videojuegos"),
+        (0x0000_0004_0000_0000, "Wall Art - Kids", "Arte de Parede - Infantil", "Arte de Pared - Infantil"),
+        (0x0000_0008_0000_0000, "Bookshelves", "Estantes de Livros", "Librerías"),
+        (0x0000_0010_0000_0000, "Cabinets", "Armários", "Armarios"),
+        (0x0000_0020_0000_0000, "Dressers", "Cômodas", "Cómodas"),
+        (0x0000_0040_0000_0000, "Dining Chairs", "Cadeiras de Jantar", "Sillas de Comedor"),
+        (0x0000_0080_0000_0000, "Sofas", "Sofás", "Sofás"),
+        (0x0000_0100_0000_0000, "Outdoor Seating", "Assentos Externos", "Asientos de Exterior"),
+        (0x0000_0200_0000_0000, "Roof Decorations", "Decorações de Telhado", "Decoraciones de Tejado"),
+        (0x0000_0400_0000_0000, "Beds", "Camas", "Camas"),
+        (0x0000_0800_0000_0000, "Bar Stools", "Banquetas", "Taburetes de Bar"),
+        (0x0000_1000_0000_0000, "Coffee Tables", "Mesas de Centro", "Mesas de Centro"),
+        (0x0000_2000_0000_0000, "Counters", "Balcões", "Encimeras"),
+        (0x0000_4000_0000_0000, "Desks", "Escrivaninhas", "Escritorios"),
+        (0x0000_8000_0000_0000, "End Tables", "Mesas Laterais", "Mesas Auxiliares"),
+        (0x0001_0000_0000_0000, "Dining Tables", "Mesas de Jantar", "Mesas de Comedor"),
+        (0x0002_0000_0000_0000, "Furniture", "Móveis", "Muebles"),
+        (0x0004_0000_0000_0000, "Toys", "Brinquedos", "Juguetes"),
+        (0x0008_0000_0000_0000, "Transport", "Transporte", "Transporte"),
+        (0x0010_0000_0000_0000, "Bars", "Bares", "Bares"),
+        (0x0020_0000_0000_0000, "Clocks", "Relógios", "Relojes"),
+        (0x0040_0000_0000_0000, "Window Decor", "Decoração de Janelas", "Decoración de Ventanas"),
+        (0x0080_0000_0000_0000, "Kids Decor", "Decoração Infantil", "Decoración Infantil"),
+        (0x0100_0000_0000_0000, "Misc Decor", "Decoração Diversa", "Decoración Variada"),
+        (0x0200_0000_0000_0000, "Rugs", "Tapetes", "Alfombras"),
+        (0x0400_0000_0000_0000, "Laundry", "Lavanderia", "Lavandería"),
+        (0x0800_0000_0000_0000, "Pet Essentials", "Itens Essenciais para Animais", "Artículos Esenciales para Mascotas"),
+    ];
+
+    definitions
+        .iter()
+        .filter(|(flag, _, _, _)| (flags & *flag) != 0)
+        .map(|(_, en, pt, es)| match language {
+            AppLanguage::En => (*en).to_string(),
+            AppLanguage::Pt => (*pt).to_string(),
+            AppLanguage::Es => (*es).to_string(),
+        })
+        .collect()
 }
 
 fn room_usage(flags: u32, language: AppLanguage) -> Vec<String> {
@@ -1327,6 +1407,7 @@ mod tests {
         let flags = ObjdCatalogFlags {
             object_type_flags: 0,
             room_flags: 0,
+            room_sub_category_flags: 0,
             function_category_flags: 0x80,
             sub_category1_flags: 0,
             sub_category2_flags: 0,
@@ -1340,6 +1421,7 @@ mod tests {
         let flags = ObjdCatalogFlags {
             object_type_flags: 0x10,
             room_flags: 0,
+            room_sub_category_flags: 0,
             function_category_flags: 0,
             sub_category1_flags: 0,
             sub_category2_flags: 0,
