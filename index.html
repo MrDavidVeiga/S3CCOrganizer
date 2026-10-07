@@ -46,6 +46,9 @@
           <button id="scan-btn" class="primary primary-btn" type="button" disabled>
             <span data-i18n="scanCcs">Scan CCs</span>
           </button>
+          <button id="clear-list-btn" class="danger-btn hidden" type="button">
+            <span data-i18n="clearList">Clear List</span>
+          </button>
 <details id="diagnostics-panel" class="sidebar-diagnostics hidden">
             <summary data-i18n="performanceDiagnostics">Performance</summary>
             <div id="diagnostics-content" class="diagnostics-content"></div>
@@ -66,8 +69,12 @@
             </div>
 
             <div id="scan-progress" class="operation-progress hidden">
+              <div class="operation-progress-topline">
+                <span id="scan-progress-text" class="operation-progress-text"></span>
+                <strong id="scan-progress-percent" class="operation-progress-percent">0%</strong>
+              </div>
               <div class="operation-progress-track"><span id="scan-progress-bar"></span></div>
-              <div id="scan-progress-text" class="operation-progress-text"></div>
+              <div id="scan-progress-count" class="operation-progress-count">0 / 0</div>
               <button id="scan-cancel-btn" class="secondary-btn operation-cancel" type="button" data-operation="scan" data-i18n="cancelAnalysis">Cancel</button>
             </div>
 
@@ -149,8 +156,12 @@
             </div>
 
             <div id="duplicates-progress" class="operation-progress hidden">
+              <div class="operation-progress-topline">
+                <span id="duplicates-progress-text" class="operation-progress-text"></span>
+                <strong id="duplicates-progress-percent" class="operation-progress-percent">0%</strong>
+              </div>
               <div class="operation-progress-track"><span id="duplicates-progress-bar"></span></div>
-              <div id="duplicates-progress-text" class="operation-progress-text"></div>
+              <div id="duplicates-progress-count" class="operation-progress-count">0 / 0</div>
               <button id="duplicates-cancel-btn" class="secondary-btn operation-cancel" type="button" data-operation="duplicates" data-i18n="cancelAnalysis">Cancel</button>
             </div>
 
@@ -196,8 +207,12 @@
             </div>
 
             <div id="conflicts-progress" class="operation-progress hidden">
+              <div class="operation-progress-topline">
+                <span id="conflicts-progress-text" class="operation-progress-text"></span>
+                <strong id="conflicts-progress-percent" class="operation-progress-percent">0%</strong>
+              </div>
               <div class="operation-progress-track"><span id="conflicts-progress-bar"></span></div>
-              <div id="conflicts-progress-text" class="operation-progress-text"></div>
+              <div id="conflicts-progress-count" class="operation-progress-count">0 / 0</div>
               <button id="conflicts-cancel-btn" class="secondary-btn operation-cancel" type="button" data-operation="conflicts" data-i18n="cancelAnalysis">Cancel</button>
             </div>
 
