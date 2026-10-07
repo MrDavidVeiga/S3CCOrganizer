@@ -76,9 +76,9 @@ const I18N = {
     collisionReviewSafety: "No collided file was moved or overwritten.",
     duplicatesSkipped: "Duplicates to Review",
     duplicateSkipped: "Identical duplicate · review",
-    moveToNotCategorized: "Move to Not Categorized",
-    duplicateToReview: "Duplicate · move to Not Categorized",
-    collisionToReview: "Collision · move to Not Categorized",
+    moveToNotCategorized: "Keep in place",
+    duplicateToReview: "Duplicate · keep in place",
+    collisionToReview: "Collision · keep in place",
     blocked: "Blocked",
     foldersToCreate: "Folders",
     manifestPreview: "Restore manifest preview",
@@ -141,6 +141,14 @@ const I18N = {
     cacheSize: "Cache size",
     openPackageLocation: "Open Package Location",
     classificationReason: "Classification evidence",
+    classificationConfidence: "Classification confidence",
+    creator: "Creator",
+    modName: "Mod name",
+    gameplayCategory: "Gameplay category",
+    confidenceHigh: "High",
+    confidenceMedium: "Medium",
+    confidenceLow: "Low",
+    keptUncategorized: "Kept in place",
     openManifestFolder: "Open Manifest Folder",
     manifestRoot: "Manifest root",
     selectedRoot: "Selected Mods root",
@@ -513,9 +521,9 @@ const I18N = {
     collisionReviewSafety: "Nenhum arquivo em colisão foi movido ou sobrescrito.",
     duplicatesSkipped: "Duplicados para revisar",
     duplicateSkipped: "Duplicado idêntico · revisar",
-    moveToNotCategorized: "Mover para Sem Categoria",
-    duplicateToReview: "Duplicado · mover para Sem Categoria",
-    collisionToReview: "Colisão · mover para Sem Categoria",
+    moveToNotCategorized: "Manter no lugar",
+    duplicateToReview: "Duplicado · manter no lugar",
+    collisionToReview: "Colisão · manter no lugar",
     blocked: "Bloqueados",
     foldersToCreate: "Pastas",
     manifestPreview: "Preview do manifesto de restauração",
@@ -578,6 +586,14 @@ const I18N = {
     cacheSize: "Tamanho do cache",
     openPackageLocation: "Abrir Localização do Package",
     classificationReason: "Evidência da classificação",
+    classificationConfidence: "Confiança da classificação",
+    creator: "Criador",
+    modName: "Nome do mod",
+    gameplayCategory: "Categoria de jogabilidade",
+    confidenceHigh: "Alta",
+    confidenceMedium: "Média",
+    confidenceLow: "Baixa",
+    keptUncategorized: "Mantidos no lugar",
     openManifestFolder: "Abrir Pasta do Manifesto",
     manifestRoot: "Raiz do manifesto",
     selectedRoot: "Raiz de Mods selecionada",
@@ -949,9 +965,9 @@ const I18N = {
     collisionReviewSafety: "Ningún archivo en colisión fue movido ni sobrescrito.",
     duplicatesSkipped: "Duplicados para revisar",
     duplicateSkipped: "Duplicado idéntico · revisar",
-    moveToNotCategorized: "Mover a Sin Categorizar",
-    duplicateToReview: "Duplicado · mover a Sin Categorizar",
-    collisionToReview: "Colisión · mover a Sin Categorizar",
+    moveToNotCategorized: "Mantener en su lugar",
+    duplicateToReview: "Duplicado · mantener en su lugar",
+    collisionToReview: "Colisión · mantener en su lugar",
     blocked: "Bloqueados",
     foldersToCreate: "Carpetas",
     manifestPreview: "Vista previa del manifiesto de restauración",
@@ -1014,6 +1030,14 @@ const I18N = {
     cacheSize: "Tamaño de caché",
     openPackageLocation: "Abrir Ubicación del Package",
     classificationReason: "Evidencia de clasificación",
+    classificationConfidence: "Confianza de clasificación",
+    creator: "Creador",
+    modName: "Nombre del mod",
+    gameplayCategory: "Categoría de jugabilidad",
+    confidenceHigh: "Alta",
+    confidenceMedium: "Media",
+    confidenceLow: "Baja",
+    keptUncategorized: "Mantenidos en su lugar",
     openManifestFolder: "Abrir Carpeta del Manifiesto",
     manifestRoot: "Raíz del manifiesto",
     selectedRoot: "Raíz de Mods seleccionada",
@@ -1484,6 +1508,10 @@ function managerSearchText(item) {
     item.age,
     item.species,
     item.classificationReason,
+    item.classificationConfidence,
+    item.creator,
+    item.modName,
+    item.gameplayCategory,
     item.contentSource,
     item.scripted ? "script scripted s3sa" : "",
     ...(item.detectedFrom || []),
@@ -1580,6 +1608,7 @@ const el = {
   manifestPreviewText: document.querySelector("#manifest-preview-text"),
   planStatSelected: document.querySelector("#plan-stat-selected"),
   planStatReady: document.querySelector("#plan-stat-ready"),
+  planStatKept: document.querySelector("#plan-stat-kept"),
   planStatSkipped: document.querySelector("#plan-stat-skipped"),
   planStatCollisions: document.querySelector("#plan-stat-collisions"),
   planStatBlocked: document.querySelector("#plan-stat-blocked"),
@@ -2043,7 +2072,7 @@ function buildAuditSnapshot() {
     : null;
 
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     generatedAt: new Date().toISOString(),
     root: state.folder,
     language: state.language,
@@ -2055,6 +2084,10 @@ function buildAuditSnapshot() {
             path: item.path,
             relativePath: item.relativePath,
             status: item.status,
+            classificationConfidence: item.classificationConfidence,
+            creator: item.creator,
+            modName: item.modName,
+            gameplayCategory: item.gameplayCategory,
             category: item.category,
             subCategory: item.subCategory,
             destinationPath: item.destinationPath,
@@ -2108,12 +2141,12 @@ function buildAuditMarkdown(snapshot) {
     lines.push(
       `Packages: ${stats.packages ?? snapshot.organizer.packages.length} · ${t("classified")}: ${stats.classified ?? 0} · ${t("mixed")}: ${stats.mixed ?? 0} · ${t("needsReview")}: ${stats.needsReview ?? 0} · ${t("invalid")}: ${stats.invalid ?? 0}`,
       "",
-      "| Package | Status | Category | Destination | Evidence |",
-      "| --- | --- | --- | --- | --- |"
+      "| Package | Status | Confidence | Creator / Mod | Category | Destination | Evidence |",
+      "| --- | --- | --- | --- | --- | --- | --- |"
     );
     for (const item of snapshot.organizer.packages) {
       lines.push(
-        `| ${reportCell(item.relativePath || item.name)} | ${reportCell(item.status)} | ${reportCell([item.category, item.subCategory].filter(Boolean).join(" / "))} | ${reportCell(item.destinationPath)} | ${reportCell(item.classificationReason)} |`
+        `| ${reportCell(item.relativePath || item.name)} | ${reportCell(item.status)} | ${reportCell(item.classificationConfidence)} | ${reportCell([item.creator, item.modName].filter(Boolean).join(" / "))} | ${reportCell([item.gameplayCategory, item.category, item.subCategory].filter(Boolean).join(" / "))} | ${reportCell(item.destinationPath)} | ${reportCell(item.classificationReason)} |`
       );
     }
     lines.push("");
@@ -2323,6 +2356,7 @@ function planCanExecute(plan) {
 function planStatusLabel(status) {
   return {
     ready: t("readyToMove"),
+    keep_uncategorized: t("keptUncategorized"),
     ready_uncategorized: t("moveToNotCategorized"),
     ready_duplicate: t("duplicateToReview"),
     ready_collision: t("collisionToReview"),
@@ -2332,6 +2366,14 @@ function planStatusLabel(status) {
     collision_different_content: t("collisionDifferent"),
     blocked: t("blocked"),
   }[status] || status;
+}
+
+function confidenceLabel(value) {
+  return {
+    high: t("confidenceHigh"),
+    medium: t("confidenceMedium"),
+    low: t("confidenceLow"),
+  }[value] || value || "—";
 }
 
 function restoreStatusLabel(status) {
@@ -5362,6 +5404,10 @@ function renderPreview() {
   const meta = document.createElement("div");
   meta.className = "preview-meta";
   appendMeta(meta, t("detectedFrom"), item.detectedFrom);
+  appendMeta(meta, t("classificationConfidence"), confidenceLabel(item.classificationConfidence));
+  appendMeta(meta, t("creator"), item.creator);
+  appendMeta(meta, t("modName"), item.modName);
+  appendMeta(meta, t("gameplayCategory"), item.gameplayCategory);
   appendMeta(meta, t("category"), item.category);
   appendMeta(meta, t("subCategory"), item.subCategory);
   appendMeta(meta, t("gender"), item.gender);
@@ -5691,6 +5737,7 @@ function renderPlan() {
 
   el.planStatSelected.textContent = stats.selected ?? 0;
   el.planStatReady.textContent = stats.ready ?? 0;
+  el.planStatKept.textContent = stats.keptUncategorized ?? 0;
   el.planStatSkipped.textContent = stats.duplicateSkipped ?? 0;
   el.planStatCollisions.textContent = collisions;
   el.planStatBlocked.textContent = stats.blocked ?? 0;
