@@ -46,9 +46,6 @@
           <button id="scan-btn" class="primary primary-btn" type="button" disabled>
             <span data-i18n="scanCcs">Scan CCs</span>
           </button>
-          <button id="clear-list-btn" class="danger-btn hidden" type="button">
-            <span data-i18n="clearList">Clear List</span>
-          </button>
 <details id="diagnostics-panel" class="sidebar-diagnostics hidden">
             <summary data-i18n="performanceDiagnostics">Performance</summary>
             <div id="diagnostics-content" class="diagnostics-content"></div>
@@ -126,9 +123,14 @@
               <div class="manager-plan-footer">
                 <div class="manager-plan-actions">
                   <div id="selection-summary" class="selection-summary">0</div>
-                  <button id="plan-btn" class="primary primary-btn" type="button" disabled>
-                    <span data-i18n="previewPlan">Preview Plan</span>
-                  </button>
+                  <div class="manager-list-footer-actions">
+                    <button id="plan-btn" class="primary primary-btn" type="button" disabled>
+                      <span data-i18n="previewPlan">Preview Plan</span>
+                    </button>
+                    <button id="clear-list-btn" class="danger-btn hidden" type="button">
+                      <span data-i18n="clearList">Clear List</span>
+                    </button>
+                  </div>
                 </div>
                 <div class="manager-plan-footer-spacer" aria-hidden="true"></div>
               </div>
@@ -191,9 +193,6 @@
 
             <div id="duplicates-results" class="duplicates-results hidden">
               <div id="duplicates-list" class="duplicates-list" aria-live="polite"></div>
-              <aside id="duplicates-preview" class="duplicates-preview">
-                <div class="preview-empty" data-i18n="selectDuplicateFinding">Select a finding to see why it was detected.</div>
-              </aside>
             </div>
           </section>
 
@@ -787,6 +786,25 @@
             <button id="plan-close-footer-btn" class="secondary-btn" type="button" data-i18n="close">Close</button>
             <button id="plan-execute-btn" class="primary-btn planner-execute-btn" type="button" disabled data-i18n="organizeSelected">Organize Selected</button>
           </div>
+        </footer>
+      </section>
+    </div>
+
+    <div id="duplicate-details-modal" class="modal-backdrop hidden" aria-hidden="true">
+      <section class="duplicate-details-modal card" role="dialog" aria-modal="true" aria-labelledby="duplicate-details-title">
+        <header class="planner-modal-header">
+          <div>
+            <h2 id="duplicate-details-title" data-i18n="duplicateDetailsTitle">Duplicate Details</h2>
+            <p data-i18n="duplicateDetailsIntro">Compare the detected files, previews and evidence before taking any action.</p>
+          </div>
+          <button id="duplicate-details-close-btn" class="icon-btn" type="button" aria-label="Close">
+            <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+          </button>
+        </header>
+        <div id="duplicate-details-content" class="duplicate-details-content"></div>
+        <footer class="planner-footer duplicate-details-footer">
+          <span><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i> <span data-i18n="duplicateDetailsSafety">No file is changed while reviewing duplicate details.</span></span>
+          <button id="duplicate-details-close-footer-btn" class="secondary-btn" type="button" data-i18n="close">Close</button>
         </footer>
       </section>
     </div>
