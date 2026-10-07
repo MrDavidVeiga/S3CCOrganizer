@@ -37,6 +37,7 @@ pub struct PlanItem {
 #[serde(rename_all = "camelCase")]
 pub struct PlanStats {
     pub selected: usize,
+    pub kept_uncategorized: usize,
     pub ready: usize,
     pub already_organized: usize,
     pub duplicate_skipped: usize,
@@ -627,7 +628,8 @@ pub fn build_organization_plan(
             let source_size = fs::metadata(&source)
                 .map_err(|error| format!("Could not stat {}: {error}", source.display()))?
                 .len();
-            let mut fallback = PlanItem {
+            stats.kept_uncategorized += 1;
+            items.push(PlanItem {
                 id: item.id.clone(),
                 name: item.name.clone(),
                 source_path: source.to_string_lossy().to_string(),
@@ -636,28 +638,15 @@ pub fn build_organization_plan(
                 destination_relative_path: None,
                 classification_status: item.status.clone(),
                 classification_reason: item.classification_reason.clone(),
-                plan_status: "ready_uncategorized".to_string(),
+                plan_status: "keep_uncategorized".to_string(),
                 sha256: Some(source_hash),
                 size: source_size,
                 warnings: vec![format!(
-                    "Classification status '{}' has no safe category. The package will be moved under '{}'.",
+                    "Classification status '{}' has no safe automatic destination. The package will stay in place and remain visible as '{}'.",
                     item.status,
                     language.not_categorized_folder()
                 )],
-            };
-            retarget_item_to_not_categorized(
-                &root,
-                language,
-                &mut fallback,
-                &mut directories,
-                "ready_uncategorized",
-            )?;
-            if fallback.plan_status == "already_organized" {
-                stats.already_organized += 1;
-            } else {
-                stats.ready += 1;
-            }
-            items.push(fallback);
+            });
             continue;
         }
 
@@ -782,7 +771,7 @@ pub fn build_organization_plan(
                 stats.collision_different_content += 1;
             }
 
-            let mut fallback = PlanItem {
+            items.push(PlanItem {
                 id: item.id.clone(),
                 name: item.name.clone(),
                 source_path: source.to_string_lossy().to_string(),
@@ -792,34 +781,18 @@ pub fn build_organization_plan(
                 classification_status: item.status.clone(),
                 classification_reason: classification_reason.clone(),
                 plan_status: if same {
-                    "ready_duplicate".to_string()
+                    "duplicate_skipped".to_string()
                 } else {
-                    "ready_collision".to_string()
+                    "collision_different_content".to_string()
                 },
                 sha256: Some(source_hash),
                 size: source_size,
                 warnings: vec![if same {
-                    format!(
-                        "The categorized destination already contains a byte-identical file. This copy will be moved under '{}' for duplicate review.",
-                        language.not_categorized_folder()
-                    )
+                    "The categorized destination already contains a byte-identical file. This copy will stay in place; use Duplicates/Quarantine for explicit review.".to_string()
                 } else {
-                    format!(
-                        "The categorized destination already contains a different file with the same name. This package will be moved under '{}' for collision review.",
-                        language.not_categorized_folder()
-                    )
+                    "The categorized destination already contains different data with the same name. This package will stay in place until the collision is reviewed.".to_string()
                 }],
-            };
-            retarget_item_to_not_categorized(
-                &root,
-                language,
-                &mut fallback,
-                &mut directories,
-                if same { "ready_duplicate" } else { "ready_collision" },
-            )?;
-            stats.ready += usize::from(fallback.plan_status.starts_with("ready"));
-            stats.already_organized += usize::from(fallback.plan_status == "already_organized");
-            items.push(fallback);
+            });
             continue;
         }
 
@@ -844,30 +817,6 @@ pub fn build_organization_plan(
     // Detect collisions created by the plan itself before any filesystem write occurs.
     // This catches multiple selected packages that resolve to the same final path.
     mark_intra_plan_destination_collisions(&mut items, &mut stats);
-
-    for item in items.iter_mut().filter(|item| {
-        matches!(
-            item.plan_status.as_str(),
-            "duplicate_skipped" | "collision_different_content"
-        )
-    }) {
-        let fallback_status = if item.plan_status == "duplicate_skipped" {
-            "ready_duplicate"
-        } else {
-            "ready_collision"
-        };
-        item.warnings.push(format!(
-            "The unresolved copy will be kept safely under '{}'.",
-            language.not_categorized_folder()
-        ));
-        retarget_item_to_not_categorized(
-            &root,
-            language,
-            item,
-            &mut directories,
-            fallback_status,
-        )?;
-    }
 
     for group in workspace.groups.iter().filter(|group| group.keep_together) {
         if !group
@@ -908,6 +857,10 @@ pub fn build_organization_plan(
         }
     }
 
+    stats.kept_uncategorized = items
+        .iter()
+        .filter(|item| item.plan_status == "keep_uncategorized")
+        .count();
     stats.ready = items
         .iter()
         .filter(|item| item.plan_status.starts_with("ready"))
