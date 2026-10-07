@@ -624,7 +624,10 @@ pub fn build_organization_plan(
             continue;
         }
 
-        if item.status != "classified" || item.destination_parts.is_empty() {
+        if item.status != "classified"
+            || item.destination_parts.is_empty()
+            || !matches!(item.classification_confidence.as_str(), "high" | "manual")
+        {
             let source_size = fs::metadata(&source)
                 .map_err(|error| format!("Could not stat {}: {error}", source.display()))?
                 .len();
@@ -642,8 +645,9 @@ pub fn build_organization_plan(
                 sha256: Some(source_hash),
                 size: source_size,
                 warnings: vec![format!(
-                    "Classification status '{}' has no safe automatic destination. The package will stay in place and remain visible as '{}'.",
+                    "Classification status '{}' with confidence '{}' has no safe automatic destination. The package will stay in place and remain visible as '{}'.",
                     item.status,
+                    item.classification_confidence,
                     language.not_categorized_folder()
                 )],
             });
