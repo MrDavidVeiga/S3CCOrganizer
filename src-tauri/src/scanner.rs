@@ -107,6 +107,24 @@ pub fn cached_scan_for(root: &Path, language: AppLanguage) -> Option<ScanResult>
     (cached.language == language && cached.root == canonical).then(|| cached.result.clone())
 }
 
+pub fn cached_scan_paths(root: &Path) -> Option<Vec<PathBuf>> {
+    let canonical = root.canonicalize().ok()?;
+    let slot = latest_scan_slot().lock().ok()?;
+    let cached = slot.as_ref()?;
+    if cached.root != canonical {
+        return None;
+    }
+
+    Some(
+        cached
+            .result
+            .items
+            .iter()
+            .map(|item| PathBuf::from(&item.path))
+            .collect(),
+    )
+}
+
 fn package_extension(path: &Path) -> bool {
     path.extension()
         .and_then(|value| value.to_str())
@@ -1064,7 +1082,7 @@ pub fn scan_packages_core(
             operation::update(
                 kind,
                 index,
-                path.file_name().map(|value| value.to_string_lossy().to_string()),
+                None,
                 "scanning",
             );
         }
@@ -1075,7 +1093,7 @@ pub fn scan_packages_core(
             operation::update(
                 kind,
                 index + 1,
-                path.file_name().map(|value| value.to_string_lossy().to_string()),
+                None,
                 "scanning",
             );
         }
