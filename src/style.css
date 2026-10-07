@@ -674,7 +674,7 @@ button:disabled {
 
 .planner-summary {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 9px;
 }
 
@@ -731,6 +731,7 @@ button:disabled {
 
 .plan-ready { border-left: 3px solid #7fad2d; }
 .plan-already_organized { border-left: 3px solid #6e7b82; }
+.plan-duplicate_skipped { border-left: 3px solid #6e7b82; }
 .plan-collision_same_content { border-left: 3px solid #b58a43; }
 .plan-collision_different_content { border-left: 3px solid #c47745; }
 .plan-blocked { border-left: 3px solid #b83232; }
@@ -761,6 +762,11 @@ button:disabled {
 .plan-status-ready {
   color: #d8eccb;
   border-color: rgba(127,173,45,.45);
+}
+
+.plan-status-duplicate_skipped {
+  color: #cbd5d9;
+  border-color: rgba(110,123,130,.5);
 }
 
 .plan-status-collision_same_content,
