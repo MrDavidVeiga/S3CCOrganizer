@@ -1,65 +1,116 @@
-# Real corpus and performance acceptance (pre-build)
+# Full Mods corpus validation plan
 
-## Sources already supplied in the user's Library
+## Primary corpus
 
-These are original user-owned archives. Keep the ZIPs in the Library or local test machine; never commit them to GitHub.
+The authoritative real-world corpus for the next classification audit is the user's complete local The Sims 3 Packages tree:
 
-| Corpus | Library filename | Stored ZIP bytes | Current status |
-|---|---|---:|---|
-| Sliders | #6 Sliders.zip | 2,212,950 | Previous byte-level analysis recorded in REAL-PACKAGE-VALIDATION.md |
-| Store | #9 Store.zip | 387,532,385 | Found/materialized; index and payload census still requires execution |
-| Mixed | Packages.zip | 439,679,809 | Found/materialized; index and payload census still requires execution |
-| Additional | Packages(1).zip | 29,769,218 | Found/materialized; index and payload census still requires execution |
+```text
+C:\Users\David\Documents\Electronic Arts\The Sims 3\Mods\Packages
+```
 
-Do not infer the contents of the three pending ZIPs from their names alone. In particular, "Store" does not imply every file is an object/Buy catalog item.
+This replaces the earlier ZIP-batch plan as the primary audit source. The previously supplied ZIPs remain useful historical samples, but new classifier decisions should be validated against the complete folder whenever Codex/local execution is available.
 
-The current corpus inspector produces a **resource/index census**, not a definitive category mapping. It intentionally does not assign anatomy, CAS category, Build/Buy subtype or game behavior from package filenames.
+The audit must preserve the existing directory structure as evidence. Folder names may help identify relationships between packages, but **must never be treated as sufficient proof of a package category**.
 
-## Run a local read-only corpus census
+## Safety rules
 
-After the ZIPs are available as local paths:
+The corpus pass is read-only:
 
-~~~bash
-python tools/audit_package_corpora.py \
-  "/path/#9 Store.zip" \
-  "/path/Packages.zip" \
-  "/path/Packages(1).zip" \
-  --output reports/local-corpus/census.json
+- do not move, rename, delete or rewrite any package;
+- do not change `Resource.cfg`;
+- do not reorganize the live Mods tree during analysis;
+- do not upload the user's packages or commit them to GitHub;
+- use internal DBPF/resource evidence as the classifier authority;
+- keep ambiguous packages as review/unknown instead of guessing.
 
-python -m unittest discover -s tools -p "test_*.py"
-~~~
+Any organization test must use a disposable copy of the relevant files.
 
-For Windows PowerShell, use one line and Windows filesystem paths instead of the Unix shell continuation syntax.
+## What the audit should collect
 
-The auditor reads ZIP members into bounded temporary scratch files (RAM first, temporary storage for larger packages), inspects DBPF indexes and records per-family **evidence candidates**. It does **not** extract files to Mods, modify ZIPs, upload packages, use filenames as category proof or write any changes into a package. The output JSON stays local and is Git-ignored.
+For every `.package`, record at minimum:
 
-Safety limits (adjust only if needed):
+- original relative path;
+- SHA-256 and file size;
+- DBPF/resource type census;
+- CASP / OBJD / OBJK evidence;
+- S3SA assemblies and internal signatures when available;
+- XML / ITUN / STBL / NMAP evidence;
+- CLIP / pose-list evidence;
+- Store/custom-content source evidence;
+- detected creator;
+- detected mod name;
+- gameplay category metadata;
+- classification confidence;
+- suggested physical destination;
+- classification reason/evidence;
+- related/companion package candidates;
+- `Resource.cfg` coverage for the proposed destination;
+- final state: Classified, Needs Review, Mixed, Unknown or Invalid.
 
-- Maximum decompressed package size: 1 GiB by default;
-- Maximum aggregate decompressed package bytes per run: 16 GiB by default;
-- Maximum DBPF index size: 64 MiB;
-- Suspicious/invalid indexes, unreadable members and skipped oversized files are reported separately, not silently classified.
+The audit should specifically look for patterns that improve:
 
-## Deep classification review after census
+- gameplay scripts by creator and mod name;
+- NRaas modules;
+- poses and animations;
+- tuning and overrides;
+- Store content;
+- Build/Buy objects and s3pi-aligned subcategories;
+- CAS content;
+- sliders/morphs;
+- translations/localization carriers;
+- compatibility patches, add-ons and companion packages;
+- ambiguous mixed-resource packages.
 
-For every family with unambiguous resource evidence, inspect actual decoded CASP/OBJD, XML/ITUN, morph/NMAP/STBL, S3SA or other defining payloads before introducing an automatic folder. A script-tuning bundle can contain several families; mixed files must remain Needs Review if no safe package-level family emerges.
+## Classifier acceptance rule
 
-Compare cross-ZIP SHA-256 identities. Distinguish exact duplicates from shared TGIs and genuine content variants using the existing Duplicates/Conflicts engines.
+A new automatic classifier is only acceptable when it is based on repeatable internal evidence and remains conservative across the full corpus.
 
-Add documented regression fixtures **from resource properties** before activating each new family. A ZIP's top-level folder name is only reference/ground truth for human review, never the classifier's input.
+Reducing the Unknown/Needs Review count is **not** a success if it increases false positives. When evidence is weak, the Manager should keep the package in place and expose it for review.
+
+Physical organization of script mods should prefer:
+
+```text
+Gameplay\Creator\Mod Name
+```
+
+when creator and mod identity are supported safely. Gameplay category remains metadata/filter information instead of forcing another physical folder level.
+
+## Resource.cfg acceptance
+
+For every proposed move, compare the resulting relative path against the actual `Resource.cfg` that covers the source package.
+
+The Manager may compact taxonomy levels only when necessary to keep the destination loadable. It must preserve a required literal package prefix (for example `Packages\`) and must not claim a path is safe when advanced traversal directives cannot be interpreted reliably.
+
+## Codex pass
+
+When Codex quota/local access is available, give Codex access to the complete folder above and the current Manager repository.
+
+Codex should:
+
+1. run the current scanner against the complete corpus;
+2. export a before snapshot;
+3. identify systematic wrong, generic and unresolved classifications;
+4. inspect representative package internals for each proposed new rule;
+5. implement only rules that generalize safely;
+6. run the scanner again against the full corpus;
+7. compare before/after counts and changed destinations;
+8. flag every classification change for review;
+9. add resource-grounded regression tests;
+10. run `cargo test --manifest-path src-tauri/Cargo.toml --lib` and the frontend build.
+
+It must not reorganize the live Packages folder.
 
 ## Performance and data-integrity acceptance
 
-Run the compiled application later on copies of the Sliders and larger mixed corpora, with the same Mods-root profile/rules across tests.
+Run the compiled application later against the complete tree or a faithful disposable copy.
 
-1. Record a cold scan and three warm scans; capture Scan.totalMs, package count and Needs Review count.
-2. Run Duplicates, Conflicts and Dependencies, recording per-phase diagnostics, completeness/truncation flags and skipped large-resource counts.
-3. Compare output sets and resource evidence across repeat scans: differences need a reason; language switches must not alter internal identities.
-4. Select a sample of classified files in Planner; include mixed/unknowns in the sample to verify those remain blocked until manually reviewed.
-5. Organize a disposable copy, then Restore and compare every original relative path, byte size and SHA-256.
-6. Test Quarantine on disposable exact duplicates: occupied destination, tampered file, failed later move, interrupted journal and explicit recovery.
-7. Stress UI list filtering/search with thousands of items; measure responsiveness separately from Rust scanner elapsed time.
+1. Record cold and warm scan times, packages/s and cache hit behavior.
+2. Run Duplicates, Conflicts and Dependencies and record completeness/truncation warnings.
+3. Verify repeat scans produce stable identities and evidence.
+4. Verify changing UI language does not alter internal classification identity.
+5. Preview a mixed selection containing safe and unresolved packages; only safe classified files may be scheduled for movement.
+6. Organize a disposable copy, Restore it, and compare original relative paths, size and SHA-256.
+7. Test Quarantine separately on disposable duplicates.
+8. Stress search/filter/list virtualization with the real package count.
 
-The scanner now gathers slider morph IDs during the original package scan instead of opening all files for a second ID pass. The dependency analyzer bounds unusually large payloads and **discloses skipped resources** to prevent false impressions of completeness.
-
-**Do not** mark pending ZIPs "analyzed" or claim an application performance improvement until the tests above run successfully with real bytes. Do not request a Tauri build or create build/release workflows as part of this document.
+Do not claim full-corpus classifier coverage or performance acceptance until this pass has actually been executed.
