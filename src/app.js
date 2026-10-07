@@ -5693,6 +5693,10 @@ async function executeOrganization() {
     String(item.planStatus || "").startsWith("collision_")
   );
 
+  state.organizationReview = null;
+  state.organizationCollisionItems = [];
+  closeCollisionReview();
+
   state.executing = true;
   state.planError = "";
   el.confirmActionBtn.disabled = true;
