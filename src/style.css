@@ -1166,16 +1166,13 @@ button:disabled {
 }
 
 .duplicates-results {
-  display: grid;
-  grid-template-columns: minmax(380px, 1fr) 390px;
-  gap: 12px;
+  display: block;
   flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
 }
 
-.duplicates-list,
-.duplicates-preview {
+.duplicates-list {
   min-height: 0;
   height: 100%;
   border: 1px solid rgba(255,255,255,.08);
@@ -1184,17 +1181,10 @@ button:disabled {
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: rgba(255,255,255,.35) transparent;
-}
-
-.duplicates-list {
   display: flex;
   flex-direction: column;
   gap: 9px;
   padding: 8px;
-}
-
-.duplicates-preview {
-  padding: 16px;
 }
 
 .duplicate-row {
@@ -1282,7 +1272,7 @@ button:disabled {
   line-height: 1.5;
 }
 
-.duplicates-preview h4 {
+.duplicate-details-content h4 {
   margin: 14px 0 8px;
   font-size: .76rem;
 }
@@ -1293,12 +1283,18 @@ button:disabled {
 }
 
 .duplicate-member {
-  padding: 9px 10px;
+  padding: 10px;
   border: 1px solid rgba(255,255,255,.07);
-  border-radius: 10px;
+  border-radius: 12px;
   background: rgba(255,255,255,.035);
   display: grid;
-  gap: 4px;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.duplicate-member:has(.quarantine-member-select) {
+  grid-template-columns: auto 112px minmax(0, 1fr);
 }
 
 .duplicate-member strong {
@@ -1315,9 +1311,76 @@ button:disabled {
   white-space: normal;
 }
 
-.duplicate-member small {
+.duplicate-member-visual {
+  width: 112px;
+  min-width: 112px;
+}
+
+.duplicate-member-thumb {
+  width: 112px;
+  height: 112px;
+  display: block;
+  object-fit: contain;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(0,0,0,.18);
+}
+
+.duplicate-member-thumb-fallback {
+  display: grid;
+  place-items: center;
+  color: rgba(255,255,255,.28);
+  font-size: 1.8rem;
+}
+
+.duplicate-member-body {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.duplicate-member-mark {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(97,132,34,.18);
+  font-size: .68rem;
+}
+
+.duplicate-member-meta-grid {
+  display: grid;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.duplicate-member-meta-grid > div {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  gap: 8px;
+  align-items: baseline;
+}
+
+.duplicate-member-meta-grid span {
   color: var(--muted);
-  font-size: .64rem;
+  font-size: .65rem;
+}
+
+.duplicate-member-meta-grid strong {
+  font-size: .67rem;
+  font-weight: 700;
+}
+
+.duplicate-member-actions {
+  display: flex;
+  gap: 7px;
+  margin-top: 3px;
+}
+
+.duplicate-member-actions .secondary-btn {
+  width: auto;
+  padding: 7px 10px;
 }
 
 .duplicate-pair {
@@ -1334,17 +1397,9 @@ button:disabled {
   border-radius: 11px;
   background: rgba(255,255,255,.035);
   display: grid;
-  gap: 5px;
-}
-
-.duplicate-pair article > b {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  background: rgba(97,132,34,.18);
-  font-size: .68rem;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
 }
 
 .duplicate-pair strong {
@@ -1397,9 +1452,6 @@ button:disabled {
     grid-column: 2;
   }
 
-  .duplicates-results {
-    grid-template-columns: minmax(340px, 1fr) 330px;
-  }
 }
 
 @media (max-width: 980px) {
@@ -1407,13 +1459,6 @@ button:disabled {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .duplicates-results {
-    grid-template-columns: 1fr;
-  }
-
-  .duplicates-preview {
-    display: none;
-  }
 }
 
 
@@ -3981,8 +4026,16 @@ button:disabled {
   margin: 0 0 6px;
 }
 
-.manager-plan-actions .primary-btn {
+.manager-list-footer-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.manager-list-footer-actions .primary-btn,
+.manager-list-footer-actions .danger-btn {
   width: 100%;
+  min-width: 0;
 }
 
 .maintenance-grid {
@@ -4310,6 +4363,70 @@ button:disabled {
 
 
 
-.release-v1 #clear-list-btn {
-  width: 100%;
+
+/* Duplicate details modal */
+.duplicate-details-modal {
+  width: min(1080px, 94vw);
+  max-height: min(880px, 92vh);
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: rgba(18,23,27,.99);
+}
+
+.duplicate-details-content {
+  min-height: 0;
+  overflow-y: auto;
+  margin: 14px 0;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,.35) transparent;
+}
+
+.duplicate-details-content::-webkit-scrollbar {
+  width: 10px;
+}
+
+.duplicate-details-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.duplicate-details-content::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,.28);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.duplicate-details-footer {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 760px) {
+  .manager-list-footer-actions,
+  .duplicate-pair {
+    grid-template-columns: 1fr;
+  }
+
+  .duplicate-member,
+  .duplicate-member:has(.quarantine-member-select),
+  .duplicate-pair article {
+    grid-template-columns: 1fr;
+  }
+
+  .duplicate-member-visual,
+  .duplicate-member-thumb {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .duplicate-member-thumb {
+    height: min(260px, 42vh);
+  }
+
+  .duplicate-member-meta-grid > div {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
 }
