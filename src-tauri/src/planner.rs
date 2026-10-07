@@ -85,16 +85,63 @@ fn fit_destination_to_resource_cfg(
     // Only enforce/compact when the current package is actually covered by
     // this Resource.cfg. This avoids making assumptions for custom layouts
     // whose traversal is outside the parser's reliable subset.
-    if package_priority(&context.info, &context.directory, source).is_none() {
+    let Some(source_priority) = package_priority(&context.info, &context.directory, source) else {
         return Ok((parts.to_vec(), None));
+    };
+
+    // Preserve the literal loading prefix from the matching PackedFile rule.
+    // For the common layout, selecting Mods (instead of Mods/Packages) must
+    // still produce Mods/Packages/... destinations.
+    let rule_prefix = source_priority
+        .rule
+        .replace('\\', "/")
+        .split('/')
+        .take_while(|component| !component.contains('*'))
+        .filter(|component| !component.is_empty())
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    let root_relative = root
+        .strip_prefix(&context.directory)
+        .ok()
+        .map(|value| {
+            value
+                .components()
+                .filter_map(|component| match component {
+                    Component::Normal(value) => Some(value.to_string_lossy().to_string()),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+
+    let mut base_prefix = Vec::<String>::new();
+    if root_relative.len() < rule_prefix.len()
+        && rule_prefix
+            .iter()
+            .take(root_relative.len())
+            .zip(root_relative.iter())
+            .all(|(left, right)| left.eq_ignore_ascii_case(right))
+    {
+        base_prefix.extend(rule_prefix.iter().skip(root_relative.len()).cloned());
     }
 
-    let direct = destination_path(root, parts, file_name);
+    let mut proposed = base_prefix;
+    proposed.extend(parts.iter().cloned());
+
+    let direct = destination_path(root, &proposed, file_name);
     if package_priority(&context.info, &context.directory, &direct).is_some() {
-        return Ok((parts.to_vec(), None));
+        let note = (proposed != parts).then(|| {
+            format!(
+                "Resource.cfg loading prefix preserved: '{}' => '{}'.",
+                parts.join("\\"),
+                proposed.join("\\")
+            )
+        });
+        return Ok((proposed, note));
     }
 
-    let mut compacted = parts.to_vec();
+    let original = proposed.clone();
+    let mut compacted = proposed;
     while compacted.len() > 1 {
         let last = compacted.pop().unwrap();
         let previous = compacted.pop().unwrap();
@@ -106,7 +153,7 @@ fn fit_destination_to_resource_cfg(
                 compacted.clone(),
                 Some(format!(
                     "Resource.cfg depth adaptation: '{}' was compacted to '{}' so the game can load the organized package.",
-                    parts.join("\\"),
+                    original.join("\\"),
                     compacted.join("\\")
                 )),
             ));
@@ -115,7 +162,7 @@ fn fit_destination_to_resource_cfg(
 
     Err(format!(
         "Resource.cfg does not load the proposed destination '{}' and it could not be compacted into a covered depth.",
-        parts.join("\\")
+        original.join("\\")
     ))
 }
 
