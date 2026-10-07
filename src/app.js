@@ -1532,7 +1532,6 @@ const el = {
   toolsDependencies: document.querySelector("#tools-dependencies"),
   toolsDependencyResults: document.querySelector("#tools-dependency-results"),
   toolsRefreshHistory: document.querySelector("#tools-refresh-history"),
-  toolsHistoryUndo: document.querySelector("#tools-history-undo"),
   toolsOperationHistory: document.querySelector("#tools-operation-history"),
 };
 
@@ -4266,7 +4265,6 @@ async function recoverQuarantineFromHistory(item) {
 }
 
 function renderHistoryTools() {
-  el.toolsHistoryUndo.disabled = !state.folder || workspaceReadOnly() || state.toolsBusy || state.structureBusy;
   el.toolsOperationHistory.innerHTML = "";
   for (const item of (state.operationHistory || []).filter((entry) => ["restore_manifest", "quarantine"].includes(entry.kind))) {
     const row = toolListItem(
@@ -5822,7 +5820,6 @@ el.toolsExportJson.addEventListener("click", () => exportTechnicalSelection("jso
 el.toolsComparePackages.addEventListener("click", comparePackagesTool);
 el.toolsDependencies.addEventListener("click", analyzeDependenciesTool);
 el.toolsRefreshHistory.addEventListener("click", refreshOperationHistory);
-el.toolsHistoryUndo.addEventListener("click", undoManualOperation);
 
 el.scanBtn.addEventListener("click", () => scanFolder(false));
 el.planBtn.addEventListener("click", buildPlan);
