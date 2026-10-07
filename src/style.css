@@ -3719,25 +3719,21 @@ button:disabled {
 
 
 .sims3pack-conversion-mode {
-  display: inline-grid;
-  grid-template-columns: auto auto;
-  grid-template-areas: "check label";
+  display: inline-flex;
   align-items: center;
-  column-gap: 7px;
-  padding: 7px 9px;
-  border: 1px solid rgba(255,255,255,.07);
-  border-radius: 9px;
-  background: rgba(0,0,0,.10);
+  gap: 10px;
+  padding: 7px 4px;
+  color: var(--text);
+  font-size: .88rem;
+  cursor: pointer;
 }
 
 .sims3pack-conversion-mode input {
-  grid-area: check;
   accent-color: var(--green);
 }
 
 .sims3pack-conversion-mode span {
-  grid-area: label;
-  font-size: .64rem;
+  font-size: inherit;
 }
 
 
