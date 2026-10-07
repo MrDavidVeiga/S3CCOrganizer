@@ -22,7 +22,7 @@ jobs:
             target: ""
             build_args: --no-bundle
             binary_name: s3cc-organizer.exe
-            packaged_binary: "Veiga´s S3CC Manager.exe"
+            packaged_binary: "Veiga's S3CC Manager.exe"
             artifact_name: S3CC-Manager-Windows-x64
             release_slug: Windows_x64
 
