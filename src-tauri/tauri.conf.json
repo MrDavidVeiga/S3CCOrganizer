@@ -13,13 +13,14 @@
     "windows": [
       {
         "label": "main",
-        "title": "Veiga's S3CC Manager",
+        "title": "Veiga's S3CC Manager | v1.0.0 Beta 2",
         "width": 1280,
         "height": 800,
         "minWidth": 900,
         "minHeight": 620,
         "resizable": true,
-        "center": true
+        "center": true,
+        "decorations": false
       }
     ],
     "security": {

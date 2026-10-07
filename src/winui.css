@@ -1,0 +1,249 @@
+:root {
+  --winui-control-radius: 4px;
+  --winui-overlay-radius: 8px;
+  --winui-titlebar-height: 32px;
+  --winui-nav-height: 48px;
+  --accent: #7fad2d;
+  --accent-light-1: #8fbd43;
+  --accent-light-2: #a5ca68;
+  --accent-light-3: #c4dda0;
+  --accent-dark-1: #6f9827;
+  --accent-dark-2: #5d801f;
+  --accent-dark-3: #435c17;
+  --accent-low: rgba(127,173,45,.12);
+  --accent-outline: rgba(127,173,45,.42);
+}
+
+html[data-resolved-mode="dark"] {
+  color-scheme: dark;
+  --winui-mica-base: #202020;
+  --winui-layer-fill: rgba(43,43,43,.92);
+  --winui-card-fill: rgba(255,255,255,.0512);
+  --winui-card-fill-alt: rgba(255,255,255,.0326);
+  --winui-control-fill: rgba(255,255,255,.0605);
+  --winui-control-fill-hover: rgba(255,255,255,.0837);
+  --winui-control-fill-pressed: rgba(255,255,255,.0326);
+  --winui-control-stroke: rgba(255,255,255,.0698);
+  --winui-control-stroke-strong: rgba(255,255,255,.1395);
+  --winui-divider: rgba(255,255,255,.0837);
+  --winui-text-primary: #fff;
+  --winui-text-secondary: rgba(255,255,255,.786);
+  --winui-text-tertiary: rgba(255,255,255,.544);
+  --winui-popup: #2b2b2b;
+  --winui-shadow: rgba(0,0,0,.46);
+  --bg: var(--winui-mica-base);
+  --panel: var(--winui-layer-fill);
+  --panel-border: var(--winui-control-stroke);
+  --surface: var(--winui-card-fill-alt);
+  --text: var(--winui-text-primary);
+  --muted: var(--winui-text-secondary);
+  --green: var(--accent);
+  --green-dark: var(--accent-dark-1);
+}
+
+html[data-resolved-mode="light"] {
+  color-scheme: light;
+  --winui-mica-base: #f3f3f3;
+  --winui-layer-fill: rgba(255,255,255,.72);
+  --winui-card-fill: rgba(255,255,255,.70);
+  --winui-card-fill-alt: rgba(255,255,255,.50);
+  --winui-control-fill: rgba(255,255,255,.70);
+  --winui-control-fill-hover: rgba(249,249,249,.50);
+  --winui-control-fill-pressed: rgba(249,249,249,.30);
+  --winui-control-stroke: rgba(0,0,0,.0578);
+  --winui-control-stroke-strong: rgba(0,0,0,.1622);
+  --winui-divider: rgba(0,0,0,.0803);
+  --winui-text-primary: rgba(0,0,0,.8956);
+  --winui-text-secondary: rgba(0,0,0,.6063);
+  --winui-text-tertiary: rgba(0,0,0,.4458);
+  --winui-popup: #f9f9f9;
+  --winui-shadow: rgba(0,0,0,.18);
+  --bg: var(--winui-mica-base);
+  --panel: var(--winui-layer-fill);
+  --panel-border: var(--winui-control-stroke);
+  --surface: var(--winui-card-fill-alt);
+  --text: var(--winui-text-primary);
+  --muted: var(--winui-text-secondary);
+  --green: var(--accent);
+  --green-dark: var(--accent-dark-1);
+}
+
+body.release-v1 {
+  overflow: hidden;
+  font-family: "Segoe UI Variable Text","Segoe UI Variable","Segoe UI",sans-serif;
+  background: var(--winui-mica-base);
+  color: var(--winui-text-primary);
+}
+
+.release-v1 .app-shell {
+  --sidebar-width: clamp(220px,19vw,276px);
+  width: 100%;
+  max-width: none;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-rows: var(--winui-titlebar-height) var(--winui-nav-height) minmax(0,1fr);
+  overflow: hidden;
+  background: radial-gradient(900px 520px at 10% -8%, var(--accent-low), transparent 64%), var(--winui-mica-base);
+}
+
+.winui-titlebar {
+  height: var(--winui-titlebar-height);
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  padding-left: 12px;
+  user-select: none;
+  background: transparent;
+  color: var(--winui-text-primary);
+}
+.winui-titlebar-identity { min-width:0; display:flex; align-items:center; gap:8px; font-size:12px; line-height:16px; }
+.winui-app-icon { width:16px; height:16px; flex:0 0 16px; object-fit:contain; }
+.winui-window-title { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.winui-caption-buttons { align-self:stretch; display:flex; flex:0 0 auto; }
+.winui-caption-buttons button {
+  width:46px; height:100%; padding:0; border:0; border-radius:0; display:grid; place-items:center;
+  background:transparent; color:var(--winui-text-primary); font-family:"Segoe UI Symbol","Segoe UI",sans-serif;
+  font-size:12px; font-weight:400; cursor:default;
+}
+.winui-caption-buttons button:hover { background:var(--winui-control-fill-hover); }
+.winui-caption-buttons button:active { background:var(--winui-control-fill-pressed); }
+.winui-caption-buttons .winui-caption-close:hover { background:#c42b1c; color:#fff; }
+.winui-caption-buttons .winui-caption-close:active { background:#a82418; color:#fff; }
+
+.release-v1 .topbar.winui-navview {
+  width:100%; min-height:var(--winui-nav-height); margin:0; padding:6px 10px 8px;
+  display:flex; align-items:center; gap:12px; background:rgba(255,255,255,.015);
+  border-bottom:1px solid var(--winui-divider);
+}
+.release-v1 .topbar-mode-switcher { width:auto; min-width:0; flex:1 1 auto; }
+.release-v1 .input-mode-switch { display:flex; align-items:center; gap:2px; }
+.release-v1 .mode-btn {
+  position:relative; min-width:0; min-height:34px; padding:0 12px; border:0;
+  border-radius:var(--winui-control-radius); background:transparent; color:var(--winui-text-secondary);
+  font-size:14px; line-height:20px; font-weight:400; transition:none;
+}
+.release-v1 .mode-btn:hover { background:var(--winui-control-fill); color:var(--winui-text-primary); }
+.release-v1 .mode-btn:active { background:var(--winui-control-fill-pressed); }
+.release-v1 .mode-btn.active { border:0; background:var(--winui-control-fill-hover); color:var(--winui-text-primary); }
+.release-v1 .mode-btn.active::after {
+  content:""; position:absolute; left:50%; bottom:2px; width:16px; height:3px;
+  transform:translateX(-50%); border-radius:2px; background:var(--accent);
+}
+
+.release-v1 .language-switcher { gap:8px; margin-left:auto; color:var(--winui-text-secondary); font-size:12px; }
+.release-v1 .lang-toggle-btn,.theme-button {
+  min-width:0; height:32px; padding:0 10px; border:1px solid var(--winui-control-stroke);
+  border-bottom-color:var(--winui-control-stroke-strong); border-radius:var(--winui-control-radius);
+  background:var(--winui-control-fill); color:var(--winui-text-primary); font-weight:600;
+}
+.release-v1 .lang-toggle-btn:hover,.theme-button:hover { background:var(--winui-control-fill-hover); }
+.release-v1 .lang-menu,.theme-flyout {
+  border:1px solid var(--winui-control-stroke); border-radius:var(--winui-overlay-radius);
+  background:var(--winui-popup); color:var(--winui-text-primary); box-shadow:0 12px 30px var(--winui-shadow);
+}
+.release-v1 .lang-menu-item { border-radius:var(--winui-control-radius); color:var(--winui-text-primary); font-weight:400; }
+.release-v1 .lang-menu-item:hover { background:var(--winui-control-fill-hover); }
+
+.theme-control { position:relative; display:flex; align-items:center; }
+.theme-button { width:32px; padding:0; display:grid; place-items:center; cursor:pointer; }
+.theme-button svg { width:16px; height:16px; fill:currentColor; }
+.theme-button[aria-expanded="true"] { background:var(--winui-control-fill-hover); }
+.theme-flyout { position:absolute; right:0; top:calc(100% + 7px); z-index:120; width:250px; padding:6px; }
+.theme-flyout-title { padding:7px 9px 8px; font-size:13px; font-weight:600; }
+.theme-option {
+  width:100%; min-height:36px; padding:5px 8px; border:0; border-radius:var(--winui-control-radius);
+  display:grid; grid-template-columns:16px minmax(0,1fr) 14px; gap:8px; align-items:center;
+  background:transparent; color:var(--winui-text-primary); text-align:left;
+}
+.theme-option:hover { background:var(--winui-control-fill-hover); }
+.theme-option:active { background:var(--winui-control-fill-pressed); }
+.theme-check { visibility:hidden; color:var(--accent); font-size:13px; font-weight:700; }
+.theme-option[aria-checked="true"] .theme-check { visibility:visible; }
+.theme-option-copy { min-width:0; }
+.theme-option-copy strong { font-size:13px; line-height:18px; font-weight:600; }
+.theme-swatch { width:12px; height:12px; border-radius:50%; background:var(--accent); box-shadow:0 0 0 1px var(--winui-control-stroke-strong); }
+.veiga-swatch { background:#7fad2d; }
+.theme-flyout-divider { height:1px; margin:5px 7px; background:var(--winui-divider); }
+.theme-flyout-footnote { padding:7px 9px 5px; color:var(--winui-text-tertiary); font-size:11px; line-height:15px; }
+
+.release-v1 .layout { grid-template-columns:var(--sidebar-width) minmax(0,1fr); gap:0; width:100%; min-height:0; overflow:hidden; }
+.release-v1 .card { box-shadow:none; }
+.release-v1 .left-panel { padding:20px 12px 14px; border:0; border-radius:0; background:transparent; backdrop-filter:none; }
+.release-v1 .right-panel {
+  padding:clamp(18px,1.5vw,26px); border:1px solid var(--winui-control-stroke); border-right:0; border-bottom:0;
+  border-radius:var(--winui-overlay-radius) 0 0 0; background:var(--winui-layer-fill); backdrop-filter:none;
+}
+.release-v1 .app-title { display:none !important; }
+
+.release-v1 .primary-btn,.release-v1 .secondary-btn,.release-v1 .danger-btn,.release-v1 .compact-btn,
+.release-v1 .filter-btn,.release-v1 .content-filter-toggle-btn {
+  min-height:32px; border:1px solid var(--winui-control-stroke); border-bottom-color:var(--winui-control-stroke-strong);
+  border-radius:var(--winui-control-radius); background:var(--winui-control-fill); color:var(--winui-text-primary);
+  box-shadow:inset 0 1px rgba(255,255,255,.025); font-weight:600; transition:none;
+}
+.release-v1 .primary-btn {
+  border-color:rgba(0,0,0,.14); border-bottom-color:rgba(0,0,0,.28); background:var(--accent); color:#fff;
+}
+.release-v1 .primary-btn:hover:not(:disabled) { background:var(--accent-light-1); }
+.release-v1 .primary-btn:active:not(:disabled) { background:var(--accent-dark-1); }
+.release-v1 .secondary-btn:hover:not(:disabled),.release-v1 .compact-btn:hover:not(:disabled),
+.release-v1 .filter-btn:hover:not(:disabled),.release-v1 .content-filter-toggle-btn:hover:not(:disabled) { background:var(--winui-control-fill-hover); }
+.release-v1 .danger-btn:hover:not(:disabled) { border-color:rgba(196,43,28,.34); background:rgba(196,43,28,.14); }
+
+.release-v1 .text-input,.release-v1 select.text-input {
+  min-height:32px; padding:5px 10px; border:1px solid var(--winui-control-stroke);
+  border-bottom-color:var(--winui-control-stroke-strong); border-radius:var(--winui-control-radius);
+  background:var(--winui-control-fill); color:var(--winui-text-primary); color-scheme:inherit;
+}
+.release-v1 .text-input::placeholder { color:var(--winui-text-tertiary); opacity:1; }
+.release-v1 .text-input:hover,.release-v1 select.text-input:hover { background:var(--winui-control-fill-hover); }
+.release-v1 .text-input:focus,.release-v1 select.text-input:focus {
+  border-color:var(--winui-control-stroke); border-bottom:2px solid var(--accent); box-shadow:none; background:var(--winui-control-fill-hover);
+}
+.release-v1 select.text-input option,.release-v1 select.text-input optgroup { background:var(--winui-popup); color:var(--winui-text-primary); }
+
+.release-v1 .sidebar-note,.release-v1 .sidebar-utility,.release-v1 .sidebar-diagnostics,.release-v1 .organization-review-panel {
+  border-color:var(--winui-control-stroke); border-radius:var(--winui-control-radius);
+  background:var(--winui-card-fill); color:var(--winui-text-secondary);
+}
+.release-v1 .stats article { border-color:var(--winui-control-stroke); border-radius:var(--winui-control-radius); background:var(--winui-card-fill); }
+.release-v1 .stats span,.release-v1 .hero p,.release-v1 .scan-state,.release-v1 .path-label,.release-v1 .package-main span { color:var(--winui-text-secondary); }
+
+.release-v1 .package-list,.release-v1 .preview-card,.release-v1 #page-organizer .manager-list-card,
+.release-v1 #page-organizer .preview-card,.release-v1 .duplicates-list,.release-v1 .conflicts-list {
+  border-color:var(--winui-control-stroke); border-radius:var(--winui-control-radius); background:var(--winui-card-fill-alt);
+}
+.release-v1 .package-row,.release-v1 .duplicate-row,.release-v1 .conflict-row { border-radius:var(--winui-control-radius); background:transparent; }
+.release-v1 .package-row:hover,.release-v1 .duplicate-row:hover,.release-v1 .conflict-row:hover { background:var(--winui-control-fill); }
+.release-v1 .package-row.active { border-color:transparent; background:var(--winui-control-fill-hover); box-shadow:inset 3px 0 0 var(--accent); }
+
+.release-v1 .planner-modal,.release-v1 .confirm-modal,.release-v1 .duplicate-details-modal,.release-v1 .collision-review-modal,.release-v1 .catalog-import-modal {
+  border-color:var(--winui-control-stroke); border-radius:var(--winui-overlay-radius); background:var(--winui-popup);
+  color:var(--winui-text-primary); box-shadow:0 22px 56px var(--winui-shadow);
+}
+.release-v1 .modal-backdrop { background:rgba(0,0,0,.48); backdrop-filter:blur(1.5px); }
+
+.winui-social-footer { width:100%; margin-top:4px; padding:10px 4px 0; border-top:1px solid var(--winui-divider); }
+.winui-social-footer .social-icons-list { width:100%; margin:0; padding:0; display:flex; align-items:center; justify-content:space-between; list-style:none; }
+.winui-social-footer .social-icons-list li { flex:0 0 auto; margin:0; padding:0; }
+.winui-social-footer .social-icons-list a {
+  width:30px; height:30px; display:grid; place-items:center; border-radius:var(--winui-control-radius);
+  color:var(--winui-text-secondary); background:transparent;
+}
+.winui-social-footer .social-icons-list a:hover { color:var(--winui-text-primary); background:var(--winui-control-fill-hover); }
+.winui-social-footer .social-icons-list a:active { background:var(--winui-control-fill-pressed); }
+.winui-social-footer .social-icons-list svg { width:17px; height:17px; fill:currentColor; }
+
+html[data-resolved-mode="light"] .release-v1 .modal-backdrop { background:rgba(0,0,0,.28); }
+html[data-resolved-mode="light"] .release-v1 * { scrollbar-color:rgba(0,0,0,.28) transparent; }
+
+@media (max-width:700px) {
+  .release-v1 .app-shell { --sidebar-width:max(180px,30vw); }
+  .release-v1 .topbar.winui-navview { padding-inline:6px; }
+  .release-v1 .mode-btn { padding-inline:8px; }
+  .release-v1 .language-switcher > span { display:none; }
+}

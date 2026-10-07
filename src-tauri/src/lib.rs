@@ -34,6 +34,7 @@ pub mod inbox;
 pub mod selection_export;
 pub mod history;
 pub mod taxonomy;
+pub mod system_appearance;
 
 #[cfg(target_os = "windows")]
 fn apply_runtime_window_icon(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
@@ -61,6 +62,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            system_appearance::get_system_appearance,
             scanner::scan_packages,
             sims3pack_converter::inspect_sims3packs,
             sims3pack_converter::convert_sims3packs,
