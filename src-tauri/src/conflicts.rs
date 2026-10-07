@@ -486,12 +486,6 @@ pub fn analyze_conflicts_core(
                 let _ = save_cache(&root, &cache);
                 return Err(CANCELLED_ERROR.to_string());
             }
-            operation::update(
-                kind,
-                index,
-                None,
-                "indexing",
-            );
         }
         let relative_path = path
             .strip_prefix(&root)
@@ -577,12 +571,10 @@ pub fn analyze_conflicts_core(
         }
 
         if let Some(kind) = operation_kind {
-            operation::update(
-                kind,
-                index + 1,
-                None,
-                "indexing",
-            );
+            let processed = index + 1;
+            if processed == paths.len() || processed % 8 == 0 {
+                operation::update(kind, processed, None, "indexing");
+            }
         }
     }
 
