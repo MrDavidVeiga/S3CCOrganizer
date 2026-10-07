@@ -12,8 +12,8 @@ impl AppLanguage {
     pub fn not_categorized_folder(self) -> &'static str {
         match self {
             Self::En => "Not Categorized",
-            Self::Pt => "Não Categorizado",
-            Self::Es => "Sin categorizar",
+            Self::Pt => "Sem Categoria",
+            Self::Es => "Sin Categorizar",
         }
     }
 
@@ -195,7 +195,7 @@ mod tests {
     #[test]
     fn not_categorized_is_localized() {
         assert_eq!(AppLanguage::En.not_categorized_folder(), "Not Categorized");
-        assert_eq!(AppLanguage::Pt.not_categorized_folder(), "Não Categorizado");
-        assert_eq!(AppLanguage::Es.not_categorized_folder(), "Sin categorizar");
+        assert_eq!(AppLanguage::Pt.not_categorized_folder(), "Sem Categoria");
+        assert_eq!(AppLanguage::Es.not_categorized_folder(), "Sin Categorizar");
     }
 }
