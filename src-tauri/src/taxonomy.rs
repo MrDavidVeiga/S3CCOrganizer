@@ -74,16 +74,18 @@ impl CasClassification {
             Gender::Unknown => language.unknown(),
         });
 
-        parts.push(match self.age {
-            AgeBucket::Baby => language.baby(),
-            AgeBucket::Toddler => language.toddler(),
-            AgeBucket::Child => language.child(),
-            AgeBucket::Teen => language.teen(),
-            AgeBucket::YoungAdultAdult => language.young_adult_adult(),
-            AgeBucket::Elder => language.elder(),
-            AgeBucket::Multiple => language.multiple_ages(),
-            AgeBucket::Unknown => language.unknown(),
-        });
+        if self.category != CasCategory::Accessories {
+            parts.push(match self.age {
+                AgeBucket::Baby => language.baby(),
+                AgeBucket::Toddler => language.toddler(),
+                AgeBucket::Child => language.child(),
+                AgeBucket::Teen => language.teen(),
+                AgeBucket::YoungAdultAdult => language.young_adult_adult(),
+                AgeBucket::Elder => language.elder(),
+                AgeBucket::Multiple => language.multiple_ages(),
+                AgeBucket::Unknown => language.unknown(),
+            });
+        }
 
         if let Some(subtype) = &self.clothing_subtype {
             parts.push(match subtype {
@@ -110,6 +112,24 @@ mod tests {
             age: AgeBucket::YoungAdultAdult,
             clothing_subtype: Some(ClothingSubtype::Top),
         }
+    }
+
+    #[test]
+    fn accessories_omit_age_level_in_all_languages() {
+        let mut item = sample();
+        item.category = CasCategory::Accessories;
+        item.clothing_subtype = None;
+        for language in [AppLanguage::En, AppLanguage::Pt, AppLanguage::Es] {
+            let parts = item.folder_parts(language);
+            assert_eq!(parts.len(), 3);
+            assert_eq!(parts[2], language.male());
+        }
+    }
+
+    #[test]
+    fn toddler_and_newborn_are_distinct_in_brazilian_portuguese() {
+        assert_eq!(AppLanguage::Pt.toddler(), "Bebê");
+        assert_eq!(AppLanguage::Pt.baby(), "Recém-Nascido");
     }
 
     #[test]
