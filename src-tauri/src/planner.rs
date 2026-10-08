@@ -96,6 +96,27 @@ fn is_within_overrides(root: &Path) -> bool {
     loading_branch_ancestor(root, is_overrides_root).is_some()
 }
 
+// A user scanning Packages/Clothing/Male must not receive the redundant
+// destination Packages/Clothing/Male/Clothing/Male/YA-A/Top. Only trim when
+// the entire already-selected subpath is a matching prefix.
+fn trim_selected_branch_prefix(
+    root: &Path,
+    branch: &Path,
+    parts: &mut Vec<String>,
+) {
+    let Ok(relative) = root.strip_prefix(branch) else { return };
+    let existing = relative.components().filter_map(|part| match part {
+        Component::Normal(value) => Some(value.to_string_lossy().to_string()),
+        _ => None,
+    }).collect::<Vec<_>>();
+    if !existing.is_empty() && parts.len() >= existing.len()
+        && parts.iter().take(existing.len()).zip(existing.iter())
+            .all(|(left, right)| left.eq_ignore_ascii_case(right))
+    {
+        parts.drain(..existing.len());
+    }
+}
+
 // The origin decides the loading branch, not the CAS/gameplay category.
 // Normal organization must never move any Override into Packages.
 fn source_uses_overrides(root: &Path, source: &Path) -> bool {
@@ -129,6 +150,8 @@ fn ensure_source_loading_branch(root: &Path, source: &Path, parts: &[String]) ->
     }
     if is_mods_root(root) {
         parts.insert(0, "Overrides".to_string());
+    } else if let Some(branch) = loading_branch_ancestor(root, is_overrides_root) {
+        trim_selected_branch_prefix(root, branch, &mut parts);
     }
     parts
 }
@@ -186,6 +209,9 @@ fn ensure_packages_destination(root: &Path, parts: &[String]) -> Vec<String> {
         parts.remove(0);
     } else if is_mods_root(root) && !has_packages_prefix {
         parts.insert(0, "Packages".to_string());
+    }
+    if let Some(branch) = loading_branch_ancestor(root, is_packages_root) {
+        trim_selected_branch_prefix(root, branch, &mut parts);
     }
     parts
 }
@@ -1441,7 +1467,7 @@ mod tests {
     #[test]
     fn nested_packages_and_overrides_are_valid_organization_roots() {
         let mods = Path::new("The Sims 3").join("Mods");
-        let deep_packages = mods.join("Packages").join("Sliders").join("Face");
+        let deep_packages = mods.join("Packages").join("Clothing").join("Male");
         let deep_overrides = mods.join("Overrides").join("Gameplay").join("Tuning");
         assert!(is_within_packages(&deep_packages));
         assert!(!is_within_overrides(&deep_packages));
@@ -1451,17 +1477,18 @@ mod tests {
             ensure_source_loading_branch(
                 &deep_packages,
                 &deep_packages.join("file.package"),
-                &["Packages".into(), "CAS".into(), "Sliders".into()],
+                &["Packages".into(), "CAS".into(), "Clothing".into(), "Male".into(),
+                    "YA-A".into(), "Top".into()],
             ),
-            vec!["Sliders"]
+            vec!["YA-A", "Top"]
         );
         assert_eq!(
             ensure_source_loading_branch(
                 &deep_overrides,
                 &deep_overrides.join("ui.package"),
-                &["Overrides".into(), "Gameplay".into()],
+                &["Overrides".into(), "Gameplay".into(), "Tuning".into(), "Scripts".into()],
             ),
-            vec!["Gameplay"]
+            vec!["Scripts"]
         );
         let staging = Path::new("Downloads").join("CC Incoming");
         assert!(!is_within_overrides(&staging));
