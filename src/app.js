@@ -2696,6 +2696,10 @@ function renderAuditPanel() {
   el.duplicatesClearListBtn.disabled =
     !state.duplicatesAnalysis || state.duplicatesBusy || state.conflictsBusy ||
     state.scanning || state.quarantineBusy || state.auditBusy;
+  el.duplicatesSelectExactBtn.disabled =
+    !exactDuplicateGroups().length || state.duplicatesBusy || state.conflictsBusy ||
+    state.scanning || state.analysisPipelineBusy || state.quarantineBusy ||
+    state.auditBusy || workspaceReadOnly();
   el.conflictsClearListBtn.disabled =
     !state.conflictsAnalysis || state.conflictsBusy || state.duplicatesBusy ||
     state.scanning || state.reviewBusy || state.auditBusy;
@@ -2923,6 +2927,62 @@ function flattenedDuplicateFindings() {
   ];
 }
 
+// Exact groups come from whole-file SHA-256, not normalized content or
+// shared-TGI relationships. A batch always retains at least one physical
+// copy per group; the user can review/override the keeper before preview.
+function exactDuplicateGroups() {
+  return (state.duplicatesAnalysis?.groups || []).filter((group) =>
+    group.kind === "exact_duplicate" && (group.members || []).length > 1 &&
+    group.members.every((member) =>
+      member.path && member.fileSha256 &&
+      member.fileSha256 === group.members[0].fileSha256
+    )
+  );
+}
+
+function exactKeeperOrder(member) {
+  const path = String(member.relativePath || member.path || "").replace(/\\/g, "/");
+  const branch = /(^|\/)Overrides\//i.test(path) ? 0
+    : /(^|\/)Packages\//i.test(path) ? 1 : 2;
+  return [branch, path.split("/").length, path.toLocaleLowerCase()];
+}
+
+function compareExactKeepers(left, right) {
+  const a = exactKeeperOrder(left);
+  const b = exactKeeperOrder(right);
+  return a[0] - b[0] || a[1] - b[1] || a[2].localeCompare(b[2]);
+}
+
+function exactSurvivorIsSafe(selection = state.quarantineSelected) {
+  return exactDuplicateGroups().every((group) =>
+    (group.members || []).some((member) => !selection.has(member.path))
+  );
+}
+
+async function selectExactCopiesForQuarantine() {
+  if (!state.folder || !state.duplicatesAnalysis || state.quarantineBusy ||
+      state.scanning || state.analysisPipelineBusy || state.auditBusy ||
+      workspaceReadOnly()) return;
+  const groups = exactDuplicateGroups();
+  const selected = new Set();
+  for (const group of groups) {
+    const ordered = [...group.members].sort(compareExactKeepers);
+    for (const member of ordered.slice(1)) selected.add(member.path);
+  }
+  if (!groups.length || !selected.size) {
+    state.duplicatesNotice = t("bulkExactNone");
+    renderDuplicates();
+    return;
+  }
+  state.quarantineSelected = selected;
+  state.quarantinePlan = null;
+  state.duplicatesNotice = `${t("bulkExactSummary")} (${groups.length} / ${selected.size})`;
+  state.duplicateSelectedId = groups[0].id;
+  renderDuplicates();
+  openDuplicateDetails();
+  await buildQuarantinePreview();
+}
+
 function visibleDuplicateFindings() {
   const analysis = state.duplicatesAnalysis;
   const search = state.duplicatesSearch.trim().toLocaleLowerCase();
@@ -2967,7 +3027,13 @@ function visibleDuplicateFindings() {
 }
 
 async function buildQuarantinePreview() {
-  if (!state.folder || !state.quarantineSelected.size || state.quarantineBusy) return;
+  if (!state.folder || !state.quarantineSelected.size || state.quarantineBusy ||
+      state.analysisPipelineBusy || state.scanning || state.auditBusy) return;
+  if (!exactSurvivorIsSafe()) {
+    state.duplicatesError = t("bulkExactUnsafe");
+    renderDuplicatesPreview();
+    return;
+  }
   state.quarantineBusy = true;
   state.quarantinePlan = null;
   renderDuplicatesPreview();
@@ -2985,7 +3051,9 @@ async function buildQuarantinePreview() {
 }
 
 async function executeQuarantine() {
-  if (!state.folder || !state.quarantinePlan?.canExecute || !state.quarantineSelected.size || state.quarantineBusy) return;
+  if (!state.folder || !state.quarantinePlan?.canExecute ||
+      !state.quarantineSelected.size || state.quarantineBusy ||
+      !exactSurvivorIsSafe() || state.analysisPipelineBusy) return;
   state.quarantineBusy = true;
   renderDuplicatesPreview();
   try {
@@ -3199,8 +3267,15 @@ function renderDuplicatesPreview() {
         checkbox.checked = state.quarantineSelected.has(member.path);
         checkbox.title = t("selectForQuarantine");
         checkbox.addEventListener("change", () => {
-          if (checkbox.checked) state.quarantineSelected.add(member.path);
-          else state.quarantineSelected.delete(member.path);
+          if (checkbox.checked) {
+            state.quarantineSelected.add(member.path);
+            if (!exactSurvivorIsSafe()) {
+              state.quarantineSelected.delete(member.path);
+              state.duplicatesError = t("bulkExactUnsafe");
+            }
+          } else {
+            state.quarantineSelected.delete(member.path);
+          }
           state.quarantinePlan = null;
           renderDuplicatesPreview();
         });
@@ -3233,7 +3308,10 @@ function renderDuplicatesPreview() {
         state.quarantinePlan = null;
         renderDuplicatesPreview();
       });
-      actions.append(previewButton, clearButton);
+      const summary = document.createElement("span");
+      summary.className = "analysis-batch-summary";
+      summary.textContent = `${state.quarantineSelected.size} ${t("conflictSelectedSummary")}`;
+      actions.append(previewButton, clearButton, summary);
       el.duplicatesPreview.appendChild(actions);
 
       if (state.quarantinePlan) {
@@ -7510,6 +7588,7 @@ for (const button of el.openReportFolderButtons) {
   );
 }
 el.duplicatesClearListBtn.addEventListener("click", clearDuplicateList);
+el.duplicatesSelectExactBtn.addEventListener("click", selectExactCopiesForQuarantine);
 el.conflictsClearListBtn.addEventListener("click", clearConflictList);
 el.structureUpBtn.addEventListener("click", () => {
   const parent = state.structureListing?.parentRelativePath;
