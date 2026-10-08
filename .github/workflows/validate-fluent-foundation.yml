@@ -12,6 +12,7 @@ on:
       - "scripts/test-fluent-listview.mjs"
       - "scripts/test-fluent-feedback.mjs"
       - "scripts/test-fluent-chrome.mjs"
+      - "scripts/test-fluent-buttons.mjs"
       - ".github/workflows/validate-fluent-foundation.yml"
       - "package.json"
   workflow_dispatch:
@@ -40,5 +41,7 @@ jobs:
         run: node scripts/test-fluent-feedback.mjs
       - name: Test combined Fluent SearchBox Expander ToolTip and window chrome
         run: node scripts/test-fluent-chrome.mjs
+      - name: Test WinUI Button geometry and theme invariants
+        run: node scripts/test-fluent-buttons.mjs
       - name: Build Vite frontend
         run: npm run build

@@ -16,6 +16,7 @@ on:
       - "scripts/test-fluent-listview.mjs"
       - "scripts/test-fluent-feedback.mjs"
       - "scripts/test-fluent-chrome.mjs"
+      - "scripts/test-fluent-buttons.mjs"
   workflow_dispatch:
 
 permissions:
@@ -65,6 +66,9 @@ jobs:
 
       - name: Test combined Fluent SearchBox Expander ToolTip and window chrome
         run: node scripts/test-fluent-chrome.mjs
+
+      - name: Test WinUI Button geometry and theme invariants
+        run: node scripts/test-fluent-buttons.mjs
 
       - name: Reconstruct application icon
         shell: pwsh
