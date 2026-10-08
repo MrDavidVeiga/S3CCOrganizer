@@ -10,6 +10,7 @@ on:
       - "scripts/verify-fluent-foundation.mjs"
       - "scripts/test-fluent-interactions.mjs"
       - "scripts/test-fluent-listview.mjs"
+      - "scripts/test-fluent-feedback.mjs"
       - ".github/workflows/validate-fluent-foundation.yml"
       - "package.json"
   workflow_dispatch:
@@ -34,5 +35,7 @@ jobs:
         run: node scripts/test-fluent-interactions.mjs
       - name: Test Fluent virtual ListViews and scrollbars
         run: node scripts/test-fluent-listview.mjs
+      - name: Test Fluent feedback and progress
+        run: node scripts/test-fluent-feedback.mjs
       - name: Build Vite frontend
         run: npm run build

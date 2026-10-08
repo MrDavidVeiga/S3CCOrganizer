@@ -76,3 +76,15 @@ Added `src/ui/fluent/overlays.js` and `overlays.css` to standardize keyboard foc
 - Test focus navigation at virtual boundaries and ensure list performance for large packages. No scanner/Rust behavior is modified.
 
 The visual thumb behavior requires checking in an actual Tauri build: OS and WebView versions can render native overlay scrollbars differently.
+
+## Batch 4 — ProgressBar / ProgressRing / InfoBar
+
+- Synced the newly created Sims3Pack content-aware extraction branch before implementation; neither main nor the public Beta is changed.
+- Three existing Manager / Duplicates / Conflicts operation tracks now expose `role=progressbar` with accurate `aria-valuenow` when total is known and no numeric value for indeterminate work.
+- Determinate ProgressBar uses a compact Fluent 4px accent rail, and unknown totals use a continuously travelling indeterminate indicator.
+- Existing busy states use a ProgressRing visual in the new compact InfoBar design; no independent spinner polling was added.
+- Semantic non-dismissable InfoBar treatment for existing `.scan-state` messages (info, busy, success, warning and error). Severity comes from explicit state classes or structured scan statistics, not from translated message content.
+- Supports all seven themes, reduced motion and forced-colors. Never presents the current package filename in progress status.
+- Regression tests cover accessible percentages, unknown totals, cancellation, warning and error announcements, and the existing privacy restriction.
+
+WebView2 appearance still needs visual acceptance with the new Windows x64 diagnostic build.
