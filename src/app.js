@@ -4,6 +4,10 @@ import { open } from "@tauri-apps/plugin-dialog";
 
 const I18N = {
   en: {
+    openCurrentFolder: "Open Current Folder",
+    openOrganizedFolder: "Open Organized Folder",
+    analysisNeedsRefresh: "Package list updated. Reanalyze duplicates and conflicts when needed.",
+    someMovesNeedRefresh: "Some moved files are not in the current list. Run Analyze CCs to refresh.",
     remainingLegacyFiles: "files still in original folders",
     remainingLegacyExamples: "Show remaining files (never deleted automatically)",
     disabledPackages: "Disabled",
@@ -548,6 +552,10 @@ const I18N = {
     conflictsNext: "Resource-level conflict analysis is implemented in read-only mode.",
   },
   pt: {
+    openCurrentFolder: "Abrir Pasta Atual",
+    openOrganizedFolder: "Abrir Pasta Organizada",
+    analysisNeedsRefresh: "Lista atualizada. Reanalise duplicatas e conflitos quando necessário.",
+    someMovesNeedRefresh: "Alguns arquivos movimentados não estavam na lista atual. Use Analisar CCs para atualizar.",
     remainingLegacyFiles: "arquivos ainda nas pastas originais",
     remainingLegacyExamples: "Ver arquivos restantes (nunca excluídos automaticamente)",
     disabledPackages: "Desativados",
@@ -1091,6 +1099,10 @@ const I18N = {
     conflictsNext: "A análise de conflitos por resource está implementada em modo somente leitura.",
   },
   es: {
+    openCurrentFolder: "Abrir Carpeta Actual",
+    openOrganizedFolder: "Abrir Carpeta Organizada",
+    analysisNeedsRefresh: "Lista actualizada. Vuelve a analizar duplicados y conflictos cuando sea necesario.",
+    someMovesNeedRefresh: "Algunos archivos movidos no estaban en la lista actual. Usa Analizar CCs para actualizar.",
     remainingLegacyFiles: "archivos aún en las carpetas originales",
     remainingLegacyExamples: "Ver archivos restantes (nunca eliminados automáticamente)",
     disabledPackages: "Desactivados",
@@ -1944,6 +1956,8 @@ const el = {
   organizationReviewSummary: document.querySelector("#organization-review-summary"),
   organizationReviewLeftovers: document.querySelector("#organization-review-leftovers"),
   organizationReviewLeftoverPaths: document.querySelector("#organization-review-leftover-paths"),
+  openOrganizedFolderBtn: document.querySelector("#open-organized-folder-btn"),
+  openCurrentFolderBtn: document.querySelector("#open-current-folder-btn"),
   reviewDuplicatesBtn: document.querySelector("#review-duplicates-btn"),
   reviewCollisionsBtn: document.querySelector("#review-collisions-btn"),
   collisionReviewModal: document.querySelector("#collision-review-modal"),
@@ -7267,6 +7281,7 @@ function renderOrganizationReview() {
     el.organizationReviewLeftoverPaths.textContent = leftovers.join("\n");
   }
 
+  el.openOrganizedFolderBtn.disabled = !review.organizedRoot && !state.folder;
   el.reviewDuplicatesBtn.classList.toggle("hidden", !(review.duplicates > 0));
   el.reviewCollisionsBtn.classList.toggle("hidden", !(review.collisions > 0));
 }
@@ -7698,6 +7713,7 @@ function render() {
 
   el.folderPath.textContent = state.folder || t("noFolder");
   el.folderPath.title = state.folder;
+  el.openCurrentFolderBtn.disabled = !state.folder || state.executing;
   el.scanBtn.disabled =
     !state.folder ||
     analysisReadsBusy() ||
@@ -8112,6 +8128,69 @@ async function buildPlan() {
   }
 }
 
+// Apply the completed transaction locally instead of reparsing every DBPF
+// and launching both unrelated analyses again. The backend supplies only
+// successfully committed moves and updates its own scan cache likewise.
+function reflectCompletedOrganization(moves) {
+  const normalized = path => String(path || "").replaceAll("\\", "/")
+    .replace(/^\/\/\?\//, "").toLowerCase();
+  const root = normalized(state.folder).replace(/\/$/, "");
+  const bySource = new Map((moves || []).map(move =>
+    [normalized(move.from), move.to]
+  ));
+  const selected = new Set();
+  let updated = 0;
+  state.items = state.items.map(item => {
+    const destination = bySource.get(normalized(item.path));
+    if (!destination) {
+      if (state.selectedForPlan.has(item.id)) selected.add(item.id);
+      return item;
+    }
+    const full = normalized(destination);
+    const relative = full.startsWith(root + "/")
+      ? String(destination).replaceAll("\\", "/").replace(/^\/\/\?\//, "").slice(root.length + 1)
+      : item.relativePath;
+    const updatedItem = {
+      ...item,
+      id: destination,
+      path: destination,
+      name: String(destination).split(/[\\/]/).pop() || item.name,
+      relativePath: relative,
+    };
+    if (state.selectedForPlan.has(item.id)) selected.add(updatedItem.id);
+    updated++;
+    return updatedItem;
+  });
+  if (updated !== bySource.size) {
+    // Do not pretend this view is current when the file list lacks entries.
+    state.notice += `\n${t("someMovesNeedRefresh")}`;
+  }
+  state.selectedForPlan = selected;
+  state.plan = null;
+  state.selectedId = bySource.get(normalized(state.selectedId)) || state.selectedId;
+  virtualViews.manager.items = null;
+  // Duplicate/conflict identities depend on paths and load order. Never
+  // allow pre-move findings to authorize destructive operations afterwards.
+  state.analysisRunId++;
+  state.duplicatesAnalysis = null;
+  state.conflictsAnalysis = null;
+  state.duplicatesError = "";
+  state.conflictsError = "";
+  state.duplicatesNotice = t("analysisNeedsRefresh");
+  state.conflictsNotice = t("analysisNeedsRefresh");
+  state.analysisStatus.duplicates = "not_run";
+  state.analysisStatus.conflicts = "not_run";
+  state.conflictReviewSelected.clear();
+  state.conflictsSelectedOnly = false;
+  conflictVisibleMemo.analysis = null;
+  state.quarantineSelected.clear();
+  state.quarantinePlan = null;
+  state.conflictQuarantineSelected.clear();
+  state.conflictQuarantinePlan = null;
+  closeDuplicateDetails();
+  closeConflictDetails();
+}
+
 async function executeOrganization() {
   if (!planCanExecute(state.plan) || state.executing || state.structureBusy) return;
 
@@ -8160,6 +8239,7 @@ async function executeOrganization() {
         oldFoldersRetained: result.oldFoldersRetained ?? 0,
         remainingLegacyFiles: result.remainingLegacyFiles ?? 0,
         remainingLegacyExamples: result.remainingLegacyExamples ?? [],
+        organizedRoot: result.organizedRoot || state.folder,
       };
       state.organizationCollisionItems = collisionItems;
 
@@ -8170,6 +8250,9 @@ async function executeOrganization() {
       // empty folder. Surface cleanup warnings instead of silently hiding it.
       if (result.errors?.length) {
         state.notice += `\n${result.errors.join("\n")}`;
+      }
+      if (result.status === "COMPLETE") {
+        reflectCompletedOrganization(result.movedPaths || []);
       }
     } else {
       state.planError = `${t("executionRolledBack")}: ${(result.errors || []).join(" ")}`;
@@ -8188,7 +8271,8 @@ async function executeOrganization() {
   }
 
   if (!state.planError) {
-    await scanFolder(false, true);
+    // Restore history is lightweight; a full DBPF scan is only performed on
+    // explicit "Analyze CCs" request from the user.
     await loadRestoreHistory();
   }
 }
@@ -8503,6 +8587,9 @@ document.addEventListener("keydown", (event) => {
 
 
 el.chooseFolderBtn.addEventListener("click", chooseFolder);
+el.openCurrentFolderBtn.addEventListener("click", () => openDirectorySafe(state.folder));
+el.openOrganizedFolderBtn.addEventListener("click", () =>
+  openDirectorySafe(state.organizationReview?.organizedRoot || state.folder));
 el.scanCancelBtn.addEventListener("click", () => cancelAnalysis("scan"));
 el.duplicatesCancelBtn.addEventListener("click", () => cancelAnalysis("duplicates"));
 el.conflictsCancelBtn.addEventListener("click", () => cancelAnalysis("conflicts"));
