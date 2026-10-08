@@ -427,6 +427,24 @@ const I18N = {
     variantAnalysisTruncated: "Variant relation list was limited for performance.",
     noDuplicateFindings: "No findings match the current search and filter.",
     duplicatesNext: "Duplicate analysis is read-only. Confirmed duplicates may be moved to reversible Quarantine; nothing is deleted automatically.",
+    selectExactDuplicates: "Select Exact Copies (Keep One)",
+    bulkExactSummary: "Exact copies selected for Quarantine. One per group stays in the library.",
+    bulkExactNone: "No safe exact-duplicate groups available.",
+    bulkExactUnsafe: "The selection would remove every copy in an exact-duplicate group. Keep at least one.",
+    prioritizeConflicts: "Prioritize Review",
+    previewSelectedQuarantine: "Preview Selected Quarantine",
+    conflictSelectionHint: "Choose A or B for each conflict. Resource.cfg priority never chooses a file for quarantine automatically.",
+    conflictNoSelection: "Choose one or more packages from active conflict pairs first.",
+    conflictBothSelected: "Both packages in a conflict were selected. Keep at least one.",
+    conflictSelectedSummary: "Manually selected files",
+    conflictQuarantineTitle: "Move reviewed conflicting packages to Quarantine?",
+    conflictQuarantineMessage: "Only packages explicitly selected by you will move. Load order is not evidence that a file is safe to remove. Review the manifest.",
+    conflictPriorityUrgent: "Highest priority",
+    conflictPriorityHigh: "High priority",
+    conflictPriorityReview: "Review",
+    conflictPriorityInfo: "Informational",
+    conflictPriorityReason: "Review differing scripts and gameplay resources first; load order is not a deletion recommendation.",
+    chooseConflictFile: "Select for Quarantine",
     conflictsIntro: "Compare shared TGIs by decompressed payload and classify the impact instead of treating every overlap as a conflict.",
     analyzeConflicts: "Analyze Conflicts",
     reanalyzeConflicts: "Reanalyze Conflicts",
@@ -916,6 +934,24 @@ const I18N = {
     variantAnalysisTruncated: "A lista de relações entre variantes foi limitada por desempenho.",
     noDuplicateFindings: "Nenhum resultado corresponde à pesquisa e ao filtro atuais.",
     duplicatesNext: "A análise de duplicados é somente leitura. Duplicados confirmados podem ser movidos para uma Quarentena reversível; nada é apagado automaticamente.",
+    selectExactDuplicates: "Selecionar cópias exatas (manter uma)",
+    bulkExactSummary: "Cópias exatas selecionadas para Quarentena. Uma cópia de cada grupo permanece na biblioteca.",
+    bulkExactNone: "Nenhum grupo seguro de duplicatas exatas disponível.",
+    bulkExactUnsafe: "A seleção deixaria um grupo de duplicatas exatas sem nenhuma cópia. Mantenha pelo menos uma.",
+    prioritizeConflicts: "Priorizar revisão",
+    previewSelectedQuarantine: "Visualizar quarentena da seleção",
+    conflictSelectionHint: "Escolha A ou B em cada conflito. A prioridade do Resource.cfg nunca escolhe automaticamente o arquivo para quarentena.",
+    conflictNoSelection: "Escolha um ou mais packages de conflitos ativos.",
+    conflictBothSelected: "Ambos os packages de um conflito estão selecionados. Mantenha pelo menos um.",
+    conflictSelectedSummary: "Arquivos selecionados manualmente",
+    conflictQuarantineTitle: "Mover os packages de conflito revisados para a Quarentena?",
+    conflictQuarantineMessage: "Só serão movidos os packages selecionados por você. A ordem de carregamento não prova que um arquivo pode ser removido. Confira o manifesto.",
+    conflictPriorityUrgent: "Prioridade máxima",
+    conflictPriorityHigh: "Prioridade alta",
+    conflictPriorityReview: "Revisar",
+    conflictPriorityInfo: "Informativo",
+    conflictPriorityReason: "Revise primeiro diferenças em scripts e gameplay; ordem de carregamento não é recomendação de exclusão.",
+    chooseConflictFile: "Selecionar para quarentena",
     conflictsIntro: "Compare TGIs compartilhados pelo payload descomprimido e classifique o impacto em vez de tratar toda sobreposição como conflito.",
     analyzeConflicts: "Analisar Conflitos",
     reanalyzeConflicts: "Reanalisar Conflitos",
@@ -1404,6 +1440,24 @@ const I18N = {
     variantAnalysisTruncated: "La lista de relaciones entre variantes fue limitada por rendimiento.",
     noDuplicateFindings: "Ningún resultado coincide con la búsqueda y el filtro actuales.",
     duplicatesNext: "El análisis de duplicados es de solo lectura. Los duplicados confirmados pueden moverse a una Cuarentena reversible; nada se elimina automáticamente.",
+    selectExactDuplicates: "Seleccionar copias exactas (conservar una)",
+    bulkExactSummary: "Copias exactas seleccionadas para Cuarentena. Se conserva una copia de cada grupo.",
+    bulkExactNone: "No hay grupos seguros de duplicados exactos.",
+    bulkExactUnsafe: "La selección dejaría un grupo sin copias. Conserva al menos una.",
+    prioritizeConflicts: "Priorizar revisión",
+    previewSelectedQuarantine: "Ver cuarentena de seleccionados",
+    conflictSelectionHint: "Elige A o B en cada conflicto. La prioridad de Resource.cfg nunca elige automáticamente un archivo para cuarentena.",
+    conflictNoSelection: "Elige uno o varios packages de conflictos activos.",
+    conflictBothSelected: "Se seleccionaron ambos packages de un conflicto. Conserva al menos uno.",
+    conflictSelectedSummary: "Archivos seleccionados manualmente",
+    conflictQuarantineTitle: "¿Mover a Cuarentena los packages de conflicto revisados?",
+    conflictQuarantineMessage: "Solo se moverán los packages que hayas seleccionado. El orden de carga no garantiza que puedan retirarse. Revisa el manifiesto.",
+    conflictPriorityUrgent: "Prioridad máxima",
+    conflictPriorityHigh: "Prioridad alta",
+    conflictPriorityReview: "Revisar",
+    conflictPriorityInfo: "Informativo",
+    conflictPriorityReason: "Revisa primero scripts y gameplay; el orden de carga no recomienda eliminar archivos.",
+    chooseConflictFile: "Seleccionar para cuarentena",
     conflictsIntro: "Compara TGIs compartidos por el payload descomprimido y clasifica el impacto en lugar de tratar cada coincidencia como conflicto.",
     analyzeConflicts: "Analizar Conflictos",
     reanalyzeConflicts: "Reanalizar Conflictos",
@@ -1558,6 +1612,9 @@ const state = {
   reviewBusy: false,
   quarantineSelected: new Set(),
   quarantinePlan: null,
+  quarantineExactBatch: false,
+  conflictQuarantineSelected: new Set(),
+  conflictQuarantinePlan: null,
   quarantineBusy: false,
   auditBusy: false,
   auditBusyKind: null,
@@ -1850,7 +1907,11 @@ const el = {
   exportAuditButtons: [...document.querySelectorAll("[data-export-audit]")],
   openReportFolderButtons: [...document.querySelectorAll("[data-open-report-folder]")],
   duplicatesClearListBtn: document.querySelector("#duplicates-clear-list-btn"),
+  duplicatesSelectExactBtn: document.querySelector("#duplicates-select-exact-btn"),
   conflictsClearListBtn: document.querySelector("#conflicts-clear-list-btn"),
+  conflictsPrioritizeBtn: document.querySelector("#conflicts-prioritize-btn"),
+  conflictsPreviewQuarantineBtn: document.querySelector("#conflicts-preview-quarantine-btn"),
+  conflictsClearQuarantineBtn: document.querySelector("#conflicts-clear-quarantine-btn"),
   structureState: document.querySelector("#structure-state"),
   structureUpBtn: document.querySelector("#structure-up-btn"),
   structureRefreshBtn: document.querySelector("#structure-refresh-btn"),
@@ -2636,9 +2697,13 @@ function renderAuditPanel() {
   el.duplicatesClearListBtn.disabled =
     !state.duplicatesAnalysis || state.duplicatesBusy || state.conflictsBusy ||
     state.scanning || state.quarantineBusy || state.auditBusy;
+  el.duplicatesSelectExactBtn.disabled =
+    !exactDuplicateGroups().length || state.duplicatesBusy || state.conflictsBusy ||
+    state.scanning || state.analysisPipelineBusy || state.quarantineBusy ||
+    state.auditBusy || workspaceReadOnly();
   el.conflictsClearListBtn.disabled =
     !state.conflictsAnalysis || state.conflictsBusy || state.duplicatesBusy ||
-    state.scanning || state.reviewBusy || state.auditBusy;
+    state.scanning || state.reviewBusy || state.auditBusy || state.quarantineBusy;
 }
 
 function t(key) {
@@ -2863,6 +2928,78 @@ function flattenedDuplicateFindings() {
   ];
 }
 
+// Exact groups come from whole-file SHA-256, not normalized content or
+// shared-TGI relationships. A batch always retains at least one physical
+// copy per group; the user can review/override the keeper before preview.
+function exactDuplicateGroups() {
+  return (state.duplicatesAnalysis?.groups || []).filter((group) =>
+    group.kind === "exact_duplicate" && (group.members || []).length > 1 &&
+    group.members.every((member) =>
+      member.path && member.fileSha256 &&
+      member.fileSha256 === group.members[0].fileSha256
+    )
+  );
+}
+
+function exactKeeperOrder(member) {
+  const path = String(member.relativePath || member.path || "").replace(/\\/g, "/");
+  const branch = /(^|\/)Overrides\//i.test(path) ? 0
+    : /(^|\/)Packages\//i.test(path) ? 1 : 2;
+  return [branch, path.split("/").length, path.toLocaleLowerCase()];
+}
+
+function compareExactKeepers(left, right) {
+  const a = exactKeeperOrder(left);
+  const b = exactKeeperOrder(right);
+  return a[0] - b[0] || a[1] - b[1] || a[2].localeCompare(b[2]);
+}
+
+function exactSurvivorIsSafe(selection = state.quarantineSelected) {
+  return exactDuplicateGroups().every((group) =>
+    (group.members || []).some((member) => !selection.has(member.path))
+  );
+}
+
+function retainedExactDuplicatePaths(selection = state.quarantineSelected) {
+  const retained = new Set();
+  for (const group of exactDuplicateGroups()) {
+    if (!(group.members || []).some((member) => selection.has(member.path))) continue;
+    for (const member of group.members || []) {
+      if (!selection.has(member.path)) retained.add(member.path);
+    }
+  }
+  return [...retained];
+}
+
+async function selectExactCopiesForQuarantine() {
+  if (!state.folder || !state.duplicatesAnalysis || state.quarantineBusy ||
+      state.scanning || state.analysisPipelineBusy || state.auditBusy ||
+      workspaceReadOnly()) return;
+  const groups = exactDuplicateGroups();
+  const selected = new Set();
+  for (const group of groups) {
+    const ordered = [...group.members].sort(compareExactKeepers);
+    for (const member of ordered.slice(1)) selected.add(member.path);
+  }
+  if (!groups.length || !selected.size) {
+    state.duplicatesNotice = t("bulkExactNone");
+    renderDuplicates();
+    return;
+  }
+  state.quarantineSelected = selected;
+  state.quarantineExactBatch = true;
+  state.quarantinePlan = null;
+  state.duplicatesError = "";
+  state.duplicatesFilter = "exact_duplicate";
+  el.duplicatesFilter.value = "exact_duplicate";
+  persistPreferences();
+  state.duplicatesNotice = `${t("bulkExactSummary")} (${groups.length} / ${selected.size})`;
+  state.duplicateSelectedId = groups[0].id;
+  renderDuplicates();
+  openDuplicateDetails();
+  await buildQuarantinePreview();
+}
+
 function visibleDuplicateFindings() {
   const analysis = state.duplicatesAnalysis;
   const search = state.duplicatesSearch.trim().toLocaleLowerCase();
@@ -2907,14 +3044,24 @@ function visibleDuplicateFindings() {
 }
 
 async function buildQuarantinePreview() {
-  if (!state.folder || !state.quarantineSelected.size || state.quarantineBusy) return;
+  if (!state.folder || !state.quarantineSelected.size || state.quarantineBusy ||
+      state.analysisPipelineBusy || state.scanning || state.auditBusy) return;
+  if (!exactSurvivorIsSafe()) {
+    state.duplicatesError = t("bulkExactUnsafe");
+    renderDuplicatesPreview();
+    return;
+  }
   state.quarantineBusy = true;
   state.quarantinePlan = null;
   renderDuplicatesPreview();
   try {
-    state.quarantinePlan = await invoke("build_quarantine_plan", {
+    const command = state.quarantineExactBatch
+      ? "build_exact_duplicate_quarantine_plan" : "build_quarantine_plan";
+    state.quarantinePlan = await invoke(command, {
       folder: state.folder,
       selectedPaths: [...state.quarantineSelected],
+      ...(state.quarantineExactBatch
+        ? { retainedPaths: retainedExactDuplicatePaths() } : {}),
     });
   } catch (error) {
     state.duplicatesError = String(error);
@@ -2925,14 +3072,20 @@ async function buildQuarantinePreview() {
 }
 
 async function executeQuarantine() {
-  if (!state.folder || !state.quarantinePlan?.canExecute || !state.quarantineSelected.size || state.quarantineBusy) return;
+  if (!state.folder || !state.quarantinePlan?.canExecute ||
+      !state.quarantineSelected.size || state.quarantineBusy ||
+      !exactSurvivorIsSafe() || state.analysisPipelineBusy) return;
   state.quarantineBusy = true;
   renderDuplicatesPreview();
   try {
-    const result = await invoke("execute_quarantine", {
+    const command = state.quarantineExactBatch
+      ? "execute_exact_duplicate_quarantine" : "execute_quarantine";
+    const result = await invoke(command, {
       folder: state.folder,
       selectedPaths: [...state.quarantineSelected],
       plannedQuarantineRoot: state.quarantinePlan.quarantineRoot,
+      ...(state.quarantineExactBatch
+        ? { retainedPaths: retainedExactDuplicatePaths() } : {}),
     });
     state.duplicatesNotice = `${t("quarantineComplete")}: ${result.moved}`;
     state.quarantineSelected.clear();
@@ -3139,8 +3292,15 @@ function renderDuplicatesPreview() {
         checkbox.checked = state.quarantineSelected.has(member.path);
         checkbox.title = t("selectForQuarantine");
         checkbox.addEventListener("change", () => {
-          if (checkbox.checked) state.quarantineSelected.add(member.path);
-          else state.quarantineSelected.delete(member.path);
+          if (checkbox.checked) {
+            state.quarantineSelected.add(member.path);
+            if (!exactSurvivorIsSafe()) {
+              state.quarantineSelected.delete(member.path);
+              state.duplicatesError = t("bulkExactUnsafe");
+            }
+          } else {
+            state.quarantineSelected.delete(member.path);
+          }
           state.quarantinePlan = null;
           renderDuplicatesPreview();
         });
@@ -3171,9 +3331,13 @@ function renderDuplicatesPreview() {
       clearButton.addEventListener("click", () => {
         state.quarantineSelected.clear();
         state.quarantinePlan = null;
+        state.quarantineExactBatch = false;
         renderDuplicatesPreview();
       });
-      actions.append(previewButton, clearButton);
+      const summary = document.createElement("span");
+      summary.className = "analysis-batch-summary";
+      summary.textContent = `${state.quarantineSelected.size} ${t("conflictSelectedSummary")}`;
+      actions.append(previewButton, clearButton, summary);
       el.duplicatesPreview.appendChild(actions);
 
       if (state.quarantinePlan) {
@@ -3455,6 +3619,112 @@ function isInactiveConflictFinding(finding, analysis = state.conflictsAnalysis) 
     ["unmatched", "partially_matched"].includes(finding?.loadOrderStatus);
 }
 
+// Prioritization never nominates a file for removal. It only orders
+// *active*, differing payload overlaps for manual inspection.
+function conflictRiskScore(finding) {
+  if (!finding || finding.differentPayloadCount === 0 ||
+      isInactiveConflictFinding(finding)) return 0;
+  const impacts = new Set([finding.kind, ...(finding.impactKinds || [])]);
+  const impactScore = [
+    ["script_conflict", 600],
+    ["gameplay_override", 500],
+    ["catalog_override", 400],
+    ["visual_override", 300],
+    ["cas_morph_overlap", 250],
+    ["text_override", 200],
+    ["potential_conflict", 150],
+  ].reduce((maximum, [kind, score]) => impacts.has(kind) ? Math.max(maximum, score) : maximum, 0);
+  if (!impactScore) return 0;
+  const loadUncertainty = finding.loadOrderStatus === "same_priority" ? 35
+    : finding.loadOrderStatus === "resolved_by_priority" ? 5 : 20;
+  return impactScore + loadUncertainty +
+    Math.min(25, Number(finding.differentPayloadCount || 0));
+}
+
+function conflictPriorityLabel(finding) {
+  const score = conflictRiskScore(finding);
+  return score >= 500 ? t("conflictPriorityUrgent")
+    : score >= 300 ? t("conflictPriorityHigh")
+      : score > 0 ? t("conflictPriorityReview") : t("conflictPriorityInfo");
+}
+
+function conflictSelectionSafe(selection = state.conflictQuarantineSelected) {
+  return (state.conflictsAnalysis?.findings || []).every((finding) =>
+    !finding.differentPayloadCount ||
+    !(selection.has(finding.left?.path) && selection.has(finding.right?.path))
+  );
+}
+
+async function buildConflictQuarantinePreview() {
+  if (!state.folder || !state.conflictsAnalysis ||
+      !state.conflictQuarantineSelected.size ||
+      state.quarantineBusy || state.scanning || state.analysisPipelineBusy ||
+      state.duplicatesBusy || state.conflictsBusy || state.auditBusy) return;
+  if (!conflictSelectionSafe()) {
+    state.conflictsError = t("conflictBothSelected");
+    renderConflicts();
+    return;
+  }
+  const folder = state.folder;
+  const selectedPaths = [...state.conflictQuarantineSelected].sort();
+  state.quarantineBusy = true;
+  state.conflictsError = "";
+  state.conflictQuarantinePlan = null;
+  renderConflicts();
+  try {
+    const plan = await invoke("build_quarantine_plan", {
+      folder, selectedPaths,
+    });
+    if (state.folder !== folder ||
+        selectedPaths.join("\n") !== [...state.conflictQuarantineSelected].sort().join("\n")) return;
+    state.conflictQuarantinePlan = plan;
+    if (!state.conflictSelectedId) {
+      state.conflictSelectedId = visibleConflictFindings()[0]?.id || "";
+    }
+    if (state.conflictSelectedId) openConflictDetails();
+  } catch (error) {
+    state.conflictsError = String(error);
+  } finally {
+    state.quarantineBusy = false;
+    renderConflicts();
+  }
+}
+
+async function executeConflictQuarantine() {
+  if (!state.folder || !state.conflictQuarantinePlan?.canExecute ||
+      !state.conflictQuarantineSelected.size || !conflictSelectionSafe() ||
+      state.quarantineBusy || state.scanning || state.analysisPipelineBusy ||
+      state.duplicatesBusy || state.conflictsBusy ||
+      state.conflictQuarantinePlan.stats?.selected !== state.conflictQuarantineSelected.size) return;
+  const folder = state.folder;
+  state.quarantineBusy = true;
+  renderConflicts();
+  try {
+    const result = await invoke("execute_quarantine", {
+      folder,
+      selectedPaths: [...state.conflictQuarantineSelected],
+      plannedQuarantineRoot: state.conflictQuarantinePlan.quarantineRoot,
+    });
+    state.conflictsNotice = `${t("quarantineComplete")}: ${result.moved}`;
+    state.conflictQuarantineSelected.clear();
+    state.conflictQuarantinePlan = null;
+    state.conflictsAnalysis = null;
+    state.conflictSelectedId = "";
+    closeConflictDetails();
+    await Promise.all([refreshOperationHistory(), refreshCacheInfo()]);
+    state.quarantineBusy = false;
+    await scanFolder(false, true);
+  } catch (error) {
+    state.conflictsError = String(error);
+  } finally {
+    state.quarantineBusy = false;
+    state.pendingAction = "";
+    el.confirmModal.classList.add("hidden");
+    el.confirmModal.setAttribute("aria-hidden", "true");
+    render();
+  }
+}
+
 function conflictKindLabel(kind) {
   return {
     shared_identical: t("sharedIdentical"),
@@ -3549,11 +3819,10 @@ function visibleConflictFindings() {
     );
   });
 
-  if (state.conflictsFilter === "attention") {
-    const rank = { high: 3, warning: 2, review: 1, info: 0 };
-    result.sort((a, b) =>
-      (rank[b.severity] || 0) - (rank[a.severity] || 0) ||
-      (b.differentPayloadCount || 0) - (a.differentPayloadCount || 0)
+  if (!["ignored_session", "intentional_override"].includes(state.conflictsFilter)) {
+    result.sort((a, b) => conflictRiskScore(b) - conflictRiskScore(a) ||
+      (b.differentPayloadCount || 0) - (a.differentPayloadCount || 0) ||
+      String(a.id).localeCompare(String(b.id))
     );
   }
   conflictVisibleMemo.analysis = analysis;
@@ -3615,6 +3884,10 @@ function renderConflictsPreview() {
     ? t("conflictInactiveExplanation")
     : conflictExplanation(finding.kind);
   reason.append(reasonTitle, reasonText);
+  const priority = document.createElement("p");
+  priority.className = "conflict-priority-note";
+  priority.textContent = `${conflictPriorityLabel(finding)} · ${t("conflictPriorityReason")}`;
+  reason.appendChild(priority);
   // Keep the technical type visible, without suggesting it affects gameplay now.
   if (isInactive) {
     const technicalType = document.createElement("p");
@@ -3701,6 +3974,33 @@ function renderConflictsPreview() {
     open.textContent = t("openLocation");
     open.addEventListener("click", () => revealSafe(member?.path));
     card.append(mark, visual, name, path, priority, rule, open);
+    if (!isInactive && finding.differentPayloadCount > 0 && !sessionMark) {
+      const pick = document.createElement("button");
+      pick.type = "button";
+      pick.className = "secondary-btn";
+      pick.textContent = t("chooseConflictFile");
+      pick.setAttribute("aria-pressed", String(state.conflictQuarantineSelected.has(member?.path)));
+      pick.disabled = state.quarantineBusy || state.analysisPipelineBusy || workspaceReadOnly();
+      pick.addEventListener("click", () => {
+        const candidate = member?.path;
+        if (!candidate) return;
+        if (state.conflictQuarantineSelected.has(candidate)) {
+          state.conflictQuarantineSelected.delete(candidate);
+        } else {
+          const other = label === "A" ? finding.right?.path : finding.left?.path;
+          if (other) state.conflictQuarantineSelected.delete(other);
+          state.conflictQuarantineSelected.add(candidate);
+          if (!conflictSelectionSafe()) {
+            state.conflictQuarantineSelected.delete(candidate);
+            state.conflictsError = t("conflictBothSelected");
+          }
+        }
+        state.conflictQuarantinePlan = null;
+        renderConflictsPreview();
+        renderConflictBatchControls();
+      });
+      card.appendChild(pick);
+    }
     pair.appendChild(card);
   }
 
@@ -3756,6 +4056,34 @@ function renderConflictsPreview() {
   }
 
   el.conflictsPreview.appendChild(loadOrder);
+
+  const chosen = document.createElement("p");
+  chosen.className = "analysis-batch-summary";
+  chosen.textContent = `${t("conflictSelectedSummary")}: ${state.conflictQuarantineSelected.size}. ${t("conflictSelectionHint")}`;
+  el.conflictsPreview.appendChild(chosen);
+  if (state.conflictQuarantinePlan) {
+    const plan = document.createElement("div");
+    plan.className = "quarantine-preview";
+    const heading = document.createElement("h4");
+    heading.textContent = t("quarantinePreviewOnly");
+    const destination = document.createElement("code");
+    destination.textContent = `${t("quarantineRoot")}: ${state.conflictQuarantinePlan.quarantineRoot}`;
+    const stats = document.createElement("p");
+    stats.textContent = `${t("quarantineReady")}: ${state.conflictQuarantinePlan.stats?.ready ?? 0} · ${t("blocked")}: ${state.conflictQuarantinePlan.stats?.blocked ?? 0}`;
+    const manifest = document.createElement("pre");
+    manifest.textContent = state.conflictQuarantinePlan.manifestPreview || "";
+    plan.append(heading, destination, stats, manifest);
+    if (state.conflictQuarantinePlan.canExecute) {
+      const execute = document.createElement("button");
+      execute.type = "button";
+      execute.className = "primary-btn";
+      execute.textContent = t("executeQuarantine");
+      execute.disabled = state.quarantineBusy || workspaceReadOnly();
+      execute.addEventListener("click", () => openConfirm("conflict_quarantine"));
+      plan.appendChild(execute);
+    }
+    el.conflictsPreview.appendChild(plan);
+  }
 
   const evidenceTitle = document.createElement("h4");
   evidenceTitle.textContent = t("evidence");
@@ -3828,7 +4156,7 @@ function renderConflictsPreview() {
 function createConflictFindingRow(finding) {
   const button = document.createElement("button");
   button.type = "button";
-  button.title = t("conflictDetailsTitle");
+  button.title = `${conflictPriorityLabel(finding)} · ${t("conflictPriorityReason")}`;
   button.dataset.conflictId = finding.id;
   const sessionMark = effectiveConflictMark(finding);
   const isInactive = isInactiveConflictFinding(finding);
@@ -3919,8 +4247,22 @@ function scheduleConflictVirtualRows() {
   });
 }
 
+function renderConflictBatchControls() {
+  if (!el.conflictsPrioritizeBtn) return;
+  const busy = state.quarantineBusy || state.analysisPipelineBusy ||
+    state.scanning || state.conflictsBusy || state.duplicatesBusy ||
+    state.auditBusy || state.reviewBusy || state.structureBusy;
+  el.conflictsPrioritizeBtn.disabled = !state.conflictsAnalysis || busy;
+  el.conflictsPreviewQuarantineBtn.disabled =
+    !state.conflictsAnalysis || !state.conflictQuarantineSelected.size ||
+    !conflictSelectionSafe() || busy || workspaceReadOnly();
+  el.conflictsClearQuarantineBtn.disabled =
+    !state.conflictQuarantineSelected.size || busy;
+}
+
 function renderConflicts() {
   if (!el.analyzeConflictsBtn) return;
+  renderConflictBatchControls();
   el.analyzeConflictsBtn.querySelector("[data-i18n]")?.replaceChildren(
     document.createTextNode(t(state.conflictsAnalysis ? "reanalyzeConflicts" : "analyzeConflicts"))
   );
@@ -4539,6 +4881,9 @@ function invalidateAnalysesAfterStructureChange() {
   state.restorePlan = null;
   state.quarantineSelected.clear();
   state.quarantinePlan = null;
+  state.quarantineExactBatch = false;
+  state.conflictQuarantineSelected.clear();
+  state.conflictQuarantinePlan = null;
   state.auditReports = { organizer: null, duplicates: null, conflicts: null };
   state.auditErrors = { organizer: "", duplicates: "", conflicts: "" };
 }
@@ -6637,6 +6982,16 @@ function openConfirm(action) {
     el.confirmTitle.textContent = t("confirmRemoveEmptyTitle");
     el.confirmMessage.textContent = `${t("confirmRemoveEmptyMessage")}\n${state.pendingEmptyFolder}`;
     el.confirmActionBtn.textContent = t("removeEmptyFolderAction");
+  } else if (action === "conflict_quarantine") {
+    if (!state.conflictQuarantinePlan?.canExecute ||
+        state.conflictQuarantinePlan.stats?.selected !== state.conflictQuarantineSelected.size ||
+        !conflictSelectionSafe() || state.quarantineBusy || workspaceReadOnly()) {
+      state.pendingAction = "";
+      return;
+    }
+    el.confirmTitle.textContent = t("conflictQuarantineTitle");
+    el.confirmMessage.textContent = t("conflictQuarantineMessage");
+    el.confirmActionBtn.textContent = t("executeQuarantine");
   } else if (action === "quarantine") {
     el.confirmTitle.textContent = t("confirmQuarantineTitle");
     el.confirmMessage.textContent = t("confirmQuarantineMessage");
@@ -6762,9 +7117,9 @@ function render() {
 
 function clearDuplicateList() {
   if (state.analysisPipelineBusy) return;
-  state.analysisStatus.duplicates = "cleared";
   if (state.scanning || state.duplicatesBusy || state.conflictsBusy ||
       state.quarantineBusy || state.auditBusy) return;
+  state.analysisStatus.duplicates = "cleared";
   closeDuplicateDetails();
   state.duplicatesAnalysis = null;
   state.duplicatesError = "";
@@ -6774,6 +7129,9 @@ function clearDuplicateList() {
   state.duplicateSelectedId = "";
   state.quarantineSelected.clear();
   state.quarantinePlan = null;
+  state.quarantineExactBatch = false;
+  state.conflictQuarantineSelected.clear();
+  state.conflictQuarantinePlan = null;
   state.operations.duplicates = null;
   virtualViews.duplicates.items = null;
   el.duplicatesSearch.value = "";
@@ -6783,9 +7141,11 @@ function clearDuplicateList() {
 
 function clearConflictList() {
   if (state.analysisPipelineBusy) return;
-  state.analysisStatus.conflicts = "cleared";
   if (state.scanning || state.duplicatesBusy || state.conflictsBusy ||
-      state.reviewBusy || state.auditBusy) return;
+      state.reviewBusy || state.auditBusy || state.quarantineBusy) return;
+  state.analysisStatus.conflicts = "cleared";
+  state.conflictQuarantineSelected.clear();
+  state.conflictQuarantinePlan = null;
   closeConflictDetails();
   state.conflictsAnalysis = null;
   state.conflictsError = "";
@@ -6842,6 +7202,9 @@ function clearLoadedLibrary() {
 
   state.quarantineSelected.clear();
   state.quarantinePlan = null;
+  state.quarantineExactBatch = false;
+  state.conflictQuarantineSelected.clear();
+  state.conflictQuarantinePlan = null;
   state.packagePreviews = {};
   state.packagePreviewLoading = {};
   state.packagePreviewErrors = {};
@@ -6859,13 +7222,22 @@ function clearLoadedLibrary() {
 }
 
 async function chooseFolder() {
+  if (state.scanning || state.analysisPipelineBusy || state.duplicatesBusy ||
+      state.conflictsBusy || state.quarantineBusy || state.executing ||
+      state.planning || state.restoreBusy || state.structureBusy || state.auditBusy) return;
   const selected = await open({
     directory: true,
     multiple: false,
     title: t("chooseModsFolder"),
   });
-  if (!selected || Array.isArray(selected)) return;
-
+  // The chooser is asynchronous: a scan or quarantine may have started
+  // while its native window was open. Do not mix in-flight folder sessions.
+  if (!selected || Array.isArray(selected) ||
+      state.scanning || state.analysisPipelineBusy || state.duplicatesBusy ||
+      state.conflictsBusy || state.quarantineBusy || state.executing ||
+      state.planning || state.restoreBusy || state.structureBusy || state.auditBusy) return;
+  state.analysisRunId += 1;
+  state.analysisStatus = { manager: "not_run", duplicates: "not_run", conflicts: "not_run" };
   state.folder = selected;
   persistPreferences();
   window.dispatchEvent(new CustomEvent("s3cc-folder-changed", { detail: state.folder }));
@@ -6891,6 +7263,9 @@ async function chooseFolder() {
   applyPersistentDecisionRecords([]);
   state.quarantineSelected.clear();
   state.quarantinePlan = null;
+  state.quarantineExactBatch = false;
+  state.conflictQuarantineSelected.clear();
+  state.conflictQuarantinePlan = null;
   state.technicalDetails = {};
   state.technicalDetailsLoading = "";
   state.technicalDetailsErrors = {};
@@ -7286,6 +7661,8 @@ async function analyzeConflicts({ automated = false, folder = state.folder, runI
   const previousAnalysis = state.conflictsAnalysis;
   const previousSelectedId = state.conflictSelectedId;
   state.conflictsBusy = true;
+  state.conflictQuarantineSelected.clear();
+  state.conflictQuarantinePlan = null;
   state.analysisStatus.conflicts = "running";
   state.conflictsNotice = "";
   state.conflictsError = "";
@@ -7450,7 +7827,20 @@ for (const button of el.openReportFolderButtons) {
   );
 }
 el.duplicatesClearListBtn.addEventListener("click", clearDuplicateList);
+el.duplicatesSelectExactBtn.addEventListener("click", selectExactCopiesForQuarantine);
 el.conflictsClearListBtn.addEventListener("click", clearConflictList);
+el.conflictsPrioritizeBtn.addEventListener("click", () => {
+  state.conflictsFilter = "attention";
+  el.conflictsFilter.value = "attention";
+  persistPreferences();
+  renderConflicts();
+});
+el.conflictsPreviewQuarantineBtn.addEventListener("click", buildConflictQuarantinePreview);
+el.conflictsClearQuarantineBtn.addEventListener("click", () => {
+  state.conflictQuarantineSelected.clear();
+  state.conflictQuarantinePlan = null;
+  renderConflicts();
+});
 el.structureUpBtn.addEventListener("click", () => {
   const parent = state.structureListing?.parentRelativePath;
   if (parent != null) loadStructure(parent);
@@ -7589,6 +7979,7 @@ el.confirmActionBtn.addEventListener("click", async () => {
   else if (state.pendingAction === "remove_restore_history") await removeSelectedRestoreHistory();
   else if (state.pendingAction === "remove_operation_history") await removeOperationHistoryRecord();
   else if (state.pendingAction === "quarantine") await executeQuarantine();
+  else if (state.pendingAction === "conflict_quarantine") await executeConflictQuarantine();
   else if (state.pendingAction === "clear_cache") {
     await clearAnalysisCache();
     state.pendingAction = "";

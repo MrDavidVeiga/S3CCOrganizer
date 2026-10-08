@@ -79,10 +79,48 @@ fn is_overrides_root(root: &Path) -> bool {
         .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("overrides"))
 }
 
+// Users may select a subfolder of Packages or Overrides as their scan root.
+// Resolve that real in-game loading branch from ancestors, not only from
+// the name of the final directory. The resulting moves stay within root.
+fn loading_branch_ancestor<'a>(root: &'a Path, is_branch: fn(&Path) -> bool) -> Option<&'a Path> {
+    root.ancestors().find(|ancestor| {
+        is_branch(ancestor) && ancestor.parent().is_some_and(is_mods_root)
+    })
+}
+
+fn is_within_packages(root: &Path) -> bool {
+    loading_branch_ancestor(root, is_packages_root).is_some()
+}
+
+fn is_within_overrides(root: &Path) -> bool {
+    loading_branch_ancestor(root, is_overrides_root).is_some()
+}
+
+// A user scanning Packages/Clothing/Male must not receive the redundant
+// destination Packages/Clothing/Male/Clothing/Male/YA-A/Top. Only trim when
+// the entire already-selected subpath is a matching prefix.
+fn trim_selected_branch_prefix(
+    root: &Path,
+    branch: &Path,
+    parts: &mut Vec<String>,
+) {
+    let Ok(relative) = root.strip_prefix(branch) else { return };
+    let existing = relative.components().filter_map(|part| match part {
+        Component::Normal(value) => Some(value.to_string_lossy().to_string()),
+        _ => None,
+    }).collect::<Vec<_>>();
+    if !existing.is_empty() && parts.len() >= existing.len()
+        && parts.iter().take(existing.len()).zip(existing.iter())
+            .all(|(left, right)| left.eq_ignore_ascii_case(right))
+    {
+        parts.drain(..existing.len());
+    }
+}
+
 // The origin decides the loading branch, not the CAS/gameplay category.
 // Normal organization must never move any Override into Packages.
 fn source_uses_overrides(root: &Path, source: &Path) -> bool {
-    if is_overrides_root(root) {
+    if is_within_overrides(root) {
         return true;
     }
     if !is_mods_root(root) {
@@ -112,6 +150,8 @@ fn ensure_source_loading_branch(root: &Path, source: &Path, parts: &[String]) ->
     }
     if is_mods_root(root) {
         parts.insert(0, "Overrides".to_string());
+    } else if let Some(branch) = loading_branch_ancestor(root, is_overrides_root) {
+        trim_selected_branch_prefix(root, branch, &mut parts);
     }
     parts
 }
@@ -165,10 +205,13 @@ fn ensure_packages_destination(root: &Path, parts: &[String]) -> Vec<String> {
     if parts.get(cas_index).is_some_and(|part| part.eq_ignore_ascii_case("CAS")) {
         parts.remove(cas_index);
     }
-    if is_packages_root(root) && has_packages_prefix {
+    if is_within_packages(root) && has_packages_prefix {
         parts.remove(0);
     } else if is_mods_root(root) && !has_packages_prefix {
         parts.insert(0, "Packages".to_string());
+    }
+    if let Some(branch) = loading_branch_ancestor(root, is_packages_root) {
+        trim_selected_branch_prefix(root, branch, &mut parts);
     }
     parts
 }
@@ -791,13 +834,10 @@ pub fn build_organization_plan(
     if !root.is_dir() {
         return Err(format!("Root is not a directory: {}", root.display()));
     }
-    if !is_mods_root(&root) && !is_packages_root(&root) && !is_overrides_root(&root) {
-        return Err(
-            "Select Mods, Mods/Packages or Mods/Overrides to organize. The source loading branch is always preserved."
-                .to_string(),
-        );
-    }
-
+    // The selected root can be Mods, any Packages/Overrides subfolder, or a
+    // self-contained CC staging library elsewhere. All moves remain inside
+    // this canonical root. Never invent an out-of-root destination.
+    //
     // A Mods root may also contain Overrides, DCCache and other directories.
     // Never organize those as Packages or create category folders beside Packages.
     let packages_root = if is_mods_root(&root) {
@@ -1109,7 +1149,7 @@ pub fn build_organization_plan(
         // when Overrides itself was selected is its root (zero categories).
         // This empty path is allowed only after fit_destination_to_resource_cfg
         // has verified that Resource.cfg loads the resulting root-level file.
-        let validated = if is_overrides_root(&root) && destination_parts.is_empty() {
+        let validated = if is_within_overrides(&root) && destination_parts.is_empty() {
             Ok(())
         } else {
             validate_destination_parts(&destination_parts)
@@ -1421,6 +1461,40 @@ mod tests {
                 &["Packages".into(), "Sliders".into()],
             ),
             vec!["Overrides", "Sliders"]
+        );
+    }
+
+    #[test]
+    fn nested_packages_and_overrides_are_valid_organization_roots() {
+        let mods = Path::new("The Sims 3").join("Mods");
+        let deep_packages = mods.join("Packages").join("Clothing").join("Male");
+        let deep_overrides = mods.join("Overrides").join("Gameplay").join("Tuning");
+        assert!(is_within_packages(&deep_packages));
+        assert!(!is_within_overrides(&deep_packages));
+        assert!(is_within_overrides(&deep_overrides));
+        assert!(source_uses_overrides(&deep_overrides, &deep_overrides.join("ui.package")));
+        assert_eq!(
+            ensure_source_loading_branch(
+                &deep_packages,
+                &deep_packages.join("file.package"),
+                &["Packages".into(), "CAS".into(), "Clothing".into(), "Male".into(),
+                    "YA-A".into(), "Top".into()],
+            ),
+            vec!["YA-A", "Top"]
+        );
+        assert_eq!(
+            ensure_source_loading_branch(
+                &deep_overrides,
+                &deep_overrides.join("ui.package"),
+                &["Overrides".into(), "Gameplay".into(), "Tuning".into(), "Scripts".into()],
+            ),
+            vec!["Scripts"]
+        );
+        let staging = Path::new("Downloads").join("CC Incoming");
+        assert!(!is_within_overrides(&staging));
+        assert_eq!(
+            ensure_source_loading_branch(&staging, &staging.join("file.package"), &["Clothing".into()]),
+            vec!["Clothing"]
         );
     }
 

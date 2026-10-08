@@ -92,16 +92,21 @@ fn wildcard_path_match(pattern: &str, value: &str) -> bool {
 }
 
 pub fn find_resource_cfg(selected_root: &Path) -> Option<PathBuf> {
-    let direct = selected_root.join("Resource.cfg");
-    if direct.is_file() {
-        return Some(direct);
+    // A deeply selected Packages/Overrides subfolder must still honor the
+    // Resource.cfg of its ancestor Mods directory. Do not stop at one parent.
+    // Stop as soon as Mods is reached; do not accidentally use a config from
+    // an unrelated grandparent above the game's Mods directory.
+    for directory in selected_root.ancestors() {
+        let candidate = directory.join("Resource.cfg");
+        if candidate.is_file() {
+            return Some(candidate);
+        }
+        if directory.file_name().is_some_and(|name| {
+            name.to_string_lossy().eq_ignore_ascii_case("Mods")
+        }) {
+            break;
+        }
     }
-
-    let parent = selected_root.parent()?.join("Resource.cfg");
-    if parent.is_file() {
-        return Some(parent);
-    }
-
     None
 }
 
@@ -222,6 +227,21 @@ pub fn package_priority(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn config_is_found_above_nested_packages_and_overrides() {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let nonce = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let mods = std::env::temp_dir().join(format!("s3cc-cfg-{}-{}", std::process::id(), nonce)).join("Mods");
+        let deep = mods.join("Packages").join("Clothing").join("Male");
+        let over = mods.join("Overrides").join("Gameplay");
+        std::fs::create_dir_all(&deep).unwrap();
+        std::fs::create_dir_all(&over).unwrap();
+        std::fs::write(mods.join("Resource.cfg"), b"Priority 500\nPackedFile Packages/*/*/*/*.package\nPackedFile Overrides/*/*.package\n").unwrap();
+        assert_eq!(find_resource_cfg(&deep), Some(mods.join("Resource.cfg")));
+        assert_eq!(find_resource_cfg(&over), Some(mods.join("Resource.cfg")));
+        std::fs::remove_dir_all(mods.parent().unwrap()).unwrap();
+    }
 
     #[test]
     fn cached_package_paths_still_match_resource_cfg_after_root_canonicalization() {
