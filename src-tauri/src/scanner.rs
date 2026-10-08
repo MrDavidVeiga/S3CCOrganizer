@@ -1501,6 +1501,60 @@ fn localized_warning(language: AppLanguage, key: &str) -> &'static str {
     }
 }
 
+// A single CC package may legitimately contain CASP entries for several
+// genders/ages. Group these under the closest proven common family instead
+// of mislabeling the whole package Mixed and stranding its old folder.
+fn shared_casp_family(
+    classifications: &[CatalogClassification],
+    types: &BTreeSet<u32>,
+) -> Option<CatalogClassification> {
+    if classifications.len() < 2 || !types.contains(&TYPE_CASP)
+        || types.contains(&TYPE_OBJD)
+        || classifications.iter().any(|value| value.source != "CASP" || value.ambiguous)
+    {
+        return None;
+    }
+    let first = classifications.first()?;
+    if first.main_category.is_empty()
+        || matches!(first.main_category.as_str(), "Unknown" | "Desconhecido" | "Desconocido")
+        || classifications.iter().any(|value| value.main_category != first.main_category)
+    {
+        return None;
+    }
+    let mut shared = first.folder_parts.clone();
+    for candidate in classifications.iter().skip(1) {
+        shared.truncate(shared.iter().zip(&candidate.folder_parts)
+            .take_while(|(left, right)| left == right).count());
+    }
+    // "CAS" by itself is not a category; demand at least a shared CAS
+    // family. Never combine unrelated makeup, clothes and accessories.
+    if shared.len() < 2 {
+        return None;
+    }
+    let common_sub = first.sub_category.as_ref()
+        .filter(|sub| classifications.iter().all(|item| item.sub_category.as_deref() == Some(sub.as_str())));
+    if let Some(sub) = common_sub {
+        if !shared.iter().any(|part| part == sub) {
+            shared.push(sub.clone());
+        }
+    }
+    let mut result = first.clone();
+    result.folder_parts = shared.clone();
+    result.candidate_folder_parts = vec![shared.clone()];
+    result.gender = first.gender.as_ref()
+        .filter(|gender| classifications.iter().all(|v| v.gender.as_ref() == Some(gender)))
+        .cloned();
+    result.age = first.age.as_ref()
+        .filter(|age| classifications.iter().all(|v| v.age.as_ref() == Some(age)))
+        .cloned();
+    result.ambiguous = false;
+    result.technical_reason = format!(
+        "{} corroborated CASP entries share a single catalog family;          combined genders/ages => {}",
+        classifications.len(), shared.join("\\")
+    );
+    Some(result)
+}
+
 fn scan_one(
     root: &Path,
     path: &Path,
@@ -1648,13 +1702,23 @@ fn scan_one(
             Some(path),
         )
     } else if destinations.len() > 1 {
-        warnings.push(localized_warning(language, "mixed").to_string());
-        (
-            "mixed".to_string(),
-            None,
-            Vec::new(),
-            None,
-        )
+        if let Some(shared) = shared_casp_family(&classifications, &type_ids) {
+            let path = shared.folder_parts.join("\\");
+            (
+                "classified".to_string(),
+                Some(shared.clone()),
+                shared.folder_parts,
+                Some(path),
+            )
+        } else {
+            warnings.push(localized_warning(language, "mixed").to_string());
+            (
+                "mixed".to_string(),
+                None,
+                Vec::new(),
+                None,
+            )
+        }
     } else if catalog_resource_count > 0 {
         (
             "needs_review".to_string(),
@@ -2073,6 +2137,35 @@ pub async fn scan_packages(folder: String, language: AppLanguage) -> Result<Scan
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn merged_casp_variants_share_anatomical_family_without_guessing_gender() {
+        let mk = |category: &str, gender: &str, age: &str, subtype: &str| CatalogClassification {
+            source: "CASP".into(), kind: "cas".into(),
+            main_category: category.into(),
+            sub_category: Some(subtype.into()),
+            gender: Some(gender.into()), age: Some(age.into()),
+            species: None, usage_categories: vec![],
+            folder_parts: vec!["CAS".into(), category.into(), gender.into(), age.into(), subtype.into()],
+            candidate_folder_parts: vec![],
+            ambiguous: false, technical_reason: "".into(),
+        };
+        let types = BTreeSet::from([TYPE_CASP]);
+        let glasses = vec![
+            mk("Acessórios", "Masculino", "Adulto", "Óculos"),
+            mk("Acessórios", "Feminino", "Adulto", "Óculos"),
+        ];
+        let common = shared_casp_family(&glasses, &types).unwrap();
+        assert_eq!(common.folder_parts, vec!["CAS", "Acessórios", "Óculos"]);
+        assert_eq!(common.gender, None);
+        assert_eq!(common.sub_category, Some("Óculos".into()));
+        let cross_family = vec![
+            mk("Acessórios", "Masculino", "Adulto", "Óculos"),
+            mk("Cabelos", "Masculino", "Adulto", "Cabelo"),
+        ];
+        assert!(shared_casp_family(&cross_family, &types).is_none());
+        assert!(shared_casp_family(&glasses, &BTreeSet::from([TYPE_CASP, TYPE_OBJD])).is_none());
+    }
 
     #[test]
     fn legacy_active_and_disabled_packages_are_organized_without_reactivating() {
