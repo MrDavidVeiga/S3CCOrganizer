@@ -1848,6 +1848,32 @@ fn physical_destination_parts(
         } else {
             "Packages".to_string()
         });
+    } else {
+        // Mirror planner relative destination normalization. Existing
+        // categories represented by the selected subfolder are not repeated.
+        let branch = root.ancestors().find(|ancestor| {
+            ancestor.file_name().is_some_and(|name| {
+                name.to_string_lossy().eq_ignore_ascii_case("Packages")
+                    || name.to_string_lossy().eq_ignore_ascii_case("Overrides")
+            }) && ancestor.parent().is_some_and(|parent| {
+                parent.file_name().is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("Mods"))
+            })
+        });
+        if let Some(branch) = branch {
+            let existing = root.strip_prefix(branch).ok().into_iter()
+                .flat_map(|relative| relative.components())
+                .filter_map(|part| match part {
+                    std::path::Component::Normal(name) => Some(name.to_string_lossy().to_string()),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            if !existing.is_empty() && result.len() >= existing.len()
+                && result.iter().take(existing.len()).zip(existing.iter())
+                    .all(|(left, right)| left.eq_ignore_ascii_case(right))
+            {
+                result.drain(..existing.len());
+            }
+        }
     }
     result
 }
@@ -2204,6 +2230,23 @@ mod tests {
         assert_eq!(
             physical_destination_parts(&packages, "legacy.package", &["Packages".into(), "CAS".into(), "Sliders".into()]),
             vec!["Sliders"]
+        );
+    }
+
+    #[test]
+    fn nested_scan_previews_do_not_recreate_existing_categories() {
+        let mods = Path::new("Game").join("Mods");
+        let folder = mods.join("Packages").join("Clothing").join("Male");
+        assert_eq!(
+            physical_destination_parts(&folder, "top.package",
+                &["Clothing".into(), "Male".into(), "YA-A".into(), "Top".into()]),
+            vec!["YA-A", "Top"]
+        );
+        let overrides = mods.join("Overrides").join("Gameplay");
+        assert_eq!(
+            physical_destination_parts(&overrides, "tuning.package",
+                &["Overrides".into(), "Gameplay".into(), "Tuning".into()]),
+            vec!["Tuning"]
         );
     }
 
