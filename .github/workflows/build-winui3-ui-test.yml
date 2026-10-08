@@ -15,6 +15,7 @@ on:
       - "scripts/test-fluent-interactions.mjs"
       - "scripts/test-fluent-listview.mjs"
       - "scripts/test-fluent-feedback.mjs"
+      - "scripts/test-fluent-chrome.mjs"
   workflow_dispatch:
 
 permissions:
@@ -61,6 +62,9 @@ jobs:
 
       - name: Test Fluent feedback and progress
         run: node scripts/test-fluent-feedback.mjs
+
+      - name: Test combined Fluent SearchBox Expander ToolTip and window chrome
+        run: node scripts/test-fluent-chrome.mjs
 
       - name: Reconstruct application icon
         shell: pwsh

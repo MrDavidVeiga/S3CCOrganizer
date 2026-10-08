@@ -92,3 +92,8 @@ WebView2 appearance still needs visual acceptance with the new Windows x64 diagn
 ## Combined batches 5–6 (Oct 8)
 
 Batch 5: native details are Fluent Expanders, accessible search inputs are SearchBoxes with a clear button that dispatches existing input/change events, and native tooltips are progressively themed. Batch 6: caption glyphs are vector-normalized; NavigationView keyboard focus/selection and Fluent animations are refined. Respect theme choices and all existing backend operations.
+
+### Stage 5 + 6 validation
+- Dedicated DOM tests for SearchBox's localized clear affordance and original input/change dispatch, native Expander state, keyboard navigation skipping hidden tabs, vector caption icon geometry and asynchronous maximize state, and mouse/keyboard ToolTip accessibility.
+- The default window's Tauri menu behavior still belongs to `src/theme.js` / `getCurrentWindow()`; avoid duplicate resize/window click handlers.
+- Build is diagnostic Windows x64 only, without release/tag/merge.
