@@ -52,7 +52,11 @@ fn classification(
     folder_parts: Vec<&str>,
     detected_from: Vec<&str>,
 ) -> PackageFamilyClassification {
-    let folder_parts = folder_parts.into_iter().map(str::to_string).collect::<Vec<_>>();
+    let mut folder_parts = folder_parts.into_iter().map(str::to_string).collect::<Vec<_>>();
+    // Keep CAS as metadata, but remove it as a physical directory.
+    if folder_parts.first().is_some_and(|part| part == "CAS") {
+        folder_parts.remove(0);
+    }
     let detected_from = detected_from.into_iter().map(str::to_string).collect::<Vec<_>>();
     let technical_reason = format!(
         "Resource family [{}] => {}",
@@ -257,7 +261,7 @@ mod tests {
         let PackageFamilyResult::Classified(value) = result else {
             panic!("expected classified");
         };
-        assert_eq!(value.folder_parts, vec!["CAS", "Genética", "Tons de Pele"]);
+        assert_eq!(value.folder_parts, vec!["Genética", "Tons de Pele"]);
     }
 
     #[test]
@@ -269,7 +273,7 @@ mod tests {
         let PackageFamilyResult::Classified(value) = result else {
             panic!("expected classified");
         };
-        assert_eq!(value.folder_parts, vec!["CAS", "Sliders"]);
+        assert_eq!(value.folder_parts, vec!["Sliders"]);
     }
 
     #[test]
