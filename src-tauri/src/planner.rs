@@ -74,6 +74,48 @@ fn is_packages_root(root: &Path) -> bool {
         .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("packages"))
 }
 
+fn is_overrides_root(root: &Path) -> bool {
+    root.file_name()
+        .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("overrides"))
+}
+
+// The origin decides the loading branch, not the CAS/gameplay category.
+// Normal organization must never move any Override into Packages.
+fn source_uses_overrides(root: &Path, source: &Path) -> bool {
+    if is_overrides_root(root) {
+        return true;
+    }
+    if !is_mods_root(root) {
+        return false;
+    }
+    source.strip_prefix(root).ok()
+        .and_then(|relative| relative.components().next())
+        .is_some_and(|part| match part {
+            Component::Normal(name) => name.to_string_lossy().eq_ignore_ascii_case("Overrides"),
+            _ => false,
+        })
+}
+
+fn ensure_source_loading_branch(root: &Path, source: &Path, parts: &[String]) -> Vec<String> {
+    if !source_uses_overrides(root, source) {
+        return ensure_packages_destination(root, parts);
+    }
+
+    let mut parts = parts.to_vec();
+    if parts.first().is_some_and(|part| part.eq_ignore_ascii_case("Packages")
+        || part.eq_ignore_ascii_case("Overrides"))
+    {
+        parts.remove(0);
+    }
+    if parts.first().is_some_and(|part| part.eq_ignore_ascii_case("CAS")) {
+        parts.remove(0);
+    }
+    if is_mods_root(root) {
+        parts.insert(0, "Overrides".to_string());
+    }
+    parts
+}
+
 // Older versions created their category trees beside Packages inside Mods.
 // Migrate only those recognizable legacy category roots. Never treat
 // Overrides, DCCache or unrelated custom folders as organizer-owned.
@@ -147,8 +189,12 @@ fn fit_destination_to_resource_cfg(
     parts: &[String],
     context: Option<&ResourceCfgContext>,
 ) -> Result<(Vec<String>, Option<String>), String> {
-    let packages_parts = ensure_packages_destination(root, parts);
+    let override_source = source_uses_overrides(root, source);
+    let packages_parts = ensure_source_loading_branch(root, source, parts);
     let Some(context) = context else {
+        if override_source {
+            return Err("Overrides cannot be moved without a readable Resource.cfg. The category remains available for manual review.".to_string());
+        }
         return Ok((packages_parts, None));
     };
 
@@ -209,23 +255,39 @@ fn fit_destination_to_resource_cfg(
 
     let original = proposed.clone();
     let mut compacted = proposed;
-    // Never compact away the literal Packages root under Mods.
-    let minimum_depth = if is_mods_root(root) { 2 } else { 1 };
+    // Protect the loading branch itself. If Overrides/*.package is the
+    // deepest supported rule, only a flat Overrides directory is safe:
+    // preserve the slider/category as metadata instead of creating unloaded
+    // subfolders. Never rename or merge "Overrides" with the category.
+    let minimum_depth = if override_source {
+        if is_mods_root(root) { 1 } else { 0 }
+    } else if is_mods_root(root) {
+        2
+    } else {
+        1
+    };
     while compacted.len() > minimum_depth {
-        let last = compacted.pop().unwrap();
-        let previous = compacted.pop().unwrap();
-        compacted.push(format!("{previous} - {last}"));
+        if override_source && compacted.len() == minimum_depth + 1 {
+            compacted.pop(); // Overrides root itself, not Overrides - Category.
+        } else {
+            let last = compacted.pop().unwrap();
+            let previous = compacted.pop().unwrap();
+            compacted.push(format!("{previous} - {last}"));
+        }
 
         let candidate = destination_path(root, &compacted, file_name);
         if package_priority(&context.info, &context.directory, &candidate).is_some() {
-            return Ok((
-                compacted.clone(),
-                Some(format!(
+            let note = if override_source && compacted.len() == minimum_depth {
+                "Resource.cfg permits only the Overrides root; the semantic category is retained in Manager without creating unloaded subfolders."
+                    .to_string()
+            } else {
+                format!(
                     "Resource.cfg depth adaptation: '{}' was compacted to '{}' so the game can load the organized package.",
                     original.join("\\"),
                     compacted.join("\\")
-                )),
-            ));
+                )
+            };
+            return Ok((compacted.clone(), Some(note)));
         }
     }
 
@@ -341,6 +403,11 @@ fn fallback_relative_path(
     source_hash: &str,
 ) -> Result<(PathBuf, Vec<String>), String> {
     let source_relative = Path::new(source_relative);
+    if source_uses_overrides(root, &root.join(source_relative)) {
+        // An uncategorized/colliding Override must never be redirected into
+        // Packages or an unsupported Overrides subfolder.
+        return Ok((source_relative.to_path_buf(), Vec::new()));
+    }
     let components = source_relative
         .components()
         .map(|component| match component {
@@ -724,9 +791,9 @@ pub fn build_organization_plan(
     if !root.is_dir() {
         return Err(format!("Root is not a directory: {}", root.display()));
     }
-    if !is_mods_root(&root) && !is_packages_root(&root) {
+    if !is_mods_root(&root) && !is_packages_root(&root) && !is_overrides_root(&root) {
         return Err(
-            "Select Mods or Mods/Packages for organization. All category folders must be directly inside Packages."
+            "Select Mods, Mods/Packages or Mods/Overrides to organize. The source loading branch is always preserved."
                 .to_string(),
         );
     }
@@ -855,6 +922,7 @@ pub fn build_organization_plan(
             .as_ref()
             .is_some_and(|packages| !path_is_within_root(packages, &source_canonical))
             && !legacy_manager_source(&root, &source_canonical)
+            && !source_uses_overrides(&root, &source_canonical)
         {
             stats.blocked += 1;
             items.push(make_blocked(
@@ -1008,8 +1076,31 @@ pub fn build_organization_plan(
                 }
             }
             Err(reason) => {
-                stats.blocked += 1;
-                items.push(make_blocked(item, reason));
+                if source_uses_overrides(&root, &source_canonical) {
+                    // Do not block the other Packages in a mixed Mods scan.
+                    // Preserve the Override and its logical classification
+                    // whenever the actual Resource.cfg cannot load a category.
+                    stats.kept_uncategorized += 1;
+                    items.push(PlanItem {
+                        id: item.id.clone(),
+                        name: item.name.clone(),
+                        source_path: source_canonical.to_string_lossy().to_string(),
+                        source_relative_path: item.relative_path.clone(),
+                        destination_path: None,
+                        destination_relative_path: None,
+                        classification_status: item.status.clone(),
+                        classification_reason: classification_reason.clone(),
+                        plan_status: "keep_uncategorized".to_string(),
+                        sha256: Some(source_hash),
+                        size: item.file_size,
+                        warnings: vec![format!(
+                            "Override kept at its original location: {reason}"
+                        )],
+                    });
+                } else {
+                    stats.blocked += 1;
+                    items.push(make_blocked(item, reason));
+                }
                 continue;
             }
         }
@@ -1034,10 +1125,20 @@ pub fn build_organization_plan(
         destination_relative.push(file_name);
 
         let destination = root.join(&destination_relative);
-        if packages_root.is_some() && !destination.starts_with(root.join("Packages")) {
-            stats.blocked += 1;
-            items.push(make_blocked(item, "Destination is outside Mods/Packages.".to_string()));
-            continue;
+        if is_mods_root(&root) {
+            let branch = if source_uses_overrides(&root, &source_canonical) {
+                "Overrides"
+            } else {
+                "Packages"
+            };
+            if !destination.starts_with(root.join(branch)) {
+                stats.blocked += 1;
+                items.push(make_blocked(
+                    item,
+                    format!("Destination escaped its original Mods/{branch} loading branch."),
+                ));
+                continue;
+            }
         }
         let destination_relative_text = relative_key(&destination_relative);
 
