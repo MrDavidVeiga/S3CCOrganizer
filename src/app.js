@@ -2454,6 +2454,10 @@ function t(key) {
 
 function eligibleForPlan(item) {
   if (!item?.path || item.status !== "classified" || !item.destinationPath) return false;
+  // Mods scans can inspect Overrides and other sources, but only files inside
+  // Packages are eligible for automatic organization.
+  if (/[\\/]Mods[\\/]*$/i.test(state.folder || "") &&
+      !/^Packages[\\/]/i.test(String(item.relativePath || ""))) return false;
   return item.classificationConfidence === "high" || item.classificationConfidence === "manual";
 }
 
