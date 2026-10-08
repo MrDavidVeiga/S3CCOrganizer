@@ -1186,14 +1186,29 @@ mod tests {
     }
 
     #[test]
-    fn exact_duplicate_finder_marks_same_sha_without_reopening_dbpf() {
-        let items = vec![
-            ScanPackageItem {
-                id: "duplicate-a".into(),
-                name: "Jonha_BASE.package".into(),
-                path: "invalid.path".into(),
-                relative_path: "Sliders/Jonha_BASE.package".into(),
-                file_size: 100,
+    fn exact_duplicate_index_finds_identical_contents_across_folders() {
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        let nonce = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let root = std::env::temp_dir().join(format!("s3cc-duplicate-preflight-{}-{nonce}", std::process::id()));
+        let packages = root.join("Packages");
+        std::fs::create_dir_all(packages.join("Sliders")).unwrap();
+        let first = packages.join("Jonha_BASE.package");
+        let second = packages.join("Sliders").join("Jonha_Sliders_BASE.package");
+        std::fs::write(&first, b"identical Jonha STBL resources").unwrap();
+        std::fs::write(&second, b"identical Jonha STBL resources").unwrap();
+
+        let mut selected = HashMap::new();
+        let (hash, _) = sha256_file(&first).unwrap();
+        selected.insert(first.canonicalize().unwrap(), hash.clone());
+        let scan_items = vec![&first, &second]
+            .into_iter()
+            .map(|path| ScanPackageItem {
+                id: path.to_string_lossy().to_string(),
+                name: path.file_name().unwrap().to_string_lossy().to_string(),
+                path: path.to_string_lossy().to_string(),
+                relative_path: path.strip_prefix(&packages).unwrap().to_string_lossy().to_string(),
+                file_size: std::fs::metadata(path).unwrap().len(),
                 resource_count: 0,
                 catalog_resource_count: 0,
                 resource_types: Vec::new(),
@@ -1219,9 +1234,11 @@ mod tests {
                 classifications: Vec::new(),
                 classification_reason: None,
                 warnings: Vec::new(),
-            },
-        ];
-        assert_eq!(items[0].name, "Jonha_BASE.package");
+            })
+            .collect::<Vec<_>>();
+        let groups = index_exact_duplicates(&packages, &scan_items, &selected);
+        assert_eq!(groups[&hash.to_ascii_uppercase()].len(), 2);
+        std::fs::remove_dir_all(&root).unwrap();
     }
 
     #[test]
