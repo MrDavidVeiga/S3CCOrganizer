@@ -103,6 +103,11 @@ body.release-v1 .catalog-row {
 body.release-v1 .catalog-row:nth-child(even) {
   background: var(--winui-card-fill-alt);
 }
+/* The selected fill wins even on alternating (even-numbered) catalog rows. */
+body.release-v1 .catalog-row.selected,
+body.release-v1 .catalog-row:nth-child(even).selected {
+  background: var(--fluent-list-selected-fill);
+}
 body.release-v1 .catalog-grid-header {
   background: var(--winui-popup);
   border-bottom-color: var(--fluent-list-row-divider);
