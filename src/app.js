@@ -69,6 +69,8 @@ const I18N = {
     organizedPackages: "packages organized",
     duplicatesPending: "identical duplicates pending review",
     collisionsPending: "collisions pending review",
+    emptyOldFoldersRemoved: "obsolete empty folders removed",
+    oldFoldersStillOccupied: "source folders still contain files (preserved)",
     reviewDuplicates: "Review Duplicates",
     reviewCollisions: "Review Collisions",
     collisionReviewTitle: "Skipped Collisions",
@@ -539,6 +541,8 @@ const I18N = {
     organizedPackages: "packages organizados",
     duplicatesPending: "duplicados idênticos pendentes de revisão",
     collisionsPending: "colisões pendentes de revisão",
+    emptyOldFoldersRemoved: "pastas antigas vazias removidas",
+    oldFoldersStillOccupied: "pastas de origem ainda contêm arquivos (preservadas)",
     reviewDuplicates: "Revisar Duplicados",
     reviewCollisions: "Revisar Colisões",
     collisionReviewTitle: "Colisões Ignoradas",
@@ -1008,6 +1012,8 @@ const I18N = {
     organizedPackages: "packages organizados",
     duplicatesPending: "duplicados idénticos pendientes de revisión",
     collisionsPending: "colisiones pendientes de revisión",
+    emptyOldFoldersRemoved: "carpetas antiguas vacías eliminadas",
+    oldFoldersStillOccupied: "carpetas de origen todavía contienen archivos (conservadas)",
     reviewDuplicates: "Revisar Duplicados",
     reviewCollisions: "Revisar Colisiones",
     collisionReviewTitle: "Colisiones Omitidas",
@@ -5912,8 +5918,18 @@ function renderOrganizationReview() {
   el.organizationReviewPanel?.classList.toggle("hidden", !visible);
   if (!visible) return;
 
-  el.organizationReviewSummary.textContent =
-    `${review.moved ?? 0} ${t("organizedPackages")} · ${review.duplicates ?? 0} ${t("duplicatesPending")} · ${review.collisions ?? 0} ${t("collisionsPending")}`;
+  const summaryParts = [
+    `${review.moved ?? 0} ${t("organizedPackages")}`,
+    `${review.duplicates ?? 0} ${t("duplicatesPending")}`,
+    `${review.collisions ?? 0} ${t("collisionsPending")}`,
+  ];
+  if (review.oldFoldersRemoved > 0) {
+    summaryParts.push(`${review.oldFoldersRemoved} ${t("emptyOldFoldersRemoved")}`);
+  }
+  if (review.oldFoldersRetained > 0) {
+    summaryParts.push(`${review.oldFoldersRetained} ${t("oldFoldersStillOccupied")}`);
+  }
+  el.organizationReviewSummary.textContent = summaryParts.join(" · ");
 
   el.reviewDuplicatesBtn.classList.toggle("hidden", !(review.duplicates > 0));
   el.reviewCollisionsBtn.classList.toggle("hidden", !(review.collisions > 0));
@@ -6609,6 +6625,8 @@ async function executeOrganization() {
         collisions:
           (completedStats.collisionSameContent ?? 0) +
           (completedStats.collisionDifferentContent ?? 0),
+        oldFoldersRemoved: result.oldFoldersRemoved ?? 0,
+        oldFoldersRetained: result.oldFoldersRetained ?? 0,
       };
       state.organizationCollisionItems = collisionItems;
 
