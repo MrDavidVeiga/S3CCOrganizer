@@ -40,6 +40,8 @@ pub fn get_operation_history(folder:String)->Result<Vec<OperationHistoryItem>,St
     let root=PathBuf::from(folder.trim()).canonicalize().map_err(|e|format!("Could not resolve root: {e}"))?;
     let quarantine_dir=root.parent().unwrap_or(&root).join("S3CC Organizer").join("Quarantine Manifests");
     if quarantine_dir.is_dir(){
+        #[cfg(windows)]
+        crate::quarantine::recover_quarantine_manifest_backups(&quarantine_dir)?;
         for entry in std::fs::read_dir(&quarantine_dir).map_err(|e|e.to_string())?.filter_map(Result::ok){
             if !entry.path().is_file() || entry.path().extension().and_then(|s|s.to_str()) != Some("json"){continue;}
             let timestamp=entry.metadata().ok().and_then(|m|m.modified().ok())
