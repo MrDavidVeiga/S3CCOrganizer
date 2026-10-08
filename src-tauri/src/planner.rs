@@ -324,18 +324,17 @@ fn fallback_relative_path(
         .ok_or_else(|| "Source relative path has no filename.".to_string())?;
 
     let mut parent_parts = components[..components.len().saturating_sub(1)].to_vec();
-    if parent_parts
-        .first()
-        .map(|value| is_not_categorized_root(value))
-        .unwrap_or(false)
-    {
-        parent_parts.remove(0);
-    }
-
     if is_mods_root(root)
         && parent_parts
             .first()
             .is_some_and(|part| part.eq_ignore_ascii_case("packages"))
+    {
+        parent_parts.remove(0);
+    }
+    if parent_parts
+        .first()
+        .map(|value| is_not_categorized_root(value))
+        .unwrap_or(false)
     {
         parent_parts.remove(0);
     }
@@ -965,7 +964,8 @@ mod tests {
 
     #[test]
     fn mods_root_always_routes_categories_into_packages() {
-        let mods = Path::new(r"C:\The Sims 3\Mods");
+        let mods_base = Path::new("The Sims 3").join("Mods");
+        let mods = mods_base.as_path();
         let categories = vec!["CAS".into(), "Clothing".into(), "Female".into()];
         assert_eq!(
             ensure_packages_destination(mods, &categories),
@@ -979,14 +979,16 @@ mod tests {
 
     #[test]
     fn already_selected_packages_root_does_not_duplicate_folder_name() {
-        let packages = Path::new(r"C:\The Sims 3\Mods\Packages");
+        let packages_base = Path::new("The Sims 3").join("Mods").join("Packages");
+        let packages = packages_base.as_path();
         let categories = vec!["CAS".into(), "Hair".into()];
         assert_eq!(ensure_packages_destination(packages, &categories), categories);
     }
 
     #[test]
     fn uncovered_resource_cfg_source_still_keeps_packages_prefix() {
-        let root = Path::new(r"C:\The Sims 3\Mods");
+        let mods_base = Path::new("The Sims 3").join("Mods");
+        let root = mods_base.as_path();
         let parts = vec!["Scripts".to_string(), "Gameplay".to_string()];
         let (resolved, _) = fit_destination_to_resource_cfg(
             root,
