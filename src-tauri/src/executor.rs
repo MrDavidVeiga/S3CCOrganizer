@@ -273,13 +273,9 @@ pub fn execute_organization(
             fs::create_dir_all(parent)
                 .map_err(|error| format!("Could not create {}: {error}", parent.display()))?;
 
-            fs::rename(&source, &destination).map_err(|error| {
-                format!(
-                    "Could not move {} -> {}: {error}",
-                    source.display(),
-                    destination.display()
-                )
-            })?;
+            // The shared transfer helper guarantees no-overwrite even if a
+            // destination appears between preflight and the actual move.
+            crate::quarantine::transfer_no_replace(&source, &destination, expected_hash, item.size)?;
 
             // The move has happened: include it in rollback even if the
             // following post-move identity check fails.
@@ -329,13 +325,7 @@ pub fn execute_organization(
                     })?;
                 }
 
-                fs::rename(destination, source).map_err(|error| {
-                    format!(
-                        "Could not rollback {} -> {}: {error}",
-                        destination.display(),
-                        source.display()
-                    )
-                })?;
+                crate::quarantine::transfer_no_replace(destination, source, expected_hash, *expected_size)?;
 
                 verify_identity(source, expected_hash, *expected_size)?;
                 Ok(())
