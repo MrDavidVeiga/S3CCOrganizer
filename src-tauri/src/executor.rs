@@ -103,7 +103,7 @@ fn snapshot_entries(root: &Path, ready: &[&PlanItem]) -> Result<Vec<RestoreEntry
     for (index, file) in package_paths.iter().enumerate() {
         let absolute = file
             .canonicalize()
-            .map_err(|error| format!("Could not resolve {}: {error}", entry.path().display()))?;
+            .map_err(|error| format!("Could not resolve {}: {error}", file.display()))?;
         let original_relative = absolute
             .strip_prefix(root)
             .map_err(|_| format!("Snapshot file escaped root: {}", absolute.display()))?
