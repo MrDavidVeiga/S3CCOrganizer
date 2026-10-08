@@ -2817,9 +2817,10 @@ button:disabled {
   transition: border-color .18s ease, background .18s ease, transform .18s ease;
 }
 
-.package-preview-thumb-wrap:hover {
-  border-color: rgba(127,173,45,.5);
-  background: rgba(97,132,34,.08);
+.package-preview-thumb-wrap:hover,
+.package-preview-thumb-wrap:focus-visible {
+  border-color: var(--accent-outline);
+  background: var(--accent-low);
 }
 
 .package-preview-thumb-wrap:active {
@@ -2936,10 +2937,11 @@ button:disabled {
   transition: background .18s ease, border-color .18s ease, color .18s ease, transform .18s ease;
 }
 
-.social-icons-list li a:hover {
-  background: rgba(97,132,34,.15);
-  border-color: rgba(97,132,34,.5);
-  color: #9acd3f;
+.social-icons-list li a:hover,
+.social-icons-list li a:focus-visible {
+  background: var(--accent-low);
+  border-color: var(--accent-outline);
+  color: var(--theme-icon-hover, var(--accent));
   transform: translateY(-2px);
 }
 
@@ -3349,9 +3351,12 @@ button:disabled {
 }
 
 .catalog-mini-icon:hover,
-.catalog-row-button:hover {
-  color: #9acd3f;
-  background: rgba(97,132,34,.12);
+.catalog-mini-icon:focus-visible,
+.catalog-row-button:hover,
+.catalog-row-button:focus-visible {
+  color: var(--theme-icon-hover, var(--accent));
+  background: var(--accent-low);
+  outline-color: var(--accent-outline);
 }
 
 .catalog-row-actions {
