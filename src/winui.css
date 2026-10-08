@@ -223,7 +223,7 @@ body.release-v1 {
 .release-v1 .package-row:hover,.release-v1 .duplicate-row:hover,.release-v1 .conflict-row:hover { background:var(--winui-control-fill); }
 .release-v1 .package-row.active { border-color:transparent; background:var(--winui-control-fill-hover); box-shadow:inset 3px 0 0 var(--accent); }
 
-.release-v1 .planner-modal,.release-v1 .confirm-modal,.release-v1 .duplicate-details-modal,.release-v1 .collision-review-modal,.release-v1 .catalog-import-modal {
+.release-v1 .planner-modal,.release-v1 .confirm-modal,.release-v1 .duplicate-details-modal,.release-v1 .conflict-details-modal,.release-v1 .collision-review-modal,.release-v1 .catalog-import-modal {
   border-color:var(--winui-control-stroke); border-radius:var(--winui-overlay-radius); background:var(--winui-popup);
   color:var(--winui-text-primary); box-shadow:0 22px 56px var(--winui-shadow);
 }
