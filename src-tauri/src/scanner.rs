@@ -323,6 +323,26 @@ fn verified_script_creator(package: &Package, name: &str) -> Option<String> {
     Some(pretty_creator_label(&candidate))
 }
 
+// A standalone assembly name is not a creator. Match the complete package
+// stem against embedded identifiers to recover primary gameplay assemblies
+// that also include unrelated CASP/OBJD resources.
+fn verified_standalone_script_identity(package: &Package, name: &str) -> bool {
+    if creator_candidate_from_filename(name).is_some() {
+        return false;
+    }
+    let Some(stem) = Path::new(name).file_stem() else { return false };
+    let stem = strip_leading_status_tags(&stem.to_string_lossy());
+    let stem = stem.trim();
+    if !(8..=80).contains(&stem.len()) || !stem.chars().any(|ch| ch.is_ascii_alphabetic()) {
+        return false;
+    }
+    internal_signature(
+        package,
+        &[TYPE_S3SA, TYPE_NMAP_LOCAL, TYPE_XML_LOCAL, TYPE_ITUN_LOCAL, TYPE_STBL_LOCAL, TYPE_MANIFEST_LOCAL],
+        &[stem],
+    ).is_some()
+}
+
 fn generic_container_folder(value: &str) -> bool {
     matches!(
         value.trim().to_ascii_lowercase().as_str(),
@@ -482,8 +502,9 @@ fn catalog_precedes_embedded_script(
     if scripts_folder {
         return false;
     }
-    if classification.detected_from.iter().any(|source| source == "InternalCreator")
-        && (catalog_destinations != 1 || catalog_ambiguous)
+    if classification.detected_from.iter().any(|source| {
+        source == "InternalCreator" || source == "InternalScriptIdentity"
+    }) && (catalog_destinations != 1 || catalog_ambiguous)
     {
         return false;
     }
@@ -525,6 +546,14 @@ fn special_package_classification(
         let mod_name = inferred_script_mod_name(name, relative);
         let mut folder_parts = vec![gameplay.clone()];
         let mut detected_from = vec!["S3SA".to_string()];
+        if catalog_resource_count > 0
+            && type_ids.contains(&TYPE_CASP)
+            && type_ids.contains(&TYPE_OBJD)
+            && !store_name_hint(relative)
+            && verified_standalone_script_identity(package, name)
+        {
+            detected_from.push("InternalScriptIdentity".to_string());
+        }
 
         if let Some(creator) = creator {
             folder_parts.push(creator);
@@ -1768,6 +1797,19 @@ mod tests {
         };
         assert!(!catalog_precedes_embedded_script(
             Some(&verified), 2, "#+18/AnimatedWoohoo.package", 2, false
+        ));
+        let standalone_identity = PackageFamilyClassification {
+            detected_from: vec!["S3SA".into(), "InternalScriptIdentity".into()],
+            ..script.clone()
+        };
+        assert!(!catalog_precedes_embedded_script(
+            Some(&standalone_identity), 2, "#+18/AnimatedWoohoo.package", 2, false
+        ));
+        assert!(catalog_precedes_embedded_script(
+            Some(&standalone_identity), 2, "Packages/#9 Store/Store Content/[Items] Al Fresco.package", 2, false
+        ));
+        assert!(catalog_precedes_embedded_script(
+            Some(&script), 2, "#+18/UnknownResourceBundle.package", 2, false
         ));
         assert!(catalog_precedes_embedded_script(
             Some(&verified), 2, "Packages/#9 Store/Store Content/[Items] Le Cinema.package", 2, false
