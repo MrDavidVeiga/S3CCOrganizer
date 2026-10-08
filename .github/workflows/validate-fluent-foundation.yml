@@ -1,0 +1,30 @@
+name: Validate Fluent foundation
+
+on:
+  push:
+    branches:
+      - feature/winui3-full-fidelity
+    paths:
+      - "src/**"
+      - "index.html"
+      - "scripts/verify-fluent-foundation.mjs"
+      - ".github/workflows/validate-fluent-foundation.yml"
+      - "package.json"
+  workflow_dispatch:
+
+jobs:
+  frontend:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+      - name: Install dependencies
+        run: npm install
+      - name: Verify Fluent foundation
+        run: node scripts/verify-fluent-foundation.mjs
+      - name: Build Vite frontend
+        run: npm run build
