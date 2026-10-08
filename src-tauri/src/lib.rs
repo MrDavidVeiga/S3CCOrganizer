@@ -90,6 +90,7 @@ pub fn run() {
             restore_history::remove_restore_history,
             review_store::load_conflict_decisions,
             review_store::set_conflict_decision,
+            review_store::set_conflict_decisions_bulk,
             audit_report::save_audit_report,
             structure_manager::list_structure,
             structure_manager::list_structure_directories,

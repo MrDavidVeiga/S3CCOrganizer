@@ -173,9 +173,116 @@ pub fn set_conflict_decision(
     Ok(store.decisions.into_values().collect())
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConflictDecisionChange {
+    pub decision_key: String,
+    pub mark: Option<String>,
+    pub left_sha256: String,
+    pub right_sha256: String,
+    pub left_relative_path: String,
+    pub right_relative_path: String,
+}
+
+fn apply_bulk_changes(
+    store: &mut ConflictDecisionStore,
+    changes: Vec<ConflictDecisionChange>,
+) -> Result<(), String> {
+    // Validate the *whole* batch before modifying the store. A single
+    // incorrect key must never persist a partial set of review decisions.
+    if changes.len() > 10_000 {
+        return Err("Too many conflict review decisions in one batch.".into());
+    }
+    let mut seen = std::collections::HashSet::new();
+    let mut updates = Vec::with_capacity(changes.len());
+    for change in changes {
+        if !seen.insert(change.decision_key.clone()) {
+            return Err("Conflict review batch contains a repeated decision key.".into());
+        }
+        if change.decision_key != expected_decision_key(&change.left_sha256, &change.right_sha256)? {
+            return Err("Conflict review decision key does not match package hashes.".into());
+        }
+        if change.left_relative_path.is_empty() || change.right_relative_path.is_empty() {
+            return Err("Conflict decision is missing package paths.".into());
+        }
+        match change.mark.as_deref() {
+            None => updates.push((change.decision_key, None)),
+            Some(INTENTIONAL_MARK) => {
+                let hashes = normalized_hash_pair(&change.left_sha256, &change.right_sha256)?;
+                let mut paths = [change.left_relative_path, change.right_relative_path];
+                paths.sort();
+                let record = ConflictDecisionRecord {
+                    decision_key: change.decision_key.clone(),
+                    mark: INTENTIONAL_MARK.into(),
+                    left_sha256: hashes[0].clone(),
+                    right_sha256: hashes[1].clone(),
+                    left_relative_path: paths[0].clone(),
+                    right_relative_path: paths[1].clone(),
+                    updated_at: Local::now().to_rfc3339(),
+                };
+                updates.push((change.decision_key, Some(record)));
+            }
+            Some(other) => return Err(format!("Unsupported bulk review mark: {other}")),
+        }
+    }
+    for (key, record) in updates {
+        if let Some(record) = record {
+            store.decisions.insert(key, record);
+        } else {
+            store.decisions.remove(&key);
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn set_conflict_decisions_bulk(
+    folder: String,
+    changes: Vec<ConflictDecisionChange>,
+) -> Result<Vec<ConflictDecisionRecord>, String> {
+    let root = canonical_root(&folder)?;
+    if changes.is_empty() {
+        return Ok(load_store(&root).decisions.into_values().collect());
+    }
+    let mut store = load_store(&root);
+    apply_bulk_changes(&mut store, changes)?;
+    // One persistence operation rather than N reads and writes.
+    save_store(&root, &store)?;
+    Ok(store.decisions.into_values().collect())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn bulk_validation_is_atomic_and_deduplicates_no_decisions() {
+        let a = "a".repeat(64);
+        let b = "b".repeat(64);
+        let key = expected_decision_key(&a, &b).unwrap();
+        let valid = ConflictDecisionChange {
+            decision_key: key.clone(),
+            mark: Some(INTENTIONAL_MARK.into()),
+            left_sha256: a.clone(), right_sha256: b.clone(),
+            left_relative_path: "Packages/a.package".into(),
+            right_relative_path: "Packages/b.package".into(),
+        };
+        let mut store = ConflictDecisionStore::default();
+        assert!(apply_bulk_changes(&mut store, vec![
+            valid.clone(),
+            ConflictDecisionChange { decision_key: "wrong".into(), ..valid.clone() },
+        ]).is_err());
+        assert!(store.decisions.is_empty());
+        apply_bulk_changes(&mut store, vec![valid.clone()]).unwrap();
+        assert_eq!(store.decisions.len(), 1);
+        assert_eq!(store.decisions.get(&key).unwrap().mark, INTENTIONAL_MARK);
+        let duplicate = vec![valid.clone(), valid.clone()];
+        assert!(apply_bulk_changes(&mut store, duplicate).is_err());
+        assert_eq!(store.decisions.len(), 1);
+        let clear = ConflictDecisionChange { mark: None, ..valid };
+        apply_bulk_changes(&mut store, vec![clear]).unwrap();
+        assert!(store.decisions.is_empty());
+    }
 
     #[test]
     fn store_path_is_outside_packages_tree() {

@@ -465,7 +465,11 @@ fn execute_organization_core(
                 )
             })?;
 
-            verify_identity(&destination, expected_hash, item.size)?;
+            // rename() stays on the same filesystem and changes only the
+            // directory entry; SHA-256 was checked immediately before it.
+            // Re-hashing the unchanged bytes at the destination doubled I/O
+            // for large CC files without adding a separate copy-verification
+            // guarantee. The recovery manifest retains the verified hash.
             Ok(())
         })();
 
@@ -522,7 +526,9 @@ fn execute_organization_core(
                     )
                 })?;
 
-                verify_identity(source, expected_hash, *expected_size)?;
+                // As above, rename only changes the directory entry.
+                // The quarantined destination was SHA-256 verified just
+                // before rollback; avoid an identical extra full-file read.
                 Ok(())
             })();
 

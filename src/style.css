@@ -4865,3 +4865,22 @@ body.release-v1 .conflicts-results {
 .conflict-row-shell > .conflict-row { flex:1 1 auto; min-width:0; }
 .conflict-row-select { flex:0 0 auto; margin:0 2px; }
 .conflict-row-shell.selected > .conflict-row { border-color:var(--winui-accent,var(--green)); }
+
+/* Native selection controls share the virtualized WinUI row geometry. */
+.duplicate-row-shell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 53px;
+  min-height: 53px;
+  flex: 0 0 53px;
+}
+.duplicate-row-shell > .duplicate-row {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.duplicate-row-select { flex: 0 0 auto; margin: 0 2px; }
+.duplicate-row-shell.selected > .duplicate-row {
+  border-color: var(--winui-accent, var(--green));
+}
+.conflict-row.reviewed { border-inline-start: 2px solid var(--winui-accent, var(--green)); }

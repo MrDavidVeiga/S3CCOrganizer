@@ -4,6 +4,18 @@ import { open } from "@tauri-apps/plugin-dialog";
 
 const I18N = {
   en: {
+    organizeElapsed: "Elapsed",
+    selectVisibleExactGroups: "Select Filtered Exact Groups",
+    exactOnlySelectionHint: "Clear other selections before using an exact-duplicate batch.",
+    markSelectedIntentional: "Mark Selected Intentional",
+    markSelectedReviewed: "Mark Selected Reviewed (Session)",
+    ignoreSelectedSession: "Ignore Selected (Session)",
+    clearSelectedMarks: "Clear Selected Marks",
+    reviewedSession: "Reviewed This Session",
+    batchMarkedReviewed: "Reviewed for this session",
+    batchMarkedIgnored: "Ignored for this session",
+    batchMarkedIntentional: "Marked intentional persistently",
+    batchMarksCleared: "Selected markings cleared",
     organizer: "Organizer",
     duplicates: "Duplicates",
     conflicts: "Conflicts",
@@ -532,6 +544,18 @@ const I18N = {
     conflictsNext: "Resource-level conflict analysis is implemented in read-only mode.",
   },
   pt: {
+    organizeElapsed: "Tempo decorrido",
+    selectVisibleExactGroups: "Selecionar Grupos Exatos Filtrados",
+    exactOnlySelectionHint: "Limpe as outras seleções antes de selecionar duplicatas exatas em lote.",
+    markSelectedIntentional: "Marcar Selecionados como Intencionais",
+    markSelectedReviewed: "Marcar Selecionados como Revisados (Sessão)",
+    ignoreSelectedSession: "Ignorar Selecionados (Sessão)",
+    clearSelectedMarks: "Limpar Marcações dos Selecionados",
+    reviewedSession: "Revisado Nesta Sessão",
+    batchMarkedReviewed: "Revisados nesta sessão",
+    batchMarkedIgnored: "Ignorados nesta sessão",
+    batchMarkedIntentional: "Marcados como intencionais permanentemente",
+    batchMarksCleared: "Marcações selecionadas removidas",
     organizer: "Organizador",
     duplicates: "Duplicados",
     conflicts: "Conflitos",
@@ -1059,6 +1083,18 @@ const I18N = {
     conflictsNext: "A análise de conflitos por resource está implementada em modo somente leitura.",
   },
   es: {
+    organizeElapsed: "Tiempo transcurrido",
+    selectVisibleExactGroups: "Seleccionar Grupos Exactos Filtrados",
+    exactOnlySelectionHint: "Limpia las otras selecciones antes de seleccionar duplicados exactos por lotes.",
+    markSelectedIntentional: "Marcar Seleccionados como Intencionales",
+    markSelectedReviewed: "Marcar Seleccionados como Revisados (Sesión)",
+    ignoreSelectedSession: "Ignorar Seleccionados (Sesión)",
+    clearSelectedMarks: "Limpiar Marcas de Seleccionados",
+    reviewedSession: "Revisado en Esta Sesión",
+    batchMarkedReviewed: "Revisados en esta sesión",
+    batchMarkedIgnored: "Ignorados en esta sesión",
+    batchMarkedIntentional: "Marcados como intencionales permanentemente",
+    batchMarksCleared: "Marcas seleccionadas eliminadas",
     organizer: "Organizador",
     duplicates: "Duplicados",
     conflicts: "Conflictos",
@@ -1678,7 +1714,10 @@ const state = {
   quarantineSelected: new Set(),
   quarantinePlan: null,
   quarantineExactBatch: false,
+  lastExactGroupAnchor: null,
+  postQuarantineNotice: null,
   conflictReviewSelected: new Set(),
+  lastConflictReviewAnchor: null,
   conflictsSelectedOnly: false,
   conflictQuarantineSelected: new Set(),
   conflictQuarantinePlan: null,
@@ -1985,6 +2024,7 @@ const el = {
   duplicatesClearListBtn: document.querySelector("#duplicates-clear-list-btn"),
   duplicatesSelectExactBtn: document.querySelector("#duplicates-select-exact-btn"),
   duplicatesSelectCurrentBtn: document.querySelector("#duplicates-select-current-btn"),
+  duplicatesSelectVisibleBtn: document.querySelector("#duplicates-select-visible-btn"),
   duplicatesPreviewAllBtn: document.querySelector("#duplicates-preview-all-btn"),
   duplicatesClearSelectionBtn: document.querySelector("#duplicates-clear-selection-btn"),
   duplicatesBatchSummary: document.querySelector("#duplicates-batch-summary"),
@@ -1994,6 +2034,10 @@ const el = {
   conflictsSelectDetectedBtn: document.querySelector("#conflicts-select-detected-btn"),
   conflictsClearReviewBtn: document.querySelector("#conflicts-clear-review-btn"),
   conflictsPrioritizeSelectedBtn: document.querySelector("#conflicts-prioritize-selected-btn"),
+  conflictsMarkIntentionalBtn: document.querySelector("#conflicts-mark-intentional-btn"),
+  conflictsMarkReviewedBtn: document.querySelector("#conflicts-mark-reviewed-btn"),
+  conflictsMarkIgnoredBtn: document.querySelector("#conflicts-mark-ignored-btn"),
+  conflictsClearMarksBtn: document.querySelector("#conflicts-clear-marks-btn"),
   conflictsReviewSelectionCount: document.querySelector("#conflicts-review-selection-count"),
   conflictsPrioritizeBtn: document.querySelector("#conflicts-prioritize-btn"),
   conflictsPreviewQuarantineBtn: document.querySelector("#conflicts-preview-quarantine-btn"),
@@ -2296,6 +2340,7 @@ async function refreshConflictDecisions() {
 function effectiveConflictMark(finding) {
   if (!finding) return null;
   if (state.conflictMarks[finding.id] === "ignored") return "ignored";
+  if (state.conflictMarks[finding.id] === "reviewed") return "reviewed";
   if (state.persistentConflictMarks[finding.decisionKey] === "intentional") return "intentional";
   return null;
 }
@@ -2303,14 +2348,14 @@ function effectiveConflictMark(finding) {
 async function setConflictMark(finding, mark) {
   if (!finding || state.reviewBusy) return;
 
-  if (mark === "ignored") {
-    state.conflictMarks[finding.id] = "ignored";
+  if (mark === "ignored" || mark === "reviewed") {
+    state.conflictMarks[finding.id] = mark;
     conflictMarksVersion += 1;
     renderConflicts();
     return;
   }
 
-  if (mark === null && state.conflictMarks[finding.id] === "ignored") {
+  if (mark === null && ["ignored", "reviewed"].includes(state.conflictMarks[finding.id])) {
     delete state.conflictMarks[finding.id];
     conflictMarksVersion += 1;
     renderConflicts();
@@ -3095,6 +3140,78 @@ async function selectExactCopiesForQuarantine() {
   await buildQuarantinePreview();
 }
 
+function selectFilteredExactDuplicateGroups() {
+  if (!state.duplicatesAnalysis || state.quarantineBusy || workspaceReadOnly()) return;
+  const groups = exactDuplicateGroups();
+  const exactPaths = new Set(groups.flatMap(group => (group.members || []).map(member => member.path)));
+  if ([...state.quarantineSelected].some(path => !exactPaths.has(path))) {
+    state.duplicatesError = t("exactOnlySelectionHint");
+    renderDuplicates();
+    return;
+  }
+  const visibleIds = new Set(visibleDuplicateFindings().filter(item =>
+    item.findingType === "group" && item.kind === "exact_duplicate"
+  ).map(item => item.id));
+  const selected = new Set(state.quarantineSelected);
+  for (const group of groups) {
+    if (!visibleIds.has(group.id)) continue;
+    const ordered = [...group.members].sort(compareExactKeepers);
+    const keeper = ordered.find(member => !selected.has(member.path));
+    if (!keeper) continue;
+    for (const member of ordered) if (member.path !== keeper.path) selected.add(member.path);
+  }
+  state.quarantineSelected = selected;
+  state.quarantineExactBatch = true;
+  state.quarantinePlan = null;
+  state.duplicatesError = "";
+  state.duplicatesNotice = `${t("bulkExactSummary")} (${selected.size})`;
+  renderDuplicates();
+  renderDuplicatesPreview();
+}
+
+function selectExactGroupRows(ids, select = true) {
+  const groups = exactDuplicateGroups().filter(group => ids.has(group.id));
+  const exactPaths = new Set(exactDuplicateGroups().flatMap(group => group.members.map(m => m.path)));
+  if ([...state.quarantineSelected].some(path => !exactPaths.has(path))) {
+    state.duplicatesError = t("exactOnlySelectionHint");
+    renderDuplicates();
+    return;
+  }
+  const selected = new Set(state.quarantineSelected);
+  for (const group of groups) {
+    if (!select) {
+      for (const member of group.members) selected.delete(member.path);
+    } else {
+      const ordered = [...group.members].sort(compareExactKeepers);
+      const keeper = ordered.find(m => !selected.has(m.path));
+      if (!keeper) continue;
+      for (const member of ordered) if (member.path !== keeper.path) selected.add(member.path);
+    }
+  }
+  state.quarantineSelected = selected;
+  state.quarantineExactBatch = true;
+  state.quarantinePlan = null;
+  renderDuplicates();
+  renderDuplicatesPreview();
+}
+
+function toggleExactGroupFromRow(group, selected, event) {
+  if (event?.shiftKey && state.lastExactGroupAnchor) {
+    const groups = visibleDuplicateFindings().filter(item =>
+      item.findingType === "group" && item.kind === "exact_duplicate"
+    );
+    const from = groups.findIndex(g => g.id === state.lastExactGroupAnchor);
+    const to = groups.findIndex(g => g.id === group.id);
+    if (from >= 0 && to >= 0) {
+      selectExactGroupRows(new Set(groups.slice(Math.min(from,to), Math.max(from,to)+1).map(g=>g.id)), selected);
+      state.lastExactGroupAnchor = group.id;
+      return;
+    }
+  }
+  state.lastExactGroupAnchor = group.id;
+  selectExactGroupRows(new Set([group.id]), selected);
+}
+
 function selectOnlyCurrentExactDuplicateGroup() {
   if (!state.duplicatesAnalysis || state.quarantineBusy || workspaceReadOnly()) return;
   const group = exactDuplicateGroups().find(item => item.id === state.duplicateSelectedId);
@@ -3212,7 +3329,9 @@ async function executeQuarantine() {
       ...(state.quarantineExactBatch
         ? { retainedPaths: retainedExactDuplicatePaths() } : {}),
     });
-    state.duplicatesNotice = `${t("quarantineComplete")}: ${result.moved}`;
+    const quarantineNotice = `${t("quarantineComplete")}: ${result.moved}`;
+    state.duplicatesNotice = quarantineNotice;
+    state.postQuarantineNotice = { tab: "duplicates", text: quarantineNotice };
     state.quarantineSelected.clear();
     state.quarantinePlan = null;
     state.quarantineExactBatch = false;
@@ -3595,14 +3714,39 @@ function createDuplicateFindingRow(finding) {
     : String(finding.sharedStructuralCount ?? 0);
 
   button.append(main, count);
-  button.addEventListener("click", () => {
+  const exact = finding.findingType === "group" && finding.kind === "exact_duplicate";
+  button.addEventListener("click", event => {
+    if (exact && (event.shiftKey || event.ctrlKey || event.metaKey)) {
+      const selected = !(finding.members || []).some(member => state.quarantineSelected.has(member.path));
+      toggleExactGroupFromRow(finding, selected, event);
+      return;
+    }
     state.duplicateSelectedId = finding.id;
-    // Global selection belongs to the full analysis, not the clicked row.
-    // Selecting another finding must not discard a multi-group quarantine.
+    // Selection remains global even when details of another group are opened.
     updateActiveVirtualRow(el.duplicatesList, "duplicateId", finding.id, "active");
     openDuplicateDetails();
   });
-  return button;
+  if (!exact) return button;
+  const wrapper = document.createElement("div");
+  wrapper.className = "duplicate-row-shell";
+  const checkbox = document.createElement("input");
+  checkbox.type = "checkbox";
+  checkbox.className = "duplicate-row-select";
+  const selectedCount = (finding.members || []).filter(m => state.quarantineSelected.has(m.path)).length;
+  checkbox.checked = selectedCount > 0;
+  checkbox.indeterminate = selectedCount > 0 && selectedCount < finding.members.length - 1;
+  wrapper.classList.toggle("selected", selectedCount > 0);
+  checkbox.disabled = state.quarantineBusy || state.analysisPipelineBusy || workspaceReadOnly();
+  checkbox.setAttribute("aria-label", `${t("selectForQuarantine")}: ${finding.members?.[0]?.name || finding.id}`);
+  checkbox.addEventListener("click", event => {
+    if (event.shiftKey && state.lastExactGroupAnchor) {
+      event.preventDefault();
+      toggleExactGroupFromRow(finding, selectedCount === 0, event);
+    }
+  });
+  checkbox.addEventListener("change", event => toggleExactGroupFromRow(finding, event.currentTarget.checked, event));
+  wrapper.append(checkbox, button);
+  return wrapper;
 }
 
 function renderDuplicateVirtualRows(findings, force = false) {
@@ -3664,6 +3808,8 @@ function renderDuplicateBatchControls() {
     !exactDuplicateGroups().length || busy || workspaceReadOnly();
   el.duplicatesSelectCurrentBtn.disabled = !hasAnalysis || busy || workspaceReadOnly() ||
     !exactDuplicateGroups().some(item => item.id === state.duplicateSelectedId);
+  el.duplicatesSelectVisibleBtn.disabled = !hasAnalysis || busy || workspaceReadOnly() ||
+    !visibleDuplicateFindings().some(item => item.findingType === "group" && item.kind === "exact_duplicate");
   el.duplicatesPreviewAllBtn.disabled = !hasAnalysis || !count || busy ||
     !exactSurvivorIsSafe() || workspaceReadOnly();
   el.duplicatesClearSelectionBtn.disabled = !count || busy;
@@ -3835,6 +3981,7 @@ function conflictPriorityLabel(finding) {
 }
 
 function toggleConflictReviewSelection(id, selected, row) {
+  state.lastConflictReviewAnchor = id;
   if (selected) state.conflictReviewSelected.add(id);
   else state.conflictReviewSelected.delete(id);
   // Keep the checkbox focused for keyboard use. Rebuild the virtual list
@@ -3844,6 +3991,35 @@ function toggleConflictReviewSelection(id, selected, row) {
     renderConflictBatchControls();
     return;
   }
+  if (!state.conflictReviewSelected.size) state.conflictsSelectedOnly = false;
+  conflictVisibleMemo.analysis = null;
+  renderConflicts();
+  renderConflictVirtualRows(visibleConflictFindings(), true);
+}
+
+function selectConflictReviewRange(targetId, select = true) {
+  const visible = visibleConflictFindings();
+  const from = visible.findIndex(f => f.id === state.lastConflictReviewAnchor);
+  const to = visible.findIndex(f => f.id === targetId);
+  if (from < 0 || to < 0) return false;
+  for (const item of visible.slice(Math.min(from, to), Math.max(from, to) + 1)) {
+    if (select) state.conflictReviewSelected.add(item.id);
+    else state.conflictReviewSelected.delete(item.id);
+  }
+  state.lastConflictReviewAnchor = targetId;
+  if (!state.conflictReviewSelected.size) state.conflictsSelectedOnly = false;
+  conflictVisibleMemo.analysis = null;
+  renderConflicts();
+  renderConflictVirtualRows(visibleConflictFindings(), true);
+  return true;
+}
+
+function toggleConflictReviewFromRow(finding, event) {
+  if (event.shiftKey && selectConflictReviewRange(finding.id)) return;
+  const selected = !state.conflictReviewSelected.has(finding.id);
+  state.lastConflictReviewAnchor = finding.id;
+  if (selected) state.conflictReviewSelected.add(finding.id);
+  else state.conflictReviewSelected.delete(finding.id);
   if (!state.conflictReviewSelected.size) state.conflictsSelectedOnly = false;
   conflictVisibleMemo.analysis = null;
   renderConflicts();
@@ -3897,6 +4073,61 @@ function prioritizeSelectedConflicts() {
   conflictVisibleMemo.analysis = null;
   renderConflicts();
   renderConflictVirtualRows(visibleConflictFindings(), true);
+}
+
+async function applySelectedConflictReviewMark(mark) {
+  if (!state.folder || !state.conflictsAnalysis || !state.conflictReviewSelected.size ||
+      state.reviewBusy || state.quarantineBusy || state.scanning) return;
+  const targets = (state.conflictsAnalysis.findings || []).filter(
+    finding => state.conflictReviewSelected.has(finding.id)
+  );
+  if (!targets.length) return;
+  if (mark === "reviewed" || mark === "ignored") {
+    for (const finding of targets) state.conflictMarks[finding.id] = mark;
+    conflictMarksVersion += 1;
+    state.conflictsNotice = `${targets.length} · ${t(mark === "reviewed" ? "batchMarkedReviewed" : "batchMarkedIgnored")}`;
+    renderConflicts();
+    return;
+  }
+  state.reviewBusy = true;
+  renderConflicts();
+  try {
+    const seen = new Set();
+    const changes = [];
+    for (const finding of targets) {
+      if (mark === "intentional" && isInactiveConflictFinding(finding)) continue;
+      if (mark === "clear" && !state.persistentConflictMarks[finding.decisionKey]) continue;
+      const left = finding.left, right = finding.right;
+      if (!finding.decisionKey || !left?.fileSha256 || !right?.fileSha256 ||
+          !left?.relativePath || !right?.relativePath ||
+          seen.has(finding.decisionKey)) continue;
+      seen.add(finding.decisionKey);
+      changes.push({
+        decisionKey: finding.decisionKey,
+        mark: mark === "intentional" ? "intentional_override" : null,
+        leftSha256: left.fileSha256,
+        rightSha256: right.fileSha256,
+        leftRelativePath: left.relativePath,
+        rightRelativePath: right.relativePath,
+      });
+    }
+    if (changes.length) {
+      const records = await invoke("set_conflict_decisions_bulk", {
+        folder: state.folder, changes,
+      });
+      applyPersistentDecisionRecords(records);
+    }
+    for (const finding of targets) delete state.conflictMarks[finding.id];
+    conflictMarksVersion += 1;
+    state.conflictsNotice = `${targets.length} · ${t(mark === "intentional" ? "batchMarkedIntentional" : "batchMarksCleared")}`;
+  } catch (error) {
+    state.conflictsError = String(error);
+  } finally {
+    state.reviewBusy = false;
+    renderConflicts();
+    renderAuditPanel();
+    renderStructure();
+  }
 }
 
 function conflictSelectionSafe(selection = state.conflictQuarantineSelected) {
@@ -3956,7 +4187,9 @@ async function executeConflictQuarantine() {
       selectedPaths: [...state.conflictQuarantineSelected],
       plannedQuarantineRoot: state.conflictQuarantinePlan.quarantineRoot,
     });
-    state.conflictsNotice = `${t("quarantineComplete")}: ${result.moved}`;
+    const quarantineNotice = `${t("quarantineComplete")}: ${result.moved}`;
+    state.conflictsNotice = quarantineNotice;
+    state.postQuarantineNotice = { tab: "conflicts", text: quarantineNotice };
     state.conflictQuarantineSelected.clear();
     state.conflictQuarantinePlan = null;
     state.conflictsAnalysis = null;
@@ -4042,14 +4275,15 @@ function visibleConflictFindings() {
     } else if (state.conflictsFilter === "intentional_override") {
       if (mark !== "intentional") return false;
     } else {
-      if (mark === "ignored") return false;
+      if (mark === "ignored" &&
+          !(state.conflictsSelectedOnly && state.conflictReviewSelected.has(item.id))) return false;
       const outsideLoadRules = isInactiveConflictFinding(item, analysis);
       // A specific conflict category is an actionable view by default.
       // Inactive overlaps remain accessible in All findings / Outside loading rules.
       if (outsideLoadRules &&
           !["all", "inactive"].includes(state.conflictsFilter)) return false;
       if (state.conflictsFilter === "attention" &&
-          (item.severity === "info" || mark === "intentional" || item.differentPayloadCount === 0)) return false;
+          (item.severity === "info" || mark === "intentional" || mark === "reviewed" || item.differentPayloadCount === 0)) return false;
       if (state.conflictsFilter === "inactive" && !outsideLoadRules) return false;
       if (state.conflictsFilter !== "all" &&
           state.conflictsFilter !== "attention" && state.conflictsFilter !== "inactive") {
@@ -4161,7 +4395,8 @@ function renderConflictsPreview() {
     const markNotice = document.createElement("div");
     markNotice.className = "conflict-session-mark";
     markNotice.textContent =
-      sessionMark === "intentional" ? t("savedIntentionalOverride") : t("ignoredSession");
+      sessionMark === "intentional" ? t("savedIntentionalOverride")
+        : sessionMark === "reviewed" ? t("reviewedSession") : t("ignoredSession");
     reason.appendChild(markNotice);
   }
 
@@ -4426,7 +4661,8 @@ function createConflictFindingRow(finding) {
     "conflict-row" +
     (finding.id === state.conflictSelectedId ? " active" : "") +
     (sessionMark === "intentional" ? " intentional" : "") +
-    (sessionMark === "ignored" ? " ignored" : "");
+    (sessionMark === "ignored" ? " ignored" : "") +
+    (sessionMark === "reviewed" ? " reviewed" : "");
 
   const main = document.createElement("div");
   main.className = "conflict-row-main";
@@ -4453,7 +4689,11 @@ function createConflictFindingRow(finding) {
   side.append(count, dot);
 
   button.append(main, side);
-  button.addEventListener("click", () => {
+  button.addEventListener("click", event => {
+    if (event.shiftKey || event.ctrlKey || event.metaKey) {
+      toggleConflictReviewFromRow(finding, event);
+      return;
+    }
     state.conflictSelectedId = finding.id;
     updateActiveVirtualRow(el.conflictsList, "conflictId", finding.id, "active");
     openConflictDetails();
@@ -4468,6 +4708,13 @@ function createConflictFindingRow(finding) {
   checkbox.checked = state.conflictReviewSelected.has(finding.id);
   checkbox.disabled = state.reviewBusy || state.conflictsBusy || state.quarantineBusy;
   checkbox.setAttribute("aria-label", `${t("selectConflictFinding")}: ${finding.left?.name || "A"} / ${finding.right?.name || "B"}`);
+  checkbox.addEventListener("click", event => {
+    if (event.shiftKey && state.lastConflictReviewAnchor &&
+        visibleConflictFindings().some(f => f.id === state.lastConflictReviewAnchor)) {
+      event.preventDefault();
+      selectConflictReviewRange(finding.id, !state.conflictReviewSelected.has(finding.id));
+    }
+  });
   checkbox.addEventListener("change", () => toggleConflictReviewSelection(finding.id, checkbox.checked, wrapper));
   wrapper.append(checkbox, button);
   return wrapper;
@@ -4538,6 +4785,10 @@ function renderConflictBatchControls() {
       finding.kind !== "shared_identical" && finding.differentPayloadCount > 0);
   el.conflictsClearReviewBtn.disabled = busy || !state.conflictReviewSelected.size;
   el.conflictsPrioritizeSelectedBtn.disabled = busy || !state.conflictReviewSelected.size;
+  for (const button of [el.conflictsMarkIntentionalBtn, el.conflictsMarkReviewedBtn,
+                        el.conflictsMarkIgnoredBtn, el.conflictsClearMarksBtn]) {
+    button.disabled = busy || !state.conflictReviewSelected.size;
+  }
   el.conflictsReviewSelectionCount.textContent = state.conflictsAnalysis
     ? `${t("conflictReviewSelectedCount")}: ${state.conflictReviewSelected.size}`
     : "";
@@ -4749,8 +5000,9 @@ function renderOrganizationProgress() {
   el.organizeProgress.dataset.fluentProgress = determinate ? "determinate" : "indeterminate";
   el.organizeProgressBar.style.width = determinate ? `${pct}%` : "";
   el.organizeProgressPercent.textContent = determinate ? `${pct}%` : "—";
+  const elapsed = `${t("organizeElapsed")}: ${formatMs(status.elapsedMs || 0)}`;
   el.organizeProgressCount.textContent = determinate
-    ? `${integerLabel(processed)} / ${integerLabel(total)}` : "—";
+    ? `${integerLabel(processed)} / ${integerLabel(total)} · ${elapsed}` : elapsed;
   const track = el.organizeProgressBar.parentElement;
   if (determinate) track.setAttribute("aria-valuenow", String(pct));
   else track.removeAttribute("aria-valuenow");
@@ -7778,6 +8030,13 @@ async function runAutomaticAnalyses(folder, runId) {
   } finally {
     if (analysisSessionMatches(folder, runId)) {
       state.analysisPipelineBusy = false;
+      if (state.postQuarantineNotice) {
+        const { tab, text } = state.postQuarantineNotice;
+        state.tab = tab;
+        if (tab === "duplicates") state.duplicatesNotice = text;
+        else if (tab === "conflicts") state.conflictsNotice = text;
+        state.postQuarantineNotice = null;
+      }
       render();
     }
   }
@@ -8228,6 +8487,13 @@ for (const button of el.openReportFolderButtons) {
 el.duplicatesClearListBtn.addEventListener("click", clearDuplicateList);
 el.duplicatesSelectExactBtn.addEventListener("click", selectExactCopiesForQuarantine);
 el.duplicatesSelectCurrentBtn.addEventListener("click", selectOnlyCurrentExactDuplicateGroup);
+el.duplicatesSelectVisibleBtn.addEventListener("click", selectFilteredExactDuplicateGroups);
+el.duplicatesList.addEventListener("keydown", event => {
+  if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "a") {
+    event.preventDefault();
+    selectFilteredExactDuplicateGroups();
+  }
+});
 el.duplicatesPreviewAllBtn.addEventListener("click", buildQuarantinePreview);
 el.duplicatesClearSelectionBtn.addEventListener("click", () => {
   state.quarantineSelected.clear();
@@ -8241,6 +8507,16 @@ el.conflictsSelectAllBtn.addEventListener("click", selectAllVisibleConflicts);
 el.conflictsSelectDetectedBtn.addEventListener("click", selectAllDetectedConflicts);
 el.conflictsClearReviewBtn.addEventListener("click", clearConflictReviewSelection);
 el.conflictsPrioritizeSelectedBtn.addEventListener("click", prioritizeSelectedConflicts);
+el.conflictsMarkIntentionalBtn.addEventListener("click", () => applySelectedConflictReviewMark("intentional"));
+el.conflictsMarkReviewedBtn.addEventListener("click", () => applySelectedConflictReviewMark("reviewed"));
+el.conflictsMarkIgnoredBtn.addEventListener("click", () => applySelectedConflictReviewMark("ignored"));
+el.conflictsClearMarksBtn.addEventListener("click", () => applySelectedConflictReviewMark("clear"));
+el.conflictsList.addEventListener("keydown", event => {
+  if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "a") {
+    event.preventDefault();
+    selectAllVisibleConflicts();
+  }
+});
 el.conflictsPrioritizeBtn.addEventListener("click", () => {
   state.conflictsSelectedOnly = false;
   conflictVisibleMemo.analysis = null;
