@@ -21,13 +21,20 @@ fn reports_dir(root: &Path) -> PathBuf {
     base.join("Veiga's S3CC Manager").join("Reports")
 }
 
-fn unique_paths(directory: &Path) -> (PathBuf, PathBuf) {
+fn unique_paths(directory: &Path, kind: &str) -> (PathBuf, PathBuf) {
+    // kind is validated against the explicit allowlist in save_audit_report.
+    let report_label = match kind {
+        "organizer" => "Organizer",
+        "duplicates" => "Duplicates",
+        "conflicts" => "Conflicts",
+        _ => unreachable!("Report type must be validated"),
+    };
     let stamp = Local::now().format("%Y%m%d-%H%M%S").to_string();
     for suffix in 0..1000usize {
         let base = if suffix == 0 {
-            format!("S3CC-Manager-Audit-{stamp}")
+            format!("S3CC-Manager-{report_label}-Audit-{stamp}")
         } else {
-            format!("S3CC-Manager-Audit-{stamp}-{suffix}")
+            format!("S3CC-Manager-{report_label}-Audit-{stamp}-{suffix}")
         };
         let markdown = directory.join(format!("{base}.md"));
         let json = directory.join(format!("{base}.json"));
@@ -37,8 +44,8 @@ fn unique_paths(directory: &Path) -> (PathBuf, PathBuf) {
     }
 
     (
-        directory.join(format!("S3CC-Manager-Audit-{stamp}-overflow.md")),
-        directory.join(format!("S3CC-Manager-Audit-{stamp}-overflow.json")),
+        directory.join(format!("S3CC-Manager-{report_label}-Audit-{stamp}-overflow.md")),
+        directory.join(format!("S3CC-Manager-{report_label}-Audit-{stamp}-overflow.json")),
     )
 }
 
@@ -53,9 +60,13 @@ fn write_new(path: &Path, content: &[u8]) -> Result<(), String> {
 #[tauri::command]
 pub fn save_audit_report(
     folder: String,
+    kind: String,
     markdown: String,
     json_content: String,
 ) -> Result<AuditReportResult, String> {
+    if !matches!(kind.as_str(), "organizer" | "duplicates" | "conflicts") {
+        return Err("Invalid audit report type.".to_string());
+    }
     let root = PathBuf::from(folder.trim())
         .canonicalize()
         .map_err(|error| format!("Could not resolve Mods root: {error}"))?;
@@ -66,14 +77,17 @@ pub fn save_audit_report(
     if markdown.trim().is_empty() {
         return Err("Markdown audit report is empty.".to_string());
     }
-    serde_json::from_str::<serde_json::Value>(&json_content)
+    let json: serde_json::Value = serde_json::from_str(&json_content)
         .map_err(|error| format!("Audit JSON is invalid: {error}"))?;
+    if json.get("reportKind").and_then(|value| value.as_str()) != Some(kind.as_str()) {
+        return Err("Audit JSON report type does not match the requested export.".to_string());
+    }
 
     let directory = reports_dir(&root);
     fs::create_dir_all(&directory)
         .map_err(|error| format!("Could not create reports directory {}: {error}", directory.display()))?;
 
-    let (markdown_path, json_path) = unique_paths(&directory);
+    let (markdown_path, json_path) = unique_paths(&directory, &kind);
     write_new(&markdown_path, markdown.as_bytes())?;
 
     if let Err(error) = write_new(&json_path, json_content.as_bytes()) {
