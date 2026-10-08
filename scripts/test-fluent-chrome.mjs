@@ -138,6 +138,20 @@ assert.match(original,/src\/ui\/fluent\/chrome\.css/);
 assert.match(original,/src\/ui\/fluent\/tooltips\.css/);
 assert.match(original,/src\/ui\/fluent\/chrome\.js/);
 assert.match(original,/src\/ui\/fluent\/tooltips\.js/);
+// Mean Girls campaign's Get Kit CTA: black-on-white? No: BLACK button,
+ // WHITE foreground. Preserve EA App standard blue/white independently.
+const buttonStyles=read("src/ui/fluent/controls.css");
+const meanGirlsPrimary=buttonStyles.match(/html\[data-theme-choice="mean-girls"\] body\.release-v1 \.primary-btn \{([^}]*)\}/);
+assert(meanGirlsPrimary,"Mean Girls should have its own primary CTA declaration");
+assert.match(meanGirlsPrimary[1],/background: #101010/);
+assert.match(meanGirlsPrimary[1],/color: #ffffff/);
+assert.match(buttonStyles,/html\[data-theme-choice="mean-girls"\] body\.release-v1 \.primary-btn:hover:not\(:disabled\) \{[^}]*background: #292929/);
+assert.match(buttonStyles,/html\[data-theme-choice="mean-girls"\] body\.release-v1 \.primary-btn:active:not\(:disabled\) \{[^}]*background: #050505/);
+const brandTheme=read("src/theme.js");
+const brandWinui=read("src/winui.css");
+assert.match(brandTheme,/EA_APP_ACCENT = "#276AFC"/);
+assert.match(brandWinui,/html\[data-theme-choice="ea-app"\] \.release-v1 \.primary-btn \{[^}]*background: var\(--accent\)/);
+assert.match(brandWinui,/html\[data-theme-choice="mean-girls"\] \.release-v1 \.mode-btn\.active::after \{[^}]*#F92F60/);
 const theme=read("src/theme.js");
 assert.match(theme,/updateCaptionMaximize/);
 assert.match(theme,/onResized/);

@@ -248,6 +248,25 @@ html[data-theme-choice="ea-app"] body.release-v1 .primary-btn {
   color: var(--fluent-accent-foreground);
 }
 
+/* Mean Girls x EA App: the campaign's 'Get Kit' primary action is
+ * black with white type. Keep pink as the accent for selection, progress,
+ * checkboxes and navigation; the standard EA App remains blue/white. */
+html[data-theme-choice="mean-girls"] body.release-v1 .primary-btn {
+  background: #101010;
+  color: #ffffff;
+  border-color: #101010;
+  border-bottom-color: #000000;
+}
+html[data-theme-choice="mean-girls"] body.release-v1 .primary-btn:hover:not(:disabled) {
+  background: #292929;
+  color: #ffffff;
+}
+html[data-theme-choice="mean-girls"] body.release-v1 .primary-btn:active:not(:disabled) {
+  background: #050505;
+  color: #ffffff;
+}
+
+
 @media (prefers-reduced-motion: reduce) {
   body.release-v1 :is(button, input, select) {
     transition: none;

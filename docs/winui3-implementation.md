@@ -97,3 +97,7 @@ Batch 5: native details are Fluent Expanders, accessible search inputs are Searc
 - Dedicated DOM tests for SearchBox's localized clear affordance and original input/change dispatch, native Expander state, keyboard navigation skipping hidden tabs, vector caption icon geometry and asynchronous maximize state, and mouse/keyboard ToolTip accessibility.
 - The default window's Tauri menu behavior still belongs to `src/theme.js` / `getCurrentWindow()`; avoid duplicate resize/window click handlers.
 - Build is diagnostic Windows x64 only, without release/tag/merge.
+
+### Mean Girls primary action parity
+
+Following the campaign's **Get Kit** CTA, primary action buttons in Mean Girls are near-black `#101010` with white `#FFFFFF` text (hover `#292929`, pressed `#050505`). Pink `#F92F60` remains the selection/progress/navigation accent. Standard EA App primary actions remain blue `#276AFC` with white text. This is a theme-specific CSS override, not a shared accent token, so all seven themes retain their other surfaces and semantic status colors.
