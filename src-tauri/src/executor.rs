@@ -290,16 +290,16 @@ fn cleanup_empty_directories_after_organization(
 }
 
 #[tauri::command]
-pub fn execute_organization(
+pub async fn execute_organization(
     folder: String,
     language: AppLanguage,
     selected_paths: Vec<String>,
 ) -> Result<ExecutionResult, String> {
-    execute_organization_with_cfg(folder, language, selected_paths, false, None, Vec::new())
+    execute_organization_with_cfg(folder, language, selected_paths, false, None, Vec::new()).await
 }
 
 #[tauri::command]
-pub fn execute_organization_with_cfg(
+pub async fn execute_organization_with_cfg(
     folder: String,
     language: AppLanguage,
     selected_paths: Vec<String>,
@@ -307,14 +307,19 @@ pub fn execute_organization_with_cfg(
     expected_cfg_hash: Option<String>,
     expected_cfg_rules: Vec<String>,
 ) -> Result<ExecutionResult, String> {
-    // Progress is observable through get_operation_status("organize").
-    // Keep the core transactional; never allow cancelling in the middle
-    // of a move sequence without its built-in rollback.
+    // The extensive snapshot/hash work MUST run off the WebView/main
+    // thread. Otherwise progress polling cannot update the UI.
+    // Keep the file-move/rollback sequence unchanged and uninterruptible.
     operation::begin("organize", "planning");
-    let result = execute_organization_core(
-        folder, language, selected_paths, update_resource_cfg,
-        expected_cfg_hash, expected_cfg_rules,
-    );
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        execute_organization_core(
+            folder, language, selected_paths, update_resource_cfg,
+            expected_cfg_hash, expected_cfg_rules,
+        )
+    })
+    .await
+    .map_err(|error| format!("Organization worker failed: {error}"))
+    .and_then(|output| output);
     match &result {
         Ok(output) if output.status == "COMPLETE" || output.status == "NO_CHANGES" =>
             operation::finish("organize", "complete", None),
