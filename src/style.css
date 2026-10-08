@@ -4775,3 +4775,37 @@ body.release-v1 .conflicts-results {
     min-width: 0;
   }
 }
+
+/* Tools → History: keep actions together below their record, without overflow. */
+.history-record-row {
+  min-width: 0;
+}
+
+.history-record-row > strong,
+.history-record-row > small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.history-record-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 5px;
+}
+
+.history-record-actions .secondary-btn,
+.history-record-actions .danger-btn {
+  width: auto;
+  min-width: 110px;
+  flex: 0 1 auto;
+}
+
+@media (max-width: 640px) {
+  .history-record-actions .secondary-btn,
+  .history-record-actions .danger-btn {
+    flex: 1 1 120px;
+    min-width: 0;
+  }
+}
