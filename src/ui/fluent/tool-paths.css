@@ -1,0 +1,63 @@
+/*
+ * Fluent filesystem path foregrounds: theme-resolved colors rather than
+ * legacy dark-only #d4dde1. Covers WinUI/Veiga light, Mean Girls, System,
+ * EA App and dark palettes without modifying the file paths themselves.
+ */
+body.release-v1 :is(
+  .sims3pack-converter-paths code,
+  .sims3pack-converted-line code,
+  .catalog-path-row code,
+  .structure-breadcrumb code,
+  .restore-root-check code
+) {
+  color: var(--fluent-text-primary);
+}
+body.release-v1 .sims3pack-item-technical code {
+  color: var(--fluent-text-secondary);
+}
+body.release-v1 :is(
+  .sims3pack-converter-paths code,
+  .sims3pack-converted-line code
+) {
+  font-size: 11px;
+  line-height: 16px;
+  font-family: "Cascadia Mono", Consolas, monospace;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  min-width: 0;
+}
+body.release-v1 .sims3pack-converter-paths span {
+  color: var(--fluent-text-secondary);
+}
+body.release-v1 :is(
+  .sims3pack-converter-paths > div,
+  .sims3pack-group,
+  .sims3pack-conversion-summary
+) {
+  background: var(--winui-card-fill-alt, var(--fluent-control-fill));
+  border-color: var(--fluent-control-stroke);
+}
+body.release-v1 :is(
+  .sims3pack-group-header,
+  .sims3pack-conversion-summary-head,
+  .sims3pack-converted-line,
+  .sims3pack-item
+) {
+  border-bottom-color: var(--winui-divider, var(--fluent-control-stroke));
+}
+@media (forced-colors: active) {
+  body.release-v1 :is(
+    .sims3pack-converter-paths code,
+    .sims3pack-converted-line code,
+    .catalog-path-row code,
+    .structure-breadcrumb code,
+    .restore-root-check code,
+    .sims3pack-item-technical code
+  ) { color: CanvasText; }
+  body.release-v1 :is(
+    .sims3pack-converter-paths > div,
+    .sims3pack-group,
+    .sims3pack-conversion-summary
+  ) { background: Canvas; border-color: CanvasText; }
+}

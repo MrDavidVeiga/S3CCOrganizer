@@ -116,3 +116,6 @@ The Manager's **Select All / Select None** pair is kept on one line in translati
 ### Converter toolbar — keep full PT/ES labels on one line
 
 The converter's old fixed 190px flex basis made the primary **Converter para .package** grow to two lines in Brazilian Portuguese. All three actions (select Sims3Pack, select destination, convert) now share a 240px basis with `white-space: nowrap`, normal 14px Semibold and unchanged labels/icons. With limited horizontal space the flex toolbar wraps **whole buttons**, and under 620px stacks them at full available width. EA App blue, Mean Girls black/white, original handlers and conversion logic are preserved. Verify at 100%, 125%, and 150% scaling in the Windows build.
+
+### WinUI 3 path contrast — light themes
+The converter previously used a fixed light foreground (#d4dde1) for filesystem paths, making them nearly unreadable on Mean Girls, Veiga Light, WinUI Light and System Light. The last-loaded tool-paths.css now uses semantic Fluent foregrounds, WinUI card surfaces and contrast-aware strokes. Both source and output paths remain complete; results provide full-path hover details and more legible 11px monospaced text. Regression assertions run in the Windows CI pipeline.

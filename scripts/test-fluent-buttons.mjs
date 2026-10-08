@@ -125,5 +125,17 @@ assert.match(controls,/html\[data-theme-choice="mean-girls"\] body\.release-v1 \
 assert.match(controls,/html\[data-theme-choice="mean-girls"\] body\.release-v1 \.primary-btn \{[^}]*color: #ffffff/);
 const winui = read("src/winui.css");
 assert.match(winui,/html\[data-theme-choice="ea-app"\] \.release-v1 \.primary-btn \{[^}]*background: var\(--accent\)/);
+// Regression: path text must follow the current Fluent theme.
+const pathStyles = read("src/ui/fluent/tool-paths.css");
+assert.match(pathStyles, /sims3pack-converter-paths code/);
+assert.match(pathStyles, /sims3pack-converted-line code/);
+assert.match(pathStyles, /catalog-path-row code/);
+assert.match(pathStyles, /color: var\(--fluent-text-primary\)/);
+assert.match(pathStyles, /background: var\(--winui-card-fill-alt/);
+assert.match(pathStyles, /font-size: 11px/);
+assert.match(pathStyles, /forced-colors: active/);
+const pathImport = html.indexOf('href="./src/ui/fluent/tool-paths.css"');
+assert(pathImport > importPos, "semantic path CSS must load after geometry");
+assert.match(read("src/sims3pack-converter.js"), /path\.title = item\.outputPath \|\| ""/);
 console.log("Fluent Button geometry: PASS (Converter, Restore, Confirm, large sidebar, compact exception, all themes)");
 dom.window.close();

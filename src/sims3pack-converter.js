@@ -276,6 +276,8 @@ function renderConversionResult() {
     name.textContent = item.outputFileName;
     const path = document.createElement("code");
     path.textContent = item.outputPath;
+    // Preserve the full path when visual ellipsis is necessary.
+    path.title = item.outputPath || "";
     line.append(name, path);
     summary.appendChild(line);
   }
