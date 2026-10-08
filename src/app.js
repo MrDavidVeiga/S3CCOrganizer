@@ -1455,6 +1455,7 @@ const state = {
   organizationCollisionItems: [],
   restoreManifest: "",
   restorePlan: null,
+  restorePreviewManifest: "",
   restoreBusy: false,
   restoreError: "",
   restoreNotice: "",
@@ -3916,6 +3917,7 @@ function renderRestoreHistory() {
       // Selection is never a file operation. Preview and execution are separate.
       state.restoreManifest = item.path;
       state.restorePlan = null;
+      state.restorePreviewManifest = "";
       state.restoreError = "";
       state.restoreNotice = "";
       render();
@@ -3944,6 +3946,7 @@ async function removeSelectedRestoreHistory() {
     if (state.restoreManifest === selectedManifest) {
       state.restoreManifest = "";
       state.restorePlan = null;
+      state.restorePreviewManifest = "";
     }
     state.restoreNotice = t("restoreRecordRemoved");
   } catch (error) {
@@ -6100,7 +6103,8 @@ function renderPlan() {
 function renderRestore() {
   const plan = state.restorePlan;
   const hasManifest = !!state.restoreManifest;
-  const canExecuteRestore = !!plan?.canExecute;
+  const canExecuteRestore = !!plan?.canExecute &&
+    state.restorePreviewManifest === state.restoreManifest;
 
   el.restoreManifestPath.textContent = state.restoreManifest || t("noManifest");
   el.restoreManifestPath.title = state.restoreManifest;
@@ -6121,7 +6125,7 @@ function renderRestore() {
   el.executeRestoreBtn.classList.toggle("hidden", !canExecuteRestore);
   el.executeRestoreBtn.disabled =
     state.restoreBusy || state.structureBusy || workspaceReadOnly() ||
-    state.restorePlan?.manifestPath !== state.restoreManifest;
+    state.restorePreviewManifest !== state.restoreManifest;
 
   if (plan) {
     el.restoreRootCheck.classList.remove("hidden", "match", "mismatch");
@@ -6237,7 +6241,7 @@ function closePlanModal() {
 function openConfirm(action) {
   if (action === "restore") {
     if (!state.restorePlan?.canExecute ||
-        state.restorePlan.manifestPath !== state.restoreManifest ||
+        state.restorePreviewManifest !== state.restoreManifest ||
         state.restoreBusy || workspaceReadOnly()) return;
     state.pendingRestoreManifest = state.restoreManifest;
   } else if (action === "remove_restore_history") {
@@ -6754,6 +6758,7 @@ async function chooseManifest() {
 
   state.restoreManifest = selected;
   state.restorePlan = null;
+  state.restorePreviewManifest = "";
   state.restoreError = "";
   state.restoreNotice = "";
   render();
@@ -6766,6 +6771,7 @@ async function previewRestore() {
   state.restoreError = "";
   state.restoreNotice = "";
   state.restorePlan = null;
+  state.restorePreviewManifest = "";
   render();
 
   try {
@@ -6778,6 +6784,7 @@ async function previewRestore() {
     });
     if (state.restoreManifest === selectedManifest && state.folder === selectedFolder) {
       state.restorePlan = plan;
+      state.restorePreviewManifest = selectedManifest;
     }
   } catch (error) {
     state.restoreError = String(error);
@@ -6792,7 +6799,7 @@ async function executeRestore() {
   // confirmation for the exact manifest that was previewed.
   if (state.pendingAction !== "restore" ||
       state.pendingRestoreManifest !== state.restoreManifest ||
-      state.restorePlan?.manifestPath !== state.restoreManifest ||
+      state.restorePreviewManifest !== state.restoreManifest ||
       !state.restorePlan?.canExecute || state.restoreBusy ||
       state.structureBusy || workspaceReadOnly() ||
       el.confirmModal.classList.contains("hidden")) return;
