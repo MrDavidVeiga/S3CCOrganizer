@@ -434,6 +434,9 @@ fn catalog_precedes_embedded_script(
     relative: &str,
 ) -> bool {
     catalog_resource_count > 0
+        // Store collections regularly include S3SA, plus names like "Al Fresco"
+        // that are too short for author-prefix heuristics to be authoritative.
+        && !store_name_hint(relative)
         && special.is_some_and(|classification| {
             classification.detected_from.iter().any(|source| source == "S3SA")
                 && !classification.detected_from.iter().any(|source| source == "NRaasInternal")
@@ -1726,6 +1729,9 @@ mod tests {
         };
         assert!(!catalog_precedes_embedded_script(
             Some(&verified_mod), 2, r"#+18\AnimatedWoohoo.package"
+        ));
+        assert!(catalog_precedes_embedded_script(
+            Some(&verified_mod), 2, r"Packages\#9 Store\Store Content\[Items] Al Fresco Street Market.package"
         ));
     }
 
