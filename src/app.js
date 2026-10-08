@@ -3942,6 +3942,7 @@ async function removeSelectedRestoreHistory() {
     await invoke("remove_restore_history", {
       folder: state.folder,
       manifestPath: selectedManifest,
+      confirmed: true,
     });
     if (state.restoreManifest === selectedManifest) {
       state.restoreManifest = "";
