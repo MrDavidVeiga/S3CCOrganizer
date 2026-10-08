@@ -4046,7 +4046,9 @@ async function loadStructure(relativePath = state.structureCurrent) {
     if (relativePath) state.structureCurrent = "";
   } finally {
     state.structureBusy = false;
-    renderStructure();
+    // The background Structure refresh also affects shared sidebar controls.
+    // Restore their disabled state without requiring a navigation click.
+    render();
   }
 }
 
@@ -6180,7 +6182,7 @@ async function chooseFolder() {
     refreshCacheInfo(),
     refreshConflictDecisions(),
     refreshManualOperations(),
-    loadStructure(""),
+    ...(state.tab === "structure" ? [loadStructure("")] : []),
     refreshToolsContext(),
   ]);
 }
@@ -6807,13 +6809,16 @@ el.searchInput.value = state.search;
 el.duplicatesSearch.value = state.duplicatesSearch;
 el.conflictsSearch.value = state.conflictsSearch;
 
+// Render the Manager immediately. Hidden Structure data must not hold the
+// shared folder picker and Scan CCs buttons disabled during startup.
+render();
+
 if (state.folder) {
   void loadRestoreHistory();
   void refreshCacheInfo();
   void refreshConflictDecisions();
   void refreshManualOperations();
-  void loadStructure("");
+  // Structure is loaded on demand when that page is actually opened.
+  if (state.tab === "structure") void loadStructure("");
   void refreshToolsContext();
 }
-
-render();
