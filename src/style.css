@@ -4538,3 +4538,51 @@ button:disabled {
 @media (max-width: 580px) {
   .conflict-pair { grid-template-columns: 1fr; }
 }
+
+/* Conflicts uses the same modal detail pattern as Duplicates. The findings
+   list stays full width; large TGI evidence remains readable in the dialog. */
+body.release-v1 .conflicts-results {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+.conflict-details-modal {
+  width: min(1080px, 94vw);
+  max-height: min(880px, 92vh);
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--winui-popup, var(--panel));
+}
+.conflict-details-content {
+  min-height: 0;
+  overflow-y: auto;
+  margin: 14px 0;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--winui-control-stroke-strong, rgba(255,255,255,.35)) transparent;
+}
+#conflicts-preview.conflicts-preview {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.conflict-details-footer {
+  flex: 0 0 auto;
+}
+.conflict-details-modal .conflict-pair {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.conflict-details-modal .conflict-member-thumb {
+  height: clamp(120px, 19vh, 180px);
+}
+@media (max-width: 640px) {
+  .conflict-details-modal { padding: 14px; }
+  .conflict-details-modal .conflict-pair { grid-template-columns: 1fr; }
+}
