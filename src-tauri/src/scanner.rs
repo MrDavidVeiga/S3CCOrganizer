@@ -416,6 +416,21 @@ fn script_category(package: &Package, name: &str, language: AppLanguage) -> &'st
     localized_special_folder(language, "scripts")
 }
 
+// A gameplay assembly inside a catalog object does not make the entire
+// package a standalone gameplay mod. Keep S3SA as metadata, but use CASP/OBJD
+// destinations (or request review if the catalog is ambiguous/unreadable).
+// Explicit NRaas signatures are handled before S3SA and retain priority.
+fn catalog_precedes_embedded_script(
+    special: Option<&PackageFamilyClassification>,
+    catalog_resource_count: usize,
+) -> bool {
+    catalog_resource_count > 0
+        && special.is_some_and(|classification| {
+            classification.detected_from.iter().any(|source| source == "S3SA")
+                && !classification.detected_from.iter().any(|source| source == "NRaasInternal")
+        })
+}
+
 fn special_package_classification(
     package: &Package,
     type_ids: &BTreeSet<u32>,
@@ -1271,6 +1286,7 @@ fn scan_one(
 
     let special_primary =
         special_package_classification(&package, &type_ids, &name, &relative, language, catalog_resource_count);
+    let catalog_first = catalog_precedes_embedded_script(special_primary.as_ref(), catalog_resource_count);
     if let Some(special) = &special_primary {
         for source in &special.detected_from {
             detected_from.insert(source.clone());
@@ -1301,7 +1317,8 @@ fn scan_one(
         }
     }
 
-    let (mut status, primary, mut destination_parts, mut destination_path) = if let Some(special) = &special_primary {
+    let active_special = if catalog_first { None } else { special_primary.as_ref() };
+    let (mut status, primary, mut destination_parts, mut destination_path) = if let Some(special) = active_special {
         (
             "classified".to_string(),
             None,
@@ -1348,15 +1365,14 @@ fn scan_one(
         )
     };
 
-    let mut classification_reason = special_primary
-        .as_ref()
+    let mut classification_reason = active_special
         .map(|classification| classification.technical_reason.clone())
         .or_else(|| {
             primary
                 .as_ref()
                 .map(|classification| classification.technical_reason.clone())
         });
-    let mut family_primary: Option<PackageFamilyClassification> = special_primary;
+    let mut family_primary: Option<PackageFamilyClassification> = if catalog_first { None } else { special_primary };
 
     if status == "unknown" && catalog_resource_count == 0 {
         match classify_package_family(&type_ids, language) {
@@ -1486,12 +1502,14 @@ fn scan_one(
     } else {
         None
     };
-    let mod_name = if scripted && !is_nraas {
+    // Embedded gameplay assemblies are still tracked by the 'scripted' flag,
+    // but must not supply an unrelated mod/category label to a catalog object.
+    let mod_name = if scripted && !is_nraas && !catalog_first {
         inferred_script_mod_name(&name, &relative)
     } else {
         None
     };
-    let gameplay_category = if scripted && !is_nraas {
+    let gameplay_category = if scripted && !is_nraas && !catalog_first {
         Some(script_category(&package, &name, language).to_string())
     } else {
         None
@@ -1654,6 +1672,32 @@ pub async fn scan_packages(folder: String, language: AppLanguage) -> Result<Scan
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_store_object_with_s3sa_uses_its_catalog_not_its_script_keyword() {
+        let standalone_script = PackageFamilyClassification {
+            main_category: "Gameplay".into(),
+            sub_category: Some("Careers".into()),
+            folder_parts: vec!["Gameplay".into(), "Careers".into()],
+            detected_from: vec!["S3SA".into()],
+            technical_reason: "S3SA metadata".into(),
+        };
+        // Covers the basketball hoop, functional Store equipment, and
+        // custom objects carrying their own gameplay code.
+        assert!(catalog_precedes_embedded_script(Some(&standalone_script), 1));
+        assert!(catalog_precedes_embedded_script(Some(&standalone_script), 4));
+        assert!(!catalog_precedes_embedded_script(Some(&standalone_script), 0));
+        assert!(!catalog_precedes_embedded_script(None, 4));
+
+        let nraas = PackageFamilyClassification {
+            main_category: "NRaas".into(),
+            sub_category: None,
+            folder_parts: vec!["NRaas".into()],
+            detected_from: vec!["NRaasInternal".into()],
+            technical_reason: "NRaas internal signature".into(),
+        };
+        assert!(!catalog_precedes_embedded_script(Some(&nraas), 1));
+    }
 
     #[test]
     fn generic_source_folders_cannot_reassign_unrelated_packages() {
