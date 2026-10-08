@@ -110,4 +110,16 @@ const states=[
 ];
 for(const [name,hover,pressed] of states)
   assert(pressed>hover && hover>=.07,name+" must have visible hover and stronger pressed");
+/* The latest main/UI integrations must survive all future theme refactors. */
+const app=read("src/app.js");
+const quarantine=read("src-tauri/src/quarantine.rs");
+const report=read("src-tauri/src/audit_report.rs");
+assert.match(app,/function historyRecordCanBeRemoved\(/);
+assert.match(app,/function removeOperationHistoryRecord\(/);
+assert.match(app,/function buildScopedAuditMarkdown\(/);
+assert.match(app,/reportKind/);
+assert.match(quarantine,/pub fn remove_quarantine_history\(/);
+assert.match(quarantine,/restore_requires_explicit_confirmation/);
+assert.match(report,/reportKind/);
+assert.match(read("src/style.css"),/\.history-record-actions/);
 console.log("Seven-theme audit: PASS (list/menus/ComboBox states, light hover, status/text contrast, all 7 themes, no row geometry changes)");
