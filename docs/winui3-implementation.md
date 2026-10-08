@@ -119,3 +119,26 @@ The converter's old fixed 190px flex basis made the primary **Converter para .pa
 
 ### WinUI 3 path contrast — light themes
 The converter previously used a fixed light foreground (#d4dde1) for filesystem paths, making them nearly unreadable on Mean Girls, Veiga Light, WinUI Light and System Light. The last-loaded tool-paths.css now uses semantic Fluent foregrounds, WinUI card surfaces and contrast-aware strokes. Both source and output paths remain complete; results provide full-path hover details and more legible 11px monospaced text. Regression assertions run in the Windows CI pipeline.
+
+## Seven-theme final consistency audit — hover, surfaces, text and status
+
+**Baseline:** feature/winui3-full-fidelity after the previous Stage 7 button sizing, full language labels, Sims3Pack content-aware fixes and light-theme path correction. The main branch stays unchanged.
+
+### Confirmed code findings
+1. The light theme's `--winui-control-fill-hover: rgba(249,249,249,.50)` was nearly white and inherited by several ListViews, ComboBox popup options and menus. On white panels, it made hover wash out or disappear.
+2. The Manager/ Duplicates/ Conflicts lists, Restore history, Structure and Catalog had diverged hover, active and selected rules. Some drew the same color for hover and selected, reducing the visual distinction.
+3. The catalog's fixed dark header/footer `#171d22` and multiple translucent-white row/card separators were designed for dark backgrounds but remained in light themes.
+4. Several status foregrounds such as `#cfe5c3` (success), `#f2b7b7` (error) and `#e8c38a` (warning) lacked contrast in the light themes.
+5. File paths in Manager plans, duplicates, conflicts, restore and technical metadata still used light-on-dark constants even after the Sims3Pack path fix.
+6. The EA App's blue-on-dark ListView fill and white active indicator, Mean Girls' pink accent and black/white CTA, and green success InfoBar must remain intentional exceptions.
+
+### Remediation
+- Final-loaded `src/ui/fluent/theme-audit.css` uses semantic hover/pressed/selected tokens by resolved mode, plus Mean Girls and EA App exceptions.
+- Stronger but restrained, darker-on-light hover for Manager, Duplicates, Conflicts, Restore, Structure, Catalog, menus and the virtual ComboBox options; selection always remains distinguishable. No row padding, height, item count or virtual scrolling logic is changed.
+- Theme-aware Catalog headers, borders and pane backgrounds; all system/Veiga/WinUI light and dark colors resolve via existing tokens.
+- Semantic green/amber/red/blue status text uses the existing InfoBar `--fluent-state-*` values for contrast across palettes, including Mean Girls.
+- Correct formerly pale technical/filepath text in all workflow dialogs and secondary panels.
+- Preserve native focus and forced-colors accessibility; no functional JS/Rust modifications.
+
+### Validation boundary
+Automated CI can validate CSS wiring, state declarations, theme coverage, statuses, contrast examples and frontend/Rust builds. Only a **Windows WebView2 visual test** can establish final pixel-level hover/focus fidelity at 100%, 125% and 150% scaling in the seven themes. That manual acceptance remains necessary before merging to `main`.
