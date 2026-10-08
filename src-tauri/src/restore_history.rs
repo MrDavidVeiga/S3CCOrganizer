@@ -44,6 +44,9 @@ fn collect_directory(
         return Ok(());
     }
 
+    #[cfg(windows)]
+    crate::manifest::recover_manifest_backups(directory)?;
+
     for entry in fs::read_dir(directory)
         .map_err(|error| format!("Could not list {}: {error}", directory.display()))?
     {
