@@ -697,6 +697,16 @@ button:disabled {
   font-size: .72rem;
 }
 
+.planner-partial-notice {
+  margin: 0;
+  padding: 9px 12px;
+  border: 1px solid var(--stroke-subtle, var(--border, #7774));
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: .75rem;
+  line-height: 1.4;
+}
+
 .planner-body {
   min-height: 0;
   display: grid;
@@ -4774,6 +4784,36 @@ body.release-v1 .conflicts-results {
     flex: 1 1 135px;
     min-width: 0;
   }
+}
+
+/* The Duplicates batch action is global, unlike the row details modal.
+   Keep its selected count and reversible preview full-width beneath the list. */
+.analysis-list-footer[data-report-panel="duplicates"] {
+  flex-wrap: wrap;
+}
+
+#duplicates-batch-summary,
+#duplicates-batch-preview {
+  flex: 0 0 100%;
+  min-width: 0;
+  width: 100%;
+}
+
+#duplicates-batch-summary {
+  color: var(--muted);
+  font-size: .74rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+#duplicates-batch-preview {
+  max-height: min(310px, 36vh);
+  overflow: auto;
+}
+
+#duplicates-batch-preview details > pre {
+  max-height: 180px;
+  overflow: auto;
 }
 
 /* Tools → History: keep actions together below their record, without overflow. */
