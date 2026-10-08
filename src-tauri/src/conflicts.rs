@@ -2,7 +2,7 @@ use crate::{
     cache::{get_or_build_with_metrics, load_cache, retain_existing, save_cache},
     catalog::{TYPE_CASP, TYPE_OBJD},
     operation::{self, CANCELLED_ERROR},
-    resource_cfg::{find_resource_cfg, package_priority, parse_resource_cfg, ResourceCfgInfo},
+    resource_cfg::{find_resource_cfg, package_priority, parse_resource_cfg, relative_package_path, ResourceCfgInfo},
 };
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -487,10 +487,20 @@ pub fn analyze_conflicts_core(
                 return Err(CANCELLED_ERROR.to_string());
             }
         }
-        let relative_path = path
-            .strip_prefix(&root)
-            .unwrap_or(&path)
-            .to_path_buf();
+        // The previous strict strip_prefix failed on Windows when paths came
+        // from the scanner cache (C:\\...) and root was verbatim (\\\\?\\C:\\...).
+        // That turned every relativePath into an absolute path and made all
+        // Resource.cfg load priorities appear unmatched.
+        let relative_path = match relative_package_path(&root, path) {
+            Some(relative) => relative,
+            None => {
+                errors.push(format!(
+                    "Skipping package outside or missing from the selected root: {}",
+                    path.display()
+                ));
+                continue;
+            }
+        };
         let name = path
             .file_name()
             .and_then(|value| value.to_str())
