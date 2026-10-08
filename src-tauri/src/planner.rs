@@ -1089,6 +1089,63 @@ pub fn build_organization_plan_with_cfg(
             let source_size = fs::metadata(&source)
                 .map_err(|error| format!("Could not stat {}: {error}", source.display()))?
                 .len();
+
+            // Unknown or mixed content must not stay stranded in legacy
+            // category trees. Relocate only readable CC from a real Packages
+            // branch (or a recognized organizer-created sibling), with a
+            // loadable Resource.cfg destination. Never guess its category.
+            let can_migrate = item.status != "invalid"
+                && (is_within_packages(&root)
+                    || (is_mods_root(&root) &&
+                        (packages_root.as_ref().is_some_and(|packages|
+                            source_canonical.starts_with(packages))
+                        || legacy_manager_source(&root, &source_canonical))));
+            if can_migrate {
+                let review_category = vec![language.not_categorized_folder().to_string()];
+                let file_name = source.file_name()
+                    .ok_or_else(|| format!("Missing package file name: {}", source.display()))?;
+                let fitted = if update_resource_cfg || is_disabled_package_path(&source_canonical) {
+                    Ok((ensure_source_loading_branch(&root, &source_canonical, &review_category), None))
+                } else {
+                    fit_destination_to_resource_cfg(
+                        &root, &source_canonical, file_name,
+                        &review_category, resource_cfg.as_ref()
+                    )
+                };
+                if let Ok((parts, _)) = fitted {
+                    if validate_destination_parts(&parts).is_ok() {
+                        let destination = destination_path(&root, &parts, file_name);
+                        let same = same_path_case_insensitive(&source_canonical, &destination);
+                        if (same || !destination.exists())
+                            && validate_organization_destination(&root, &source_canonical, &destination).is_ok()
+                        {
+                            if !same {
+                                add_missing_directories(&root, &parts, &mut directories);
+                            }
+                            let relative = destination.strip_prefix(&root)
+                                .map_err(|_| "Not Categorized destination escaped selected root.")?;
+                            items.push(PlanItem {
+                                id: item.id.clone(),
+                                name: item.name.clone(),
+                                source_path: source_canonical.to_string_lossy().to_string(),
+                                source_relative_path: item.relative_path.clone(),
+                                destination_path: Some(destination.to_string_lossy().to_string()),
+                                destination_relative_path: Some(relative_key(relative)),
+                                classification_status: item.status.clone(),
+                                classification_reason: item.classification_reason.clone(),
+                                plan_status: if same { "already_organized" } else { "ready_uncategorized" }.into(),
+                                sha256: Some(source_hash),
+                                size: source_size,
+                                warnings: vec![format!(
+                                    "Classification '{}' with confidence '{}' remains unverified. Moved only to '{}' for manual review; no category was guessed.",
+                                    item.status, item.classification_confidence, language.not_categorized_folder()
+                                )],
+                            });
+                            continue;
+                        }
+                    }
+                }
+            }
             stats.kept_uncategorized += 1;
             items.push(PlanItem {
                 id: item.id.clone(),
