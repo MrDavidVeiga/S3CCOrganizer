@@ -65,3 +65,14 @@ Added `src/ui/fluent/overlays.js` and `overlays.css` to standardize keyboard foc
 - EA App theme: accent #276AFC, hover #3978FC, pressed #215BD8, with white text and matching theme swatch.
 - Lists: hover, outline and selected state are centered vertically with label/count, keeping virtual row heights 56px (Manager) and 53px (Duplicates/Conflicts), with existing gaps.
 - Automated interaction and theme regression checks to follow in the same branch.
+
+## Batch 3 — ListView navigation and ScrollBar fidelity
+
+- Merge the latest Restore / quarantine / confirmation UI branch before beginning.
+- Keep the **approved row visuals**, existing row heights and virtual scroll strides.
+- Attach stable item indices and current filtered-item count in all three virtual renderers.
+- `listview.js`: keyboard Arrow Up/Down, Home, End, Page Up/Down moves **focus only**; Enter/Space retain their existing selection/dialog behaviour; checkbox keys remain separate. Focus survives virtual-row reconstruction on scroll.
+- `scrollbars.css`: maintain the native Windows/WebView2 scroll mechanics, themed thinner thumbs at rest, wider paint on hover/pressed while keeping a 12px channel to avoid content-width jitter, light/dark/high-contrast variants.
+- Test focus navigation at virtual boundaries and ensure list performance for large packages. No scanner/Rust behavior is modified.
+
+The visual thumb behavior requires checking in an actual Tauri build: OS and WebView versions can render native overlay scrollbars differently.

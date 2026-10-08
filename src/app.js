@@ -3070,6 +3070,7 @@ function createDuplicateFindingRow(finding) {
 }
 
 function renderDuplicateVirtualRows(findings, force = false) {
+  el.duplicatesList.dataset.fluentCount = String(findings.length);
   const view = virtualViews.duplicates;
   const changed = view.items !== findings;
   if (changed) {
@@ -3095,7 +3096,9 @@ function renderDuplicateVirtualRows(findings, force = false) {
   const fragment = document.createDocumentFragment();
   if (start > 0) fragment.appendChild(virtualSpacer(start * ANALYSIS_ROW_STRIDE));
   for (let index = start; index < end; index += 1) {
-    fragment.appendChild(createDuplicateFindingRow(findings[index]));
+    const row = createDuplicateFindingRow(findings[index]);
+    row.dataset.fluentIndex = String(index);
+    fragment.appendChild(row);
   }
   if (end < findings.length) {
     fragment.appendChild(virtualSpacer((findings.length - end) * ANALYSIS_ROW_STRIDE));
@@ -3628,6 +3631,7 @@ function createConflictFindingRow(finding) {
 }
 
 function renderConflictVirtualRows(findings, force = false) {
+  el.conflictsList.dataset.fluentCount = String(findings.length);
   const view = virtualViews.conflicts;
   const changed = view.items !== findings;
   if (changed) {
@@ -3653,7 +3657,9 @@ function renderConflictVirtualRows(findings, force = false) {
   const fragment = document.createDocumentFragment();
   if (start > 0) fragment.appendChild(virtualSpacer(start * ANALYSIS_ROW_STRIDE));
   for (let index = start; index < end; index += 1) {
-    fragment.appendChild(createConflictFindingRow(findings[index]));
+    const row = createConflictFindingRow(findings[index]);
+    row.dataset.fluentIndex = String(index);
+    fragment.appendChild(row);
   }
   if (end < findings.length) {
     fragment.appendChild(virtualSpacer((findings.length - end) * ANALYSIS_ROW_STRIDE));
@@ -5864,6 +5870,7 @@ function createPackageRow(item) {
 }
 
 function renderManagerVirtualRows(items, force = false) {
+  el.packageList.dataset.fluentCount = String(items.length);
   const view = virtualViews.manager;
   const changed = view.items !== items;
   if (changed) {
@@ -5891,7 +5898,9 @@ function renderManagerVirtualRows(items, force = false) {
   const fragment = document.createDocumentFragment();
   if (start > 0) fragment.appendChild(virtualSpacer(start * MANAGER_ROW_STRIDE));
   for (let index = start; index < end; index += 1) {
-    fragment.appendChild(createPackageRow(items[index]));
+    const row = createPackageRow(items[index]);
+    row.dataset.fluentIndex = String(index);
+    fragment.appendChild(row);
   }
   if (end < items.length) {
     fragment.appendChild(virtualSpacer((items.length - end) * MANAGER_ROW_STRIDE));
