@@ -510,6 +510,41 @@ fn index_exact_duplicates(
     by_hash
 }
 
+// Pure indexed comparison makes the partial-merge heuristic regression-testable.
+// Only stronger-than-STBL evidence can hold a larger package for review.
+fn detect_merged_resource_supersets(
+    indexed: &[(String, BTreeSet<String>, bool)],
+) -> HashMap<String, Vec<String>> {
+    let mut anchored = HashMap::<String, Vec<usize>>::new();
+    for (index, (_, resources, slider)) in indexed.iter().enumerate() {
+        if *slider && resources.len() >= 2 {
+            if let Some(first) = resources.iter().next() {
+                anchored.entry(first.clone()).or_default().push(index);
+            }
+        }
+    }
+    let mut related = HashMap::<String, Vec<String>>::new();
+    for (merged_name, merged_resources, _) in &indexed {
+        let mut candidates = HashSet::<usize>::new();
+        for key in merged_resources {
+            if let Some(indices) = anchored.get(key) {
+                candidates.extend(indices);
+            }
+        }
+        for index in candidates {
+            let (loose_name, loose_resources, _) = &indexed[index];
+            if loose_name != merged_name
+                && loose_resources.len() < merged_resources.len()
+                && loose_resources.is_subset(merged_resources)
+            {
+                related.entry(merged_name.to_lowercase())
+                    .or_default().push(loose_name.clone());
+            }
+        }
+    }
+    related
+}
+
 // A merged package can contain byte-identical morph resources from several
 // standalone sliders without having the same whole-file SHA-256. This is a
 // conservative *suspected* relation, not a deletion verdict: require full
@@ -558,34 +593,8 @@ fn index_suspected_merged_sliders(
             });
         indexed.push((item.relative_path.clone(), substantive, direct_slider));
     }
-    let mut anchored = HashMap::<String, Vec<usize>>::new();
-    for (index, (_, resources, slider)) in indexed.iter().enumerate() {
-        if *slider && resources.len() >= 2 {
-            if let Some(first) = resources.iter().next() {
-                anchored.entry(first.clone()).or_default().push(index);
-            }
-        }
-    }
-    let mut related = HashMap::<String, Vec<String>>::new();
-    for (merged_name, merged_resources, _) in &indexed {
-        let mut candidates = HashSet::<usize>::new();
-        for key in merged_resources {
-            if let Some(indices) = anchored.get(key) {
-                candidates.extend(indices);
-            }
-        }
-        for index in candidates {
-            let (loose_name, loose_resources, _) = &indexed[index];
-            if loose_name != merged_name
-                && loose_resources.len() < merged_resources.len()
-                && loose_resources.is_subset(merged_resources)
-            {
-                related.entry(merged_name.to_lowercase())
-                    .or_default().push(loose_name.clone());
-            }
-        }
-    }
-    related
+    detect_merged_resource_supersets(&indexed)
+
 }
 
 fn mark_intra_plan_destination_collisions(items: &mut [PlanItem], stats: &mut PlanStats) {
@@ -1378,6 +1387,22 @@ mod tests {
         let groups = index_exact_duplicates(&packages, &scan_items, &selected);
         assert_eq!(groups[&hash.to_ascii_uppercase()].len(), 2);
         std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn partial_merged_morph_resources_hold_only_the_larger_package() {
+        let keys = |items: &[&str]| items.iter().map(|key| key.to_string())
+            .collect::<BTreeSet<_>>();
+        let candidates = vec![
+            ("single-slider.package".into(), keys(&["FACE-a", "BGEO-a"]), true),
+            ("merged-sliders.package".into(), keys(&["FACE-a", "BGEO-a", "FACE-b"]), true),
+            ("related-translation.package".into(), keys(&["STBL-a"]), false),
+            ("unrelated.package".into(), keys(&["FACE-x", "BGEO-x", "FACE-y"]), true),
+        ];
+        let related = detect_merged_resource_supersets(&candidates);
+        assert_eq!(related["merged-sliders.package"], vec!["single-slider.package"]);
+        assert!(!related.contains_key("single-slider.package"));
+        assert!(!related.contains_key("unrelated.package"));
     }
 
     #[test]
