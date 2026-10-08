@@ -17,8 +17,9 @@ const TEXT = {
     noPackages:"No convertible .package payloads were found.", openDestination:"Open destination",
     warning:"Warning", source:"Name source", output:"Output", internal:"Internal file",
     combined:"Combined conversion", separateHint:"Unchecked: separate conversion",
-    destinationHint:"Suggested destination", combinedUnsafe:"Combined conversion is unavailable for worlds, lots, Sims and other protected content.",
+    destinationHint:"Suggested destination", combinedUnsafe:"Combined conversion is unavailable for worlds, lots, Sims, Store Featured Sets and other protected content.",
     manifest_disambiguated:"Distinct internal manifest name",
+    detectedType:"Detected type", storeSet:"Store Featured Set",
   },
   pt: {
     title:"Sims3Pack → Package",
@@ -33,8 +34,9 @@ const TEXT = {
     noPackages:"Nenhum payload .package convertível foi encontrado.", openDestination:"Abrir destino",
     warning:"Aviso", source:"Origem do nome", output:"Saída", internal:"Arquivo interno",
     combined:"Conversão conjunta", separateHint:"Desmarcado: conversão separada",
-    destinationHint:"Destino sugerido", combinedUnsafe:"A conversão conjunta não está disponível para mundos, lotes, Sims e outros conteúdos protegidos.",
+    destinationHint:"Destino sugerido", combinedUnsafe:"A conversão conjunta não está disponível para mundos, lotes, Sims, conjuntos da Store e outros conteúdos protegidos.",
     manifest_disambiguated:"Nome interno distinto do manifesto",
+    detectedType:"Tipo identificado", storeSet:"Conjunto da Store",
   },
   es: {
     title:"Sims3Pack → Package",
@@ -49,8 +51,9 @@ const TEXT = {
     noPackages:"No se encontraron payloads .package convertibles.", openDestination:"Abrir destino",
     warning:"Aviso", source:"Origen del nombre", output:"Salida", internal:"Archivo interno",
     combined:"Conversión conjunta", separateHint:"Desmarcado: conversión separada",
-    destinationHint:"Destino sugerido", combinedUnsafe:"La conversión conjunta no está disponible para mundos, solares, Sims y otros contenidos protegidos.",
+    destinationHint:"Destino sugerido", combinedUnsafe:"La conversión conjunta no está disponible para mundos, solares, Sims, conjuntos de la Store y otros contenidos protegidos.",
     manifest_disambiguated:"Nombre interno distinto del manifiesto",
+    detectedType:"Tipo identificado", storeSet:"Conjunto de la Store",
   }
 };
 
@@ -112,7 +115,7 @@ function setStaticText() {
 
 function hasUnsafeCombinedItems() {
   const safe = new Set(["object", "cas", "caspart", "clothing", "hair", "accessory", "pattern", "build", "buy"]);
-  return state.inspections.some(group => (group.items || []).some(item => item.convertible && !safe.has(String(item.contentType || "").toLowerCase().trim())));
+  return state.inspections.some(group => (group.items || []).some(item => item.convertible && (item.storeSet || !safe.has(String(item.contentType || "").toLowerCase().trim()))));
 }
 
 function updateControls() {
@@ -128,17 +131,18 @@ function updateControls() {
     state.inspections.some(group => (group.items || []).some(item => item.convertible));
   const canShowConvert = !!state.destination && hasConvertible;
 
-  convertButton.classList.toggle("hidden", !canShowConvert);
-  convertButton.disabled = state.busy || (state.combined && hasUnsafeCombinedItems());
+  const unsafeCombined = hasUnsafeCombinedItems();
   const combinedControl = q("#sims3pack-combined");
   if (combinedControl) {
-    combinedControl.disabled = hasUnsafeCombinedItems();
-    if (combinedControl.disabled && state.combined) {
+    combinedControl.disabled = unsafeCombined;
+    if (unsafeCombined && state.combined) {
       state.combined = false;
       combinedControl.checked = false;
     }
-    combinedControl.title = combinedControl.disabled ? tr("combinedUnsafe") : "";
+    combinedControl.title = unsafeCombined ? tr("combinedUnsafe") : "";
   }
+  convertButton.classList.toggle("hidden", !canShowConvert);
+  convertButton.disabled = state.busy || (state.combined && unsafeCombined);
 }
 
 function renderInspection() {
@@ -198,6 +202,9 @@ function renderInspection() {
       details.textContent = `${sourceLabel(item.nameSource)} · ${sizeMb >= 1 ? sizeMb.toFixed(2) + " MB" : Math.max(1, Math.round(Number(item.size || 0) / 1024)) + " KB"}`;
       main.append(output, details);
       if (item.convertible) {
+        const type = document.createElement("span");
+        type.textContent = `${tr("detectedType")}: ${item.storeSet ? tr("storeSet") : (item.contentType || "—")}`;
+        main.appendChild(type);
         const category = document.createElement("span");
         category.textContent = `${tr("destinationHint")}: ${item.recommendedFolder || "Mods/Packages"}`;
         main.appendChild(category);
