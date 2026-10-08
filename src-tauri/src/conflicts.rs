@@ -124,6 +124,9 @@ pub struct ConflictStats {
     pub unreadable_packages: usize,
     pub package_pairs: usize,
     pub shared_identical: usize,
+    // Overlaps where one or both packages are outside the reliable
+    // Resource.cfg PackedFile rules are not live in-game conflicts.
+    pub inactive_pairs: usize,
     pub visual_overrides: usize,
     pub catalog_overrides: usize,
     pub gameplay_overrides: usize,
@@ -306,6 +309,34 @@ fn severity_for(kind: &str) -> &'static str {
         "shared_identical" => "info",
         _ => "review",
     }
+}
+
+fn finding_severity(
+    kind: &str,
+    impacts: &BTreeSet<String>,
+    load_order_status: &str,
+    reliable_resource_cfg: bool,
+) -> &'static str {
+    // Resource conflicts require both packages to be loaded. Keep evidence
+    // for diagnostics, but do not warn about a pair not loaded by these rules.
+    if reliable_resource_cfg
+        && matches!(load_order_status, "unmatched" | "partially_matched")
+    {
+        return "info";
+    }
+
+    // Mixed text/unknown resource differences alone are not evidence of a
+    // high-severity gameplay or script conflict.
+    if kind == "mixed_override" {
+        if impacts.contains("script_conflict") || impacts.contains("gameplay_override") {
+            return "high";
+        }
+        if impacts.contains("catalog_override") || impacts.contains("visual_override") {
+            return "warning";
+        }
+        return "review";
+    }
+    severity_for(kind)
 }
 
 fn explanation_key(kind: &str) -> &'static str {
@@ -737,10 +768,25 @@ pub fn analyze_conflicts_core(
                     .unwrap_or(false),
             );
 
+        let reliable_resource_cfg = resource_cfg
+            .as_ref()
+            .map(|cfg| cfg.precedence_reliable)
+            .unwrap_or(false);
+        if reliable_resource_cfg
+            && matches!(load_order_status.as_str(), "unmatched" | "partially_matched")
+        {
+            stats.inactive_pairs += 1;
+        }
+
         findings.push(ConflictFinding {
             id: pair_id(left, right),
             decision_key: decision_key(left, right),
-            severity: severity_for(&kind).to_string(),
+            severity: finding_severity(
+                &kind,
+                &accumulator.impact_kinds,
+                &load_order_status,
+                reliable_resource_cfg,
+            ).to_string(),
             explanation_key: explanation_key(&kind).to_string(),
             kind,
             impact_kinds,
@@ -801,6 +847,40 @@ pub async fn analyze_conflicts(folder: String, selected_paths: Option<Vec<String
 mod tests {
     use super::*;
 
+
+    #[test]
+    fn mixed_text_and_unknown_overlap_requires_review_not_high_warning() {
+        let impacts = ["potential_conflict".to_string(), "text_override".to_string()]
+            .into_iter()
+            .collect::<BTreeSet<_>>();
+        assert_eq!(
+            finding_severity("mixed_override", &impacts, "same_priority", true),
+            "review"
+        );
+    }
+
+    #[test]
+    fn resource_cfg_excludes_unloaded_pair_from_severity_warning() {
+        let impacts = ["gameplay_override".to_string()]
+            .into_iter()
+            .collect::<BTreeSet<_>>();
+        assert_eq!(
+            finding_severity("gameplay_override", &impacts, "unmatched", true),
+            "info"
+        );
+        assert_eq!(
+            finding_severity("gameplay_override", &impacts, "partially_matched", true),
+            "info"
+        );
+        assert_eq!(
+            finding_severity("gameplay_override", &impacts, "same_priority", true),
+            "high"
+        );
+        assert_eq!(
+            finding_severity("gameplay_override", &impacts, "unmatched", false),
+            "high"
+        );
+    }
 
     #[test]
     fn advanced_resource_cfg_does_not_claim_a_winner() {
