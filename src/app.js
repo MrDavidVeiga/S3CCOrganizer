@@ -428,7 +428,9 @@ const I18N = {
     variantAnalysisTruncated: "Variant relation list was limited for performance.",
     noDuplicateFindings: "No findings match the current search and filter.",
     duplicatesNext: "Duplicate analysis is read-only. Confirmed duplicates may be moved to reversible Quarantine; nothing is deleted automatically.",
-    selectExactDuplicates: "Select Exact Copies (Keep One)",
+    selectExactDuplicates: "Select ALL Exact Duplicates (Keep One Each)",
+    quarantineSelectionCount: "Selected files across all groups",
+    quarantineBatchHint: "Only byte-identical copies are selected automatically. Keep one per group and confirm quarantine before moving.",
     bulkExactSummary: "Exact copies selected for Quarantine. One per group stays in the library.",
     bulkExactNone: "No safe exact-duplicate groups available.",
     bulkExactUnsafe: "The selection would remove every copy in an exact-duplicate group. Keep at least one.",
@@ -936,7 +938,9 @@ const I18N = {
     variantAnalysisTruncated: "A lista de relações entre variantes foi limitada por desempenho.",
     noDuplicateFindings: "Nenhum resultado corresponde à pesquisa e ao filtro atuais.",
     duplicatesNext: "A análise de duplicados é somente leitura. Duplicados confirmados podem ser movidos para uma Quarentena reversível; nada é apagado automaticamente.",
-    selectExactDuplicates: "Selecionar cópias exatas (manter uma)",
+    selectExactDuplicates: "Selecionar TODOS os duplicados exatos",
+    quarantineSelectionCount: "Arquivos selecionados em todos os grupos",
+    quarantineBatchHint: "Somente cópias idênticas são selecionadas automaticamente. Uma por grupo permanece no local. Revise a quarentena antes de mover.",
     bulkExactSummary: "Cópias exatas selecionadas para Quarentena. Uma cópia de cada grupo permanece na biblioteca.",
     bulkExactNone: "Nenhum grupo seguro de duplicatas exatas disponível.",
     bulkExactUnsafe: "A seleção deixaria um grupo de duplicatas exatas sem nenhuma cópia. Mantenha pelo menos uma.",
@@ -1443,7 +1447,9 @@ const I18N = {
     variantAnalysisTruncated: "La lista de relaciones entre variantes fue limitada por rendimiento.",
     noDuplicateFindings: "Ningún resultado coincide con la búsqueda y el filtro actuales.",
     duplicatesNext: "El análisis de duplicados es de solo lectura. Los duplicados confirmados pueden moverse a una Cuarentena reversible; nada se elimina automáticamente.",
-    selectExactDuplicates: "Seleccionar copias exactas (conservar una)",
+    selectExactDuplicates: "Seleccionar TODOS los duplicados exactos",
+    quarantineSelectionCount: "Archivos seleccionados de todos los grupos",
+    quarantineBatchHint: "Solo se seleccionan automáticamente copias idénticas. Se conserva una por grupo y se requiere confirmación.",
     bulkExactSummary: "Copias exactas seleccionadas para Cuarentena. Se conserva una copia de cada grupo.",
     bulkExactNone: "No hay grupos seguros de duplicados exactos.",
     bulkExactUnsafe: "La selección dejaría un grupo sin copias. Conserva al menos una.",
@@ -1912,6 +1918,10 @@ const el = {
   openReportFolderButtons: [...document.querySelectorAll("[data-open-report-folder]")],
   duplicatesClearListBtn: document.querySelector("#duplicates-clear-list-btn"),
   duplicatesSelectExactBtn: document.querySelector("#duplicates-select-exact-btn"),
+  duplicatesPreviewAllBtn: document.querySelector("#duplicates-preview-all-btn"),
+  duplicatesClearSelectionBtn: document.querySelector("#duplicates-clear-selection-btn"),
+  duplicatesBatchSummary: document.querySelector("#duplicates-batch-summary"),
+  duplicatesBatchPreview: document.querySelector("#duplicates-batch-preview"),
   conflictsClearListBtn: document.querySelector("#conflicts-clear-list-btn"),
   conflictsPrioritizeBtn: document.querySelector("#conflicts-prioritize-btn"),
   conflictsPreviewQuarantineBtn: document.querySelector("#conflicts-preview-quarantine-btn"),
@@ -2998,9 +3008,7 @@ async function selectExactCopiesForQuarantine() {
   el.duplicatesFilter.value = "exact_duplicate";
   persistPreferences();
   state.duplicatesNotice = `${t("bulkExactSummary")} (${groups.length} / ${selected.size})`;
-  state.duplicateSelectedId = groups[0].id;
   renderDuplicates();
-  openDuplicateDetails();
   await buildQuarantinePreview();
 }
 
@@ -3061,17 +3069,23 @@ async function buildQuarantinePreview() {
   try {
     const command = state.quarantineExactBatch
       ? "build_exact_duplicate_quarantine_plan" : "build_quarantine_plan";
-    state.quarantinePlan = await invoke(command, {
-      folder: state.folder,
-      selectedPaths: [...state.quarantineSelected],
+    const folder = state.folder;
+    const selected = [...state.quarantineSelected].sort();
+    const plan = await invoke(command, {
+      folder,
+      selectedPaths: selected,
       ...(state.quarantineExactBatch
         ? { retainedPaths: retainedExactDuplicatePaths() } : {}),
     });
+    if (state.folder !== folder ||
+        selected.join("\n") !== [...state.quarantineSelected].sort().join("\n")) return;
+    state.quarantinePlan = plan;
   } catch (error) {
     state.duplicatesError = String(error);
   } finally {
     state.quarantineBusy = false;
     renderDuplicatesPreview();
+    renderDuplicateBatchControls();
   }
 }
 
@@ -3094,6 +3108,7 @@ async function executeQuarantine() {
     state.duplicatesNotice = `${t("quarantineComplete")}: ${result.moved}`;
     state.quarantineSelected.clear();
     state.quarantinePlan = null;
+    state.quarantineExactBatch = false;
     state.duplicatesAnalysis = null;
     state.duplicateSelectedId = "";
     await Promise.all([refreshOperationHistory(), refreshCacheInfo()]);
@@ -3465,8 +3480,8 @@ function createDuplicateFindingRow(finding) {
   button.append(main, count);
   button.addEventListener("click", () => {
     state.duplicateSelectedId = finding.id;
-    state.quarantineSelected.clear();
-    state.quarantinePlan = null;
+    // Global selection belongs to the full analysis, not the clicked row.
+    // Selecting another finding must not discard a multi-group quarantine.
     updateActiveVirtualRow(el.duplicatesList, "duplicateId", finding.id, "active");
     openDuplicateDetails();
   });
@@ -3521,8 +3536,56 @@ function scheduleDuplicateVirtualRows() {
   });
 }
 
+function renderDuplicateBatchControls() {
+  if (!el.duplicatesBatchPreview) return;
+  const hasAnalysis = !!state.duplicatesAnalysis;
+  const busy = state.quarantineBusy || state.analysisPipelineBusy ||
+    state.scanning || state.duplicatesBusy || state.conflictsBusy ||
+    state.auditBusy || state.executing;
+  const count = state.quarantineSelected.size;
+  el.duplicatesSelectExactBtn.disabled = !hasAnalysis ||
+    !exactDuplicateGroups().length || busy || workspaceReadOnly();
+  el.duplicatesPreviewAllBtn.disabled = !hasAnalysis || !count || busy ||
+    !exactSurvivorIsSafe() || workspaceReadOnly();
+  el.duplicatesClearSelectionBtn.disabled = !count || busy;
+  el.duplicatesBatchSummary.textContent = hasAnalysis
+    ? `${t("quarantineSelectionCount")}: ${count}. ${t("quarantineBatchHint")}`
+    : "";
+  el.duplicatesBatchPreview.replaceChildren();
+  el.duplicatesBatchPreview.classList.toggle("hidden", !state.quarantinePlan || !count);
+  if (!state.quarantinePlan || !count) return;
+
+  const title = document.createElement("h4");
+  title.textContent = t("quarantinePreviewOnly");
+  const destination = document.createElement("code");
+  destination.textContent =
+    `${t("quarantineRoot")}: ${state.quarantinePlan.quarantineRoot}`;
+  const summary = document.createElement("p");
+  summary.textContent =
+    `${t("quarantineReady")}: ${state.quarantinePlan.stats?.ready || 0} · ${t("blocked")}: ${state.quarantinePlan.stats?.blocked || 0}`;
+  const manifest = document.createElement("details");
+  const heading = document.createElement("summary");
+  heading.textContent = t("manifestPreview");
+  const text = document.createElement("pre");
+  text.textContent = state.quarantinePlan.manifestPreview || "";
+  manifest.append(heading, text);
+  el.duplicatesBatchPreview.append(title, destination, summary, manifest);
+
+  if (state.quarantinePlan.canExecute) {
+    const execute = document.createElement("button");
+    execute.type = "button";
+    execute.className = "primary-btn";
+    execute.textContent = t("executeQuarantine");
+    execute.disabled = busy || workspaceReadOnly() || !exactSurvivorIsSafe() ||
+      Number(state.quarantinePlan.stats?.selected) !== count;
+    execute.addEventListener("click", () => openConfirm("quarantine"));
+    el.duplicatesBatchPreview.appendChild(execute);
+  }
+}
+
 function renderDuplicates() {
   if (!el.analyzeDuplicatesBtn) return;
+  renderDuplicateBatchControls();
   el.analyzeDuplicatesBtn.querySelector("[data-i18n]")?.replaceChildren(
     document.createTextNode(t(state.duplicatesAnalysis ? "reanalyzeDuplicates" : "analyzeDuplicates"))
   );
@@ -7846,6 +7909,14 @@ for (const button of el.openReportFolderButtons) {
 }
 el.duplicatesClearListBtn.addEventListener("click", clearDuplicateList);
 el.duplicatesSelectExactBtn.addEventListener("click", selectExactCopiesForQuarantine);
+el.duplicatesPreviewAllBtn.addEventListener("click", buildQuarantinePreview);
+el.duplicatesClearSelectionBtn.addEventListener("click", () => {
+  state.quarantineSelected.clear();
+  state.quarantinePlan = null;
+  state.quarantineExactBatch = false;
+  renderDuplicates();
+  renderDuplicatesPreview();
+});
 el.conflictsClearListBtn.addEventListener("click", clearConflictList);
 el.conflictsPrioritizeBtn.addEventListener("click", () => {
   state.conflictsFilter = "attention";
