@@ -2031,10 +2031,35 @@ button:disabled {
   border-bottom: 1px solid rgba(255,255,255,.07);
 }
 
-.restore-history-header > div {
+.restore-history-header > div:first-child {
   min-width: 0;
   display: grid;
   gap: 2px;
+}
+
+.restore-history-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.restore-history-actions .danger-btn,
+.restore-history-actions .secondary-btn {
+  width: auto;
+}
+
+@media (max-width: 640px) {
+  .restore-history-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .restore-history-actions .danger-btn,
+  .restore-history-actions .secondary-btn {
+    flex: 1 1 0;
+    min-width: 0;
+  }
 }
 
 .restore-history-header strong {

@@ -618,7 +618,14 @@ pub fn execute_quarantine(
 }
 
 #[tauri::command]
-pub fn restore_quarantine(folder: String, manifest_path: String) -> Result<QuarantineResult, String> {
+pub fn restore_quarantine(
+    folder: String,
+    manifest_path: String,
+    confirmed: bool,
+) -> Result<QuarantineResult, String> {
+    if !confirmed {
+        return Err("Quarantine restore requires explicit confirmation.".to_string());
+    }
     let _guard = transaction_guard()?;
     let root = canonical_root(&folder)?;
     ensure_writable(&root)?;

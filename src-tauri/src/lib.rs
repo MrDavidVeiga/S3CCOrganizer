@@ -86,6 +86,7 @@ pub fn run() {
             package_details::get_package_preview,
             package_details::get_package_technical_details,
             restore_history::list_restore_history,
+            restore_history::remove_restore_history,
             review_store::load_conflict_decisions,
             review_store::set_conflict_decision,
             audit_report::save_audit_report,

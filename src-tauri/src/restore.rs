@@ -645,7 +645,11 @@ pub fn execute_restore(
     manifest_path: String,
     current_language: AppLanguage,
     expected_root: Option<String>,
+    confirmed: bool,
 ) -> Result<RestoreExecutionResult, String> {
+    if !confirmed {
+        return Err("Restore requires explicit confirmation.".to_string());
+    }
     let plan = preview_restore(manifest_path.clone(), current_language, expected_root)?;
 
     if !plan.can_execute {

@@ -125,3 +125,65 @@ pub fn list_restore_history(folder: String) -> Result<Vec<RestoreHistoryItem>, S
     items.sort_by_key(|item| std::cmp::Reverse(item.modified_unix_ms));
     Ok(items)
 }
+
+/// Remove only a manifest indexed in this Mods root's managed Restore History.
+/// Packages and their directory structure are never touched.
+#[tauri::command]
+pub fn remove_restore_history(
+    folder: String,
+    manifest_path: String,
+    confirmed: bool,
+) -> Result<(), String> {
+    if !confirmed {
+        return Err("Removing a restore record requires explicit confirmation.".to_string());
+    }
+    let root = PathBuf::from(folder.trim())
+        .canonicalize()
+        .map_err(|error| format!("Could not resolve restore root: {error}"))?;
+    if !root.is_dir() {
+        return Err("Selected Mods root is not a directory.".to_string());
+    }
+
+    let requested = PathBuf::from(manifest_path.trim());
+    let metadata = fs::symlink_metadata(&requested)
+        .map_err(|error| format!("Could not inspect restore manifest: {error}"))?;
+    if !metadata.is_file() || metadata.file_type().is_symlink() {
+        return Err("Only regular restore manifest files may be removed.".to_string());
+    }
+
+    let canonical = requested.canonicalize()
+        .map_err(|error| format!("Could not resolve restore manifest: {error}"))?;
+    if !canonical
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(|value| value.eq_ignore_ascii_case("txt"))
+        .unwrap_or(false)
+    {
+        return Err("Only .txt restore manifests may be removed.".to_string());
+    }
+
+    // Disallow arbitrary .txt files, including paths elsewhere on the disk.
+    // Both current and legacy managed manifest directories are supported.
+    let authorized_directory = [manifests_dir(&root), legacy_manifests_dir(&root)]
+        .iter()
+        .filter_map(|directory| directory.canonicalize().ok())
+        .any(|directory| canonical.parent() == Some(directory.as_path()));
+    if !authorized_directory {
+        return Err("This file is not in a managed Restore Manifests directory.".to_string());
+    }
+
+    let known = list_restore_history(root.to_string_lossy().into_owned())?;
+    let indexed = known.iter().find(|item| Path::new(&item.path) == requested);
+    let Some(indexed) = indexed else {
+        return Err("This manifest is not listed in the selected Mods root's history.".to_string());
+    };
+    if indexed.valid && !indexed.matches_selected_root {
+        return Err("This manifest belongs to a different Mods root.".to_string());
+    }
+
+    crate::workspace::ensure_writable(&root)?;
+    fs::remove_file(&canonical)
+        .map_err(|error| format!("Could not remove restore manifest: {error}"))?;
+    Ok(())
+}
+
