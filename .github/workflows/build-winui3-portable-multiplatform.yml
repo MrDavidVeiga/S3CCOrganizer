@@ -12,6 +12,7 @@ on:
       - "src-tauri/**"
       - "index.html"
       - "scripts/verify-fluent-foundation.mjs"
+      - "scripts/test-fluent-feedback.mjs"
   workflow_dispatch:
 
 permissions:
