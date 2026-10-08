@@ -141,6 +141,14 @@
               <div id="scan-state" class="scan-state"></div>
             </div>
 
+            <div id="organize-progress" class="operation-progress hidden" role="status" aria-live="polite">
+              <div class="operation-progress-topline">
+                <span id="organize-progress-text" class="operation-progress-text"></span>
+                <strong id="organize-progress-percent" class="operation-progress-percent">—</strong>
+              </div>
+              <div class="operation-progress-track" role="progressbar" aria-label="Package organization" aria-valuemin="0" aria-valuemax="100"><span id="organize-progress-bar"></span></div>
+              <div id="organize-progress-count" class="operation-progress-count">—</div>
+            </div>
             <div id="scan-progress" class="operation-progress hidden">
               <div class="operation-progress-topline">
                 <span id="scan-progress-text" class="operation-progress-text"></span>
@@ -279,7 +287,8 @@
             <div class="analysis-list-footer" data-report-panel="duplicates">
               <span class="analysis-audit-status" data-audit-status="duplicates" aria-live="polite"></span>
               <div class="analysis-list-footer-actions">
-                <button id="duplicates-select-exact-btn" class="secondary-btn" type="button" data-i18n="selectExactDuplicates">Select Exact Copies</button>
+                <button id="duplicates-select-exact-btn" class="secondary-btn" type="button" data-i18n="selectExactDuplicates">Select All Exact Copies</button>
+                <button id="duplicates-select-current-btn" class="secondary-btn" type="button" data-i18n="selectCurrentDuplicateGroup">Select Current Group Only</button>
                 <button id="duplicates-preview-all-btn" class="secondary-btn" type="button" data-i18n="previewQuarantine">Preview Quarantine</button>
                 <button id="duplicates-clear-selection-btn" class="secondary-btn" type="button" data-i18n="clearSelection">Clear Selection</button>
                 <button class="secondary-btn" type="button" data-export-audit="duplicates" data-i18n="exportAuditReport">Export Report</button>
@@ -339,8 +348,12 @@
             </div>
             <div class="analysis-list-footer" data-report-panel="conflicts">
               <span class="analysis-audit-status" data-audit-status="conflicts" aria-live="polite"></span>
+              <div id="conflicts-review-selection-count" class="analysis-batch-summary" role="status" aria-live="polite"></div>
               <div class="analysis-list-footer-actions">
-                <button id="conflicts-prioritize-btn" class="secondary-btn" type="button" data-i18n="prioritizeConflicts">Prioritize Review</button>
+                <button id="conflicts-select-all-btn" class="secondary-btn" type="button" data-i18n="selectAllVisibleConflicts">Select All Visible</button>
+                <button id="conflicts-clear-review-btn" class="secondary-btn" type="button" data-i18n="clearReviewSelection">Clear Review Selection</button>
+                <button id="conflicts-prioritize-selected-btn" class="secondary-btn" type="button" data-i18n="prioritizeSelectedConflicts">Prioritize Selected</button>
+                <button id="conflicts-prioritize-btn" class="secondary-btn" type="button" data-i18n="prioritizeConflicts">Prioritize All</button>
                 <button id="conflicts-preview-quarantine-btn" class="secondary-btn" type="button" data-i18n="previewSelectedQuarantine">Preview Selected Quarantine</button>
                 <button id="conflicts-clear-quarantine-btn" class="secondary-btn" type="button" data-i18n="clearSelection">Clear Selection</button>
                 <button class="secondary-btn" type="button" data-export-audit="conflicts" data-i18n="exportAuditReport">Export Report</button>

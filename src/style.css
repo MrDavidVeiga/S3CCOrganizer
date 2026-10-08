@@ -4860,3 +4860,8 @@ body.release-v1 .conflicts-results {
 .manager-plan-footer .organizer-report-footer .analysis-list-footer-actions {
   justify-content: flex-end;
 }
+
+.conflict-row-shell { display:flex; align-items:center; gap:8px; height:53px; min-height:53px; flex:0 0 53px; }
+.conflict-row-shell > .conflict-row { flex:1 1 auto; min-width:0; }
+.conflict-row-select { flex:0 0 auto; margin:0 2px; }
+.conflict-row-shell.selected > .conflict-row { border-color:var(--winui-accent,var(--green)); }

@@ -5,6 +5,7 @@ use crate::{
         replace_manifest_atomic, sha256_file, write_manifest_atomic, RestoreEntry, RestoreManifest,
     },
     planner::{build_organization_plan_with_cfg, PlanItem},
+    operation,
     resource_cfg::{parse_resource_cfg, package_priority},
     resource_cfg_update::{apply_resource_cfg_update, rollback_resource_cfg_update},
 };
@@ -299,6 +300,31 @@ pub fn execute_organization_with_cfg(
     expected_cfg_hash: Option<String>,
     expected_cfg_rules: Vec<String>,
 ) -> Result<ExecutionResult, String> {
+    // Progress is observable through get_operation_status("organize").
+    // Keep the core transactional; never allow cancelling in the middle
+    // of a move sequence without its built-in rollback.
+    operation::begin("organize", "planning");
+    let result = execute_organization_core(
+        folder, language, selected_paths, update_resource_cfg,
+        expected_cfg_hash, expected_cfg_rules,
+    );
+    match &result {
+        Ok(output) if output.status == "COMPLETE" || output.status == "NO_CHANGES" =>
+            operation::finish("organize", "complete", None),
+        Ok(output) => operation::finish("organize", "failed", Some(output.status.clone())),
+        Err(error) => operation::finish("organize", "failed", Some(error.clone())),
+    }
+    result
+}
+
+fn execute_organization_core(
+    folder: String,
+    language: AppLanguage,
+    selected_paths: Vec<String>,
+    update_resource_cfg: bool,
+    expected_cfg_hash: Option<String>,
+    expected_cfg_rules: Vec<String>,
+) -> Result<ExecutionResult, String> {
     let plan = build_organization_plan_with_cfg(folder, language, selected_paths, update_resource_cfg)?;
 
     // Only explicitly ready items will be moved. Keep every blocked item,
@@ -308,6 +334,9 @@ pub fn execute_organization_with_cfg(
     let root = PathBuf::from(&plan.root);
     ensure_writable(&root)?;
     let ready = ready_items(&plan.items);
+    let move_total = ready.len();
+    operation::set_total("organize", move_total + 2);
+    operation::update("organize", 0, None, "preparing");
 
     if ready.is_empty() {
         return Ok(ExecutionResult {
@@ -380,6 +409,7 @@ pub fn execute_organization_with_cfg(
         }
     }
 
+    operation::update("organize", 1, None, "moving");
     let mut moved_pairs: Vec<(PathBuf, PathBuf, String, u64)> = Vec::new();
     let mut errors = Vec::new();
 
@@ -427,12 +457,15 @@ pub fn execute_organization_with_cfg(
         })();
 
         match step_result {
-            Ok(()) => moved_pairs.push((
-                source,
-                destination,
-                expected_hash.clone(),
-                item.size,
-            )),
+            Ok(()) => {
+                moved_pairs.push((
+                    source,
+                    destination,
+                    expected_hash.clone(),
+                    item.size,
+                ));
+                operation::update("organize", moved_pairs.len() + 1, None, "moving");
+            },
             Err(error) => {
                 errors.push(error);
                 break;
@@ -441,6 +474,7 @@ pub fn execute_organization_with_cfg(
     }
 
     if !errors.is_empty() {
+        operation::update("organize", moved_pairs.len() + 1, None, "rolling_back");
         let mut rollback_errors = Vec::new();
         let mut rolled_back = 0usize;
 
@@ -529,11 +563,13 @@ pub fn execute_organization_with_cfg(
         });
     }
 
+    operation::update("organize", move_total + 1, None, "cleaning");
     let (old_folders_removed, old_folders_retained, cleanup_warnings) =
         cleanup_empty_directories_after_organization(&root, &moved_pairs);
 
     manifest.status = "COMPLETE".to_string();
     replace_manifest_atomic(&manifest_path, &manifest)?;
+    operation::update("organize", move_total + 2, None, "complete");
 
     Ok(ExecutionResult {
         status: "COMPLETE".to_string(),
