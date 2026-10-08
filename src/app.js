@@ -2461,9 +2461,8 @@ function t(key) {
 function eligibleForPlan(item) {
   if (!item?.path || item.status !== "classified" || !item.destinationPath) return false;
   // Old Manager versions wrote category folders directly below Mods.
-  // Permit the user's confirmed organization preview to migrate only those
-  // recognizable legacy categories; never select Overrides or unrelated
-  // directories for automatic file moves.
+  // Allow recognized legacy folders and Overrides, but the backend must
+  // always keep Overrides inside Overrides and honor Resource.cfg rules.
   if (/[\\/]Mods[\\/]*$/i.test(state.folder || "") &&
       !/^Packages[\\/]/i.test(String(item.relativePath || ""))) {
     const legacyRoot = String(item.relativePath || "").split(/[\\/]/)[0].toLocaleLowerCase();
@@ -2478,7 +2477,7 @@ function eligibleForPlan(item) {
       "localización", "poses and animations", "poses e animações",
       "poses y animaciones",
     ]);
-    if (!managedCategories.has(legacyRoot)) return false;
+    if (legacyRoot !== "overrides" && !managedCategories.has(legacyRoot)) return false;
   }
   return item.classificationConfidence === "high" || item.classificationConfidence === "manual";
 }
