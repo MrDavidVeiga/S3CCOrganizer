@@ -348,7 +348,7 @@ fn verified_standalone_script_identity(package: &Package, name: &str) -> bool {
     }
     internal_signature(
         package,
-        &[TYPE_S3SA, TYPE_NMAP_LOCAL, TYPE_XML_LOCAL, TYPE_ITUN_LOCAL, TYPE_MANIFEST_LOCAL],
+        &[TYPE_S3SA, TYPE_NMAP_LOCAL, TYPE_XML_LOCAL, TYPE_ITUN_LOCAL, TYPE_STBL_LOCAL, TYPE_MANIFEST_LOCAL],
         &[stem],
     ).is_some()
 }
