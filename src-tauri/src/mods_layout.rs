@@ -9,8 +9,14 @@ pub fn is_mods_root(path: &Path) -> bool {
     if path.file_name().is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("Mods")) {
         return true;
     }
+    let name = path.file_name().map(|name| name.to_string_lossy().to_ascii_lowercase())
+        .unwrap_or_default();
+    let renamed_mods = name.strip_prefix("mods").is_some_and(|suffix|
+        suffix.starts_with(' ') || suffix.starts_with('-')
+            || suffix.starts_with('_') || suffix.starts_with('('));
     path.join("Packages").is_dir()
-        && (path.join("Resource.cfg").is_file() || path.join("Overrides").is_dir())
+        && (renamed_mods || path.join("Resource.cfg").is_file()
+            || path.join("Overrides").is_dir())
 }
 
 /// Used by scanning, planning and Resource.cfg updates. Never match an
@@ -74,6 +80,12 @@ mod tests {
         fs::write(mods.join("Resource.cfg"), b"Priority 500\nPackedFile Packages/*/*.package\n").unwrap();
 
         assert!(is_mods_root(&mods));
+        // Copies remain recognized even when their optional cfg and
+        // Overrides contents were not copied yet.
+        fs::remove_file(mods.join("Resource.cfg")).unwrap();
+        fs::remove_dir(mods.join("Overrides")).unwrap();
+        assert!(is_mods_root(&mods));
+        fs::create_dir_all(mods.join("Overrides")).unwrap();
         assert_eq!(mods_ancestor(&mods.join("Packages/Old")), Some(mods.as_path()));
         assert!(validate_organization_destination(
             &mods,
