@@ -957,6 +957,7 @@ const I18N = {
     partialPriorityUnknown: "Apenas um package corresponde ao Resource.cfg. Esse par não provoca conflito de recursos no jogo sob essas regras de carregamento.",
     unmatchedPriorityUnknown: "Nenhum dos packages corresponde ao Resource.cfg. Eles podem estar na pasta analisada sem serem carregados pelo jogo.",
     missingResourceCfg: "Nenhum Resource.cfg foi encontrado na pasta selecionada nem na pasta pai.",
+    advancedCfgUnknown: "Este Resource.cfg usa instruções avançadas de varredura ou condicionais. O Manager não presumirá qual package prevalece com base apenas na prioridade.",
     likelyHigherPriority: "Prioridade mais alta",
     conflictsNext: "A análise de conflitos por resource está implementada em modo somente leitura.",
   },
