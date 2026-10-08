@@ -1,0 +1,157 @@
+name: WinUI 3 Portable Test — Linux and macOS
+
+# Three architecture-specific diagnostic builds; never creates a tag or Release.
+on:
+  push:
+    branches:
+      - feature/winui3-full-fidelity
+    paths:
+      - ".github/workflows/build-winui3-portable-multiplatform.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: winui3-portable-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  portable:
+    name: WinUI 3 / ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: Linux x64 AppImage
+            os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            slug: Linux_x64
+            platform: linux
+          - label: macOS Intel
+            os: macos-15-intel
+            target: x86_64-apple-darwin
+            slug: macOS_Intel
+            platform: macos
+          - label: macOS Apple Silicon
+            os: macos-15
+            target: aarch64-apple-darwin
+            slug: macOS_AppleSilicon
+            platform: macos
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+      CARGO_INCREMENTAL: "0"
+
+    steps:
+      - name: Checkout pinned branch revision
+        uses: actions/checkout@v5
+
+      - name: Install Linux Tauri/WebKit prerequisites
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential curl wget file libssl-dev libgtk-3-dev \
+            libwebkit2gtk-4.1-dev libayatana-appindicator3-dev \
+            librsvg2-dev libxdo-dev patchelf
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+
+      - name: Set up stable Rust for target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache Rust per architecture
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri -> target"
+          key: ${{ matrix.slug }}
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Validate Fluent UI foundation and JavaScript
+        run: |
+          node scripts/verify-fluent-foundation.mjs
+          node --check src/app.js
+          npm run build
+
+      - name: Recover original app icon
+        run: |
+          python3 -c "import base64,pathlib; p=pathlib.Path('src-tauri/icons/manager-icon.png'); p.write_bytes(base64.b64decode(pathlib.Path('src-tauri/icons/manager-icon.b64').read_text().strip()))"
+          npm run tauri icon src-tauri/icons/manager-icon.png
+
+      - name: Run Rust regression tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib
+
+      - name: Build Linux x64 AppImage
+        if: matrix.platform == 'linux'
+        run: npm run tauri build -- --target ${{ matrix.target }} --bundles appimage
+
+      - name: Build macOS .app
+        if: matrix.platform == 'macos'
+        run: npm run tauri build -- --target ${{ matrix.target }} --bundles app
+
+      - name: Package Linux AppImage
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          candidate="$(find src-tauri/target -type f -name '*.AppImage' -print -quit)"
+          test -n "$candidate"
+          stage="$RUNNER_TEMP/manager-portable-stage"
+          mkdir -p "$stage" out
+          cp "$candidate" "$stage/VeigasS3CCManager_Linux_x64.AppImage"
+          chmod +x "$stage/VeigasS3CCManager_Linux_x64.AppImage"
+          cp README.md "$stage/README.md"
+          cat > "$stage/READ-ME-FIRST.txt" <<EOF
+          Veiga's S3CC Manager — WinUI 3 Linux x64 test
+          Source commit: ${{ github.sha }}
+
+          Diagnostic build only — no Beta 2 release, tag or installer.
+          Run the included .AppImage on compatible x86_64 Linux.
+          FUSE/AppImage support and a working desktop environment may be required.
+          Test file-moving features only on a COPY of your Sims 3 Mods folder.
+          EOF
+          archive="$GITHUB_WORKSPACE/out/VeigasS3CCManager_WinUI3_UITest_${{ matrix.slug }}.zip"
+          (cd "$stage" && zip -q -r -9 "$archive" .)
+          (cd out && sha256sum "$(basename "$archive")" > "SHA256_${{ matrix.slug }}.txt")
+          unzip -t "$archive"
+
+      - name: Package macOS app preserving executable permissions and links
+        if: matrix.platform == 'macos'
+        shell: bash
+        run: |
+          set -euo pipefail
+          candidate="$(find src-tauri/target -type d -name '*.app' -prune -print -quit)"
+          test -n "$candidate"
+          stage="$RUNNER_TEMP/manager-portable-stage"
+          mkdir -p "$stage" out
+          ditto "$candidate" "$stage/$(basename "$candidate")"
+          cp README.md "$stage/README.md"
+          cat > "$stage/READ-ME-FIRST.txt" <<EOF
+          Veiga's S3CC Manager — WinUI 3 ${{ matrix.slug }} test
+          Source commit: ${{ github.sha }}
+
+          Diagnostic macOS app. No Beta 2 release, tag or installer.
+          The .app is unsigned and not Apple-notarized. macOS Gatekeeper may
+          block it until you explicitly approve this trusted test application.
+          Test file-moving features only on a COPY of your Sims 3 Mods folder.
+          EOF
+          archive="$GITHUB_WORKSPACE/out/VeigasS3CCManager_WinUI3_UITest_${{ matrix.slug }}.zip"
+          ditto -c -k --sequesterRsrc --keepParent "$stage" "$archive"
+          (cd out && shasum -a 256 "$(basename "$archive")" > "SHA256_${{ matrix.slug }}.txt")
+          unzip -t "$archive"
+
+      - name: Upload portable test artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: S3CC-Manager-WinUI3-UITest-${{ matrix.slug }}
+          path: out/*
+          if-no-files-found: error
+          retention-days: 14
