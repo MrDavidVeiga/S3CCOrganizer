@@ -4475,6 +4475,10 @@ function renderConflictVirtualRows(findings, force = false) {
   for (let index = start; index < end; index += 1) {
     const row = createConflictFindingRow(findings[index]);
     row.dataset.fluentIndex = String(index);
+    // Keep the native button as the Fluent ListView keyboard target.
+    // The checkbox is a sibling control and must not intercept navigation.
+    const action = row.querySelector(".conflict-row");
+    if (action) action.dataset.fluentIndex = String(index);
     fragment.appendChild(row);
   }
   if (end < findings.length) {
