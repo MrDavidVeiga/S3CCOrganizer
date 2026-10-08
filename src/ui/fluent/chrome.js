@@ -16,7 +16,9 @@ function syncTabNavigation() {
     button.setAttribute("role","tab");
     button.setAttribute("aria-controls",`page-${id}`);
     button.tabIndex=button.getAttribute("aria-selected")==="true" && !button.classList.contains("hidden")?0:-1;
-    const panel=document.getElementById(`page-${id}`);
+    // Resolve against the owning document: observers can still deliver a
+    // queued mutation while a JSDOM/WebView document is being torn down.
+    const panel=tablist.ownerDocument.getElementById(`page-${id}`);
     if(panel){
       panel.setAttribute("role","tabpanel");
       panel.setAttribute("aria-labelledby",button.id);
