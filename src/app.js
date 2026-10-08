@@ -5044,6 +5044,10 @@ async function restoreQuarantineFromHistory(item) {
     state.quarantineSelected.clear();
     await Promise.all([refreshOperationHistory(), refreshCacheInfo()]);
     state.toolsBusy = false;
+    state.pendingAction = "";
+    state.pendingQuarantineRestore = null;
+    el.confirmModal.classList.add("hidden");
+    el.confirmModal.setAttribute("aria-hidden", "true");
     await scanFolder(false, true);
   } catch (error) {
     state.toolsError = String(error);
@@ -5078,6 +5082,10 @@ async function recoverQuarantineFromHistory(item) {
     state.quarantineSelected.clear();
     state.toolsBusy = false;
     await Promise.all([refreshOperationHistory(), refreshCacheInfo()]);
+    state.pendingAction = "";
+    state.pendingQuarantineRestore = null;
+    el.confirmModal.classList.add("hidden");
+    el.confirmModal.setAttribute("aria-hidden", "true");
     await scanFolder(false, true);
   } catch (error) {
     state.toolsError = String(error);
