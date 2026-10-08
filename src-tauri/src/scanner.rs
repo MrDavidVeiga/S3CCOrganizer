@@ -1760,28 +1760,38 @@ fn scan_one(
     }
 }
 
-// The selected Mods root is one level above the only valid organization
-// directory (Packages). Keep scan previews consistent with planner paths.
-fn physical_destination_parts(root: &Path, parts: &[String]) -> Vec<String> {
-    let mut parts = parts.to_vec();
-    let has_packages_prefix = parts.first()
-        .is_some_and(|part| part.eq_ignore_ascii_case("Packages"));
-    if parts.get(usize::from(has_packages_prefix))
-        .is_some_and(|part| part.eq_ignore_ascii_case("CAS"))
+// Previews must preserve the loading branch of the source: Packages stays in
+// Packages, Overrides stays in Overrides. The semantic category is independent
+// of which branch actually contains the package.
+fn physical_destination_parts(
+    root: &Path,
+    source_relative: &str,
+    parts: &[String],
+) -> Vec<String> {
+    let root_name = root.file_name().map(|name| name.to_string_lossy().to_lowercase())
+        .unwrap_or_default();
+    let source_top = source_relative.replace('\\', "/")
+        .split('/').next().unwrap_or("").to_lowercase();
+    let override_source = root_name == "overrides"
+        || (root_name == "mods" && source_top == "overrides");
+
+    let mut result = parts.to_vec();
+    if result.first().is_some_and(|part| part.eq_ignore_ascii_case("Packages")
+        || part.eq_ignore_ascii_case("Overrides"))
     {
-        parts.remove(usize::from(has_packages_prefix));
+        result.remove(0);
     }
-    if root.file_name().is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("Mods"))
-        && !has_packages_prefix && !parts.is_empty()
-    {
-        parts.insert(0, "Packages".to_string());
-    } else if root.file_name()
-        .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("Packages"))
-        && has_packages_prefix
-    {
-        parts.remove(0);
+    if result.first().is_some_and(|part| part.eq_ignore_ascii_case("CAS")) {
+        result.remove(0);
     }
-    parts
+    if root_name == "mods" && !result.is_empty() {
+        result.insert(0, if override_source {
+            "Overrides".to_string()
+        } else {
+            "Packages".to_string()
+        });
+    }
+    result
 }
 
 pub fn scan_packages_core(
@@ -1837,14 +1847,14 @@ pub fn scan_packages_core(
     apply_manual_classifications(&root, &mut items);
 
     for item in &mut items {
-        item.destination_parts = physical_destination_parts(&root, &item.destination_parts);
+        item.destination_parts = physical_destination_parts(&root, &item.relative_path, &item.destination_parts);
         if item.destination_path.is_some() {
             item.destination_path = Some(item.destination_parts.join("\\"));
         }
         item.candidate_destinations = item.candidate_destinations
             .iter()
             .map(|value| {
-                physical_destination_parts(&root, &split_destination(value)).join("\\")
+                physical_destination_parts(&root, &item.relative_path, &split_destination(value)).join("\\")
             })
             .collect();
     }
@@ -2122,20 +2132,50 @@ mod tests {
         let legacy = vec!["CAS".to_string(), "Clothing".to_string(),
             "Male".to_string(), "YA-A".to_string(), "Top".to_string()];
         assert_eq!(
-            physical_destination_parts(&mods, &legacy),
+            physical_destination_parts(&mods, "Packages/legacy.package", &legacy),
             vec!["Packages", "Clothing", "Male", "YA-A", "Top"]
         );
         assert_eq!(
-            physical_destination_parts(&packages, &legacy),
+            physical_destination_parts(&packages, "legacy.package", &legacy),
             vec!["Clothing", "Male", "YA-A", "Top"]
         );
         assert_eq!(
-            physical_destination_parts(&mods, &["Packages".into(), "CAS".into(), "Sliders".into()]),
+            physical_destination_parts(&mods, "Packages/legacy.package", &["Packages".into(), "CAS".into(), "Sliders".into()]),
             vec!["Packages", "Sliders"]
         );
         assert_eq!(
-            physical_destination_parts(&packages, &["Packages".into(), "CAS".into(), "Sliders".into()]),
+            physical_destination_parts(&packages, "legacy.package", &["Packages".into(), "CAS".into(), "Sliders".into()]),
             vec!["Sliders"]
+        );
+    }
+
+    #[test]
+    fn overrides_remain_in_overrides_in_both_scan_modes() {
+        let mods = Path::new("The Sims 3").join("Mods");
+        let overrides = mods.join("Overrides");
+        let parts = vec!["Gameplay".into(), "Tuning".into()];
+        assert_eq!(
+            physical_destination_parts(&mods, "Overrides/UI/foo.package", &parts),
+            vec!["Overrides", "Gameplay", "Tuning"]
+        );
+        assert_eq!(
+            physical_destination_parts(&mods, r"Overrides\\UI\\foo.package", &parts),
+            vec!["Overrides", "Gameplay", "Tuning"]
+        );
+        assert_eq!(
+            physical_destination_parts(&overrides, "UI/foo.package", &parts),
+            parts
+        );
+        assert_eq!(
+            physical_destination_parts(&mods, "Packages/foo.package", &parts),
+            vec!["Packages", "Gameplay", "Tuning"]
+        );
+        assert_eq!(
+            physical_destination_parts(
+                &mods, "Overrides/foo.package",
+                &["Packages".into(), "CAS".into(), "Sliders".into()]
+            ),
+            vec!["Overrides", "Sliders"]
         );
     }
 
