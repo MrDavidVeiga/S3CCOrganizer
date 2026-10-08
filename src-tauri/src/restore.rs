@@ -717,18 +717,20 @@ pub fn execute_restore(
                 )
             })?;
 
+            // Roll back this item as well if post-move verification fails.
+            moved.push((
+                source.clone(),
+                destination.clone(),
+                item.sha256.clone(),
+                item.size,
+                item.kind.clone(),
+            ));
             verify_identity(&destination, &item.sha256, item.size)?;
             Ok(())
         })();
 
         match step {
-            Ok(()) => moved.push((
-                source,
-                destination,
-                item.sha256.clone(),
-                item.size,
-                item.kind.clone(),
-            )),
+            Ok(()) => {},
             Err(error) => {
                 errors.push(error);
                 break;
