@@ -1606,6 +1606,38 @@ mod tests {
     }
 
     #[test]
+    fn renamed_mods_copy_normalizes_current_and_legacy_destinations() {
+        let base = std::env::temp_dir().join(format!(
+            "s3cc-planner-copy-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
+        ));
+        let mods = base.join("Mods - Copia");
+        fs::create_dir_all(mods.join("Packages")).unwrap();
+        fs::create_dir_all(mods.join("Overrides")).unwrap();
+        fs::write(mods.join("Resource.cfg"), "Priority 500\nPackedFile Packages/*/*/*/*.package\n").unwrap();
+        assert!(is_mods_root(&mods));
+        assert_eq!(
+            ensure_packages_destination(&mods, &["CAS".into(), "Sliders".into(), "Corpo".into()]),
+            vec!["Packages", "Sliders", "Corpo"]
+        );
+        assert_eq!(
+            ensure_packages_destination(&mods, &["Packages".into(), "Cabelos".into()]),
+            vec!["Packages", "Cabelos"]
+        );
+        assert!(legacy_manager_source(&mods, &mods.join("Cabelos/Antigos/test.package")));
+        assert!(legacy_manager_source(&mods, &mods.join("Careers/test.package")));
+        assert!(legacy_manager_source(&mods, &mods.join("# +18/test.package")));
+        assert!(!legacy_manager_source(&mods, &mods.join("DCCache/test.package")));
+        assert!(!legacy_manager_source(&mods, &mods.join("Overrides/test.package")));
+        assert!(source_uses_overrides(&mods, &mods.join("Overrides/UI/test.package")));
+        assert!(!source_uses_overrides(&mods, &mods.join("Packages/Scripts/test.package")));
+        assert!(validate_organization_destination(&mods, &mods.join("Packages/Hair/x.package"),
+            &mods.join("Hair/x.package")).is_err());
+        fs::remove_dir_all(base).unwrap();
+    }
+
+    #[test]
     fn mods_root_always_routes_categories_into_packages() {
         let mods_base = Path::new("The Sims 3").join("Mods");
         let mods = mods_base.as_path();
