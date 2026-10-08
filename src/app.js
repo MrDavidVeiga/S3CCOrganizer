@@ -5097,7 +5097,9 @@ function historyRecordCanBeRemoved(item) {
       state.executing) return false;
   if (item.kind === "restore_manifest") {
     const matching = state.restoreHistory.find(record => record.path === item.destination);
-    return !!matching && (!matching.valid || matching.matchesSelectedRoot);
+    return !!matching && (!matching.valid ||
+      (matching.matchesSelectedRoot &&
+        ["COMPLETE", "RESTORED", "ROLLED_BACK"].includes(matching.status)));
   }
   if (item.kind === "quarantine") {
     return item.status === "RESTORED" || item.status === "ROLLED_BACK";
@@ -6173,7 +6175,10 @@ function renderRestore() {
     (entry) => entry.path === state.restoreManifest
   );
   el.removeRestoreHistoryBtn.disabled =
-    !selectedHistory || (selectedHistory.valid && !selectedHistory.matchesSelectedRoot) ||
+    !selectedHistory ||
+    (selectedHistory.valid &&
+      (!selectedHistory.matchesSelectedRoot ||
+       !["COMPLETE", "RESTORED", "ROLLED_BACK"].includes(selectedHistory.status))) ||
     state.restoreBusy || state.executing || state.structureBusy || workspaceReadOnly();
 
   el.executeRestoreBtn.classList.toggle("hidden", !canExecuteRestore);
@@ -6302,7 +6307,9 @@ function openConfirm(action) {
     const selected = state.restoreHistory.find(
       (item) => item.path === state.restoreManifest
     );
-    if (!selected || (selected.valid && !selected.matchesSelectedRoot) ||
+    if (!selected ||
+        (selected.valid && (!selected.matchesSelectedRoot ||
+          !["COMPLETE", "RESTORED", "ROLLED_BACK"].includes(selected.status))) ||
         state.restoreBusy || workspaceReadOnly()) return;
     state.pendingRemoveManifest = selected.path;
   } else if (action === "restore_quarantine" || action === "recover_quarantine") {
