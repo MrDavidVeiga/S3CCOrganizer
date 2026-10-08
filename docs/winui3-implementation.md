@@ -148,3 +148,28 @@ The current WinUI branch includes the latest completed-quarantine history remova
 
 ### Seven-theme finishing audit — stronger light hover and secondary list coverage
 Raised light-mode neutral ListView hover from 7.5% to 10.5% black and pressed to 17% while keeping selected accent fill. Mean Girls uses dark-plum hover at 15% with 21% pressed; theme identity and black primary actions are preserved. Completed Tools, Restore, Catalog, virtual detail rows, nested actions, disabled and keyboard focus rules. No change to row heights, virtual scroll, item selection mechanics or scanner logic. Static/WCAG test assertions were expanded; real WebView2 inspection is still required for each theme, focus, hover and DPI.
+
+
+## Beta 2 integrated-theme surface audit — October 8
+
+Extended the theme cascade to components added across the integrated
+Manager, Duplicates, Conflicts, Restore, Catalog and Tools workflows.
+The previously audited virtual lists and menus were not sufficient for
+nested cards in the newer feature implementations.
+
+- Applied semantic WinUI surface/stroke tokens to planner and Restore
+  summaries, duplicate/conflict comparison panels, quarantine previews,
+  filesystem structure, catalog, Tools panels and Sims3Pack converter.
+- Corrected theme-dependent path, warning, error and success colors,
+  including root mismatch and converted-file warnings.
+- Restored visible selected state on Tools subtabs and nested record rows,
+  and preserved red semantic hover for destructive History actions.
+- Retained warning/error status rails and the distinct seven-theme
+  identities. No scan, categorization, extraction, Rust, or
+  persistence logic changed.
+- Maintained virtual row metrics, keyboard controls, high-contrast support
+  and reduced motion. Static regression assertions were extended.
+
+Remaining acceptance: GitHub CI/frontend and Rust execution plus direct
+Windows WebView2 visual checks, including 100% / 125% / 150% DPI.
+Neither a CSS review nor a static assertion proves visual fidelity.
