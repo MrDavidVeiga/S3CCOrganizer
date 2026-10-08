@@ -123,6 +123,7 @@ const I18N = {
     confirmRemoveRestoreTitle: "Remove restore record?",
     confirmRemoveRestoreMessage: "This permanently removes the selected restore manifest, NOT any .package files. Without this manifest, you cannot undo that organization through Restore.",
     restoreRecordRemoved: "Restore record removed",
+    removingRestoreRecord: "Removing restore record…",
     restoreSelectedHint: "Manifest selected. Use Preview Restore to review changes. No files were moved.",
     confirmQuarantineRestoreTitle: "Restore files from Quarantine?",
     confirmQuarantineRestoreMessage: "Files in this quarantine will be moved back to their original paths. Confirm to proceed; no files will be overwritten.",
@@ -592,6 +593,7 @@ const I18N = {
     confirmRemoveRestoreTitle: "Remover registro de restauração?",
     confirmRemoveRestoreMessage: "Isso remove permanentemente apenas o manifesto selecionado, NÃO os arquivos .package. Sem esse manifesto, não será possível desfazer aquela organização pelo Restore.",
     restoreRecordRemoved: "Registro de restauração removido",
+    removingRestoreRecord: "Removendo registro de restauração…",
     restoreSelectedHint: "Manifesto selecionado. Use Visualizar Restauração para revisar as alterações. Nenhum arquivo foi movido.",
     confirmQuarantineRestoreTitle: "Restaurar arquivos da Quarentena?",
     confirmQuarantineRestoreMessage: "Os arquivos dessa quarentena voltarão aos caminhos originais. Confirme para continuar; nenhum arquivo será sobrescrito.",
@@ -1060,6 +1062,7 @@ const I18N = {
     confirmRemoveRestoreTitle: "¿Eliminar el registro de restauración?",
     confirmRemoveRestoreMessage: "Solo se elimina permanentemente el manifiesto seleccionado, NO los archivos .package. Sin él, no podrás deshacer esa organización desde Restore.",
     restoreRecordRemoved: "Registro de restauración eliminado",
+    removingRestoreRecord: "Eliminando registro de restauración…",
     restoreSelectedHint: "Manifiesto seleccionado. Usa Ver Restauración para revisar los cambios. No se ha movido ningún archivo.",
     confirmQuarantineRestoreTitle: "¿Restaurar archivos de Cuarentena?",
     confirmQuarantineRestoreMessage: "Los archivos de esta cuarentena volverán a sus rutas originales. Confirma para continuar; no se sobrescribirá ningún archivo.",
@@ -3921,6 +3924,42 @@ function renderRestoreHistory() {
   }
 }
 
+async function removeSelectedRestoreHistory() {
+  const selectedManifest = state.pendingRemoveManifest;
+  if (state.pendingAction !== "remove_restore_history" ||
+      !selectedManifest || state.restoreBusy || state.executing ||
+      el.confirmModal.classList.contains("hidden")) return;
+
+  state.restoreBusy = true;
+  state.restoreError = "";
+  state.restoreNotice = "";
+  el.confirmActionBtn.disabled = true;
+  render();
+
+  try {
+    await invoke("remove_restore_history", {
+      folder: state.folder,
+      manifestPath: selectedManifest,
+    });
+    if (state.restoreManifest === selectedManifest) {
+      state.restoreManifest = "";
+      state.restorePlan = null;
+    }
+    state.restoreNotice = t("restoreRecordRemoved");
+  } catch (error) {
+    state.restoreError = String(error);
+  } finally {
+    state.restoreBusy = false;
+    el.confirmActionBtn.disabled = false;
+    state.pendingAction = "";
+    state.pendingRemoveManifest = "";
+    el.confirmModal.classList.add("hidden");
+    el.confirmModal.setAttribute("aria-hidden", "true");
+    await loadRestoreHistory();
+    render();
+  }
+}
+
 async function loadRestoreHistory() {
   if (!state.folder) {
     state.restoreHistory = [];
@@ -6095,7 +6134,9 @@ function renderRestore() {
   if (state.restoreBusy) {
     el.restoreState.textContent = state.pendingAction === "restore"
       ? t("restoring")
-      : t("restorePreviewing");
+      : state.pendingAction === "remove_restore_history"
+        ? t("removingRestoreRecord")
+        : t("restorePreviewing");
     el.restoreState.className = "scan-state busy";
   } else if (state.restoreError) {
     el.restoreState.textContent = `${t("restoreFailed")}: ${state.restoreError}`;
@@ -6735,7 +6776,14 @@ async function previewRestore() {
 }
 
 async function executeRestore() {
-  if (!state.restorePlan?.canExecute || state.restoreBusy || state.structureBusy) return;
+  // Restoring is impossible from selection or preview, without an explicit
+  // confirmation for the exact manifest that was previewed.
+  if (state.pendingAction !== "restore" ||
+      state.pendingRestoreManifest !== state.restoreManifest ||
+      state.restorePlan?.manifestPath !== state.restoreManifest ||
+      !state.restorePlan?.canExecute || state.restoreBusy ||
+      state.structureBusy || workspaceReadOnly() ||
+      el.confirmModal.classList.contains("hidden")) return;
 
   state.restoreBusy = true;
   state.restoreError = "";
@@ -6747,6 +6795,7 @@ async function executeRestore() {
       manifestPath: state.restoreManifest,
       currentLanguage: state.language,
       expectedRoot: state.folder || null,
+      confirmed: true,
     });
 
     if (result.status === "RESTORED") {
@@ -6758,11 +6807,17 @@ async function executeRestore() {
     }
 
     state.pendingAction = "";
+    state.pendingRestoreManifest = "";
     el.confirmModal.classList.add("hidden");
+    el.confirmModal.setAttribute("aria-hidden", "true");
   } catch (error) {
     state.restoreError = String(error);
   } finally {
     state.restoreBusy = false;
+    state.pendingAction = "";
+    state.pendingRestoreManifest = "";
+    el.confirmModal.classList.add("hidden");
+    el.confirmModal.setAttribute("aria-hidden", "true");
     el.confirmActionBtn.disabled = false;
     render();
   }
