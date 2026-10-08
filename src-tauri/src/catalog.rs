@@ -737,7 +737,12 @@ pub fn classify_casp(data: &[u8], language: AppLanguage) -> Option<CatalogClassi
     let mut folder_parts = vec![tr(language, "CAS").to_string(), main_category.clone()];
     if main_key != "Pets" {
         folder_parts.push(gender.clone());
-        folder_parts.push(age.clone());
+        // Accessories retain gender and optional accessory subtype, but
+        // age flags remain available as metadata rather than folder levels.
+        // This also saves Resource.cfg depth in both loading branches.
+        if main_key != "Accessories" {
+            folder_parts.push(age.clone());
+        }
     }
     if let Some(sub) = &sub_category {
         folder_parts.push(sub.clone());
@@ -1558,6 +1563,27 @@ mod tests {
             classification.usage_categories,
             vec!["Everyday", "Formalwear"]
         );
+    }
+
+    #[test]
+    fn accessories_keep_gender_and_subtype_but_no_age_folder() {
+        // 0x18 is gloves; one CASP advertises teen through elder eligibility.
+        for language in [AppLanguage::En, AppLanguage::Pt, AppLanguage::Es] {
+            let data = minimal_casp(0x18, 0, 0x0000_2178, 0);
+            let item = classify_casp(&data, language).unwrap();
+            assert_eq!(item.folder_parts.len(), 4);
+            assert!(item.folder_parts[1].eq_ignore_ascii_case(tr(language, "Accessories")));
+            assert_eq!(item.folder_parts[2], tr(language, "Female"));
+            assert_eq!(item.folder_parts[3], tr(language, "Gloves"));
+            assert!(item.age.unwrap().contains(tr(language, "Unknown")) == false);
+        }
+    }
+
+    #[test]
+    fn brazilian_toddler_and_newborn_remain_distinct() {
+        assert_eq!(casp_age_label(0x02, AppLanguage::Pt), "Bebê");
+        assert_eq!(casp_age_label(0x01, AppLanguage::Pt), "Recém-Nascido");
+        assert_eq!(casp_age_label(0x04, AppLanguage::Pt), "Criança");
     }
 
     #[test]
