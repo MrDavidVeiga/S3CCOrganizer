@@ -1024,6 +1024,14 @@ fn slider_internal_candidates(package: &Package) -> Vec<(String, &'static str)> 
     candidates
 }
 
+fn verified_slider_name_alias(filename: &str) -> Option<&'static str> {
+    // Confirmed against the supplied slider corpus: OneEuroMutt's original
+    // package filename omits the anatomical prefix. Only use this alias once
+    // resources have independently established that the package is a slider.
+    filename.eq_ignore_ascii_case("OneEuroMuttTip Width.package")
+        .then_some("Nose Tip Width")
+}
+
 fn slider_internal_evidence(
     package: &Package,
     filename: &str,
@@ -1035,10 +1043,20 @@ fn slider_internal_evidence(
             return Some((name.clone(), *source, Some(destination)));
         }
     }
+    // This specific alias has been verified by the user: the internal generic
+    // label "Tip Width" is actually "Nose Tip Width". The enclosing scanner
+    // has already confirmed morph resources, so the alias cannot classify
+    // an unrelated package as a slider.
+    if let Some(verified) = verified_slider_name_alias(filename) {
+        return Some((
+            verified.to_string(),
+            "User-verified slider alias",
+            slider_destination_from_internal_name(verified, language),
+        ));
+    }
     // Some sliders store only generic NMAP labels ("Tip Width", "Outer
-    // Curve", "Middle Width"). Combine their internal morph evidence with
-    // anatomy explicitly present in the original package filename. A
-    // filename alone must never create an authoritative slider classification.
+    // Curve", "Middle Width"). Combine internal evidence with a clear
+    // anatomical term in the package filename.
     if let Some((name, source)) = candidates.first() {
         if let Some(destination) = slider_destination_from_internal_name(filename, language) {
             return Some((format!("{name} | filename: {filename}"), *source, Some(destination)));
@@ -2203,6 +2221,15 @@ mod tests {
             Some(vec!["Sliders".into(), "Face".into()])
         );
         assert!(slider_destination_from_internal_name("OneEuroMuttTip Width.package", AppLanguage::En).is_none());
+        assert_eq!(verified_slider_name_alias("OneEuroMuttTip Width.package"), Some("Nose Tip Width"));
+        assert_eq!(
+            slider_destination_from_internal_name(
+                verified_slider_name_alias("OneEuroMuttTip Width.package").unwrap(),
+                AppLanguage::En,
+            ),
+            Some(vec!["Sliders".into(), "Face".into(), "Nose".into()])
+        );
+        assert_eq!(verified_slider_name_alias("SomeoneElseTip Width.package"), None);
     }
 
     #[test]
