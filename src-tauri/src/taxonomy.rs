@@ -55,7 +55,7 @@ impl CasClassification {
     /// Internal enums remain language-independent so changing the UI language
     /// never changes the meaning of a classification.
     pub fn folder_parts(&self, language: AppLanguage) -> Vec<&'static str> {
-        let mut parts = vec![language.cas()];
+        let mut parts = Vec::new();
 
         parts.push(match self.category {
             CasCategory::Clothing => language.clothing(),
@@ -116,15 +116,15 @@ mod tests {
     fn folder_taxonomy_follows_interface_language() {
         assert_eq!(
             sample().folder_parts(AppLanguage::En),
-            vec!["CAS", "Clothing", "Male", "YA-A", "Top"]
+            vec!["Clothing", "Male", "YA-A", "Top"]
         );
         assert_eq!(
             sample().folder_parts(AppLanguage::Pt),
-            vec!["CAS", "Roupas", "Masculino", "Jovem Adulto-Adulto", "Parte de Cima"]
+            vec!["Roupas", "Masculino", "Jovem Adulto-Adulto", "Parte de Cima"]
         );
         assert_eq!(
             sample().folder_parts(AppLanguage::Es),
-            vec!["CAS", "Ropa", "Masculino", "Adulto Joven-Adulto", "Parte Superior"]
+            vec!["Ropa", "Masculino", "Adulto Joven-Adulto", "Parte Superior"]
         );
     }
 }
