@@ -4586,3 +4586,167 @@ body.release-v1 .conflicts-results {
   .conflict-details-modal { padding: 14px; }
   .conflict-details-modal .conflict-pair { grid-template-columns: 1fr; }
 }
+
+/* Duplicates details: match the side-by-side Conflicts package panels while
+   keeping duplicate-only metadata, selection and quarantine evidence. */
+.duplicate-details-modal {
+  background: var(--winui-popup, var(--panel));
+}
+
+.duplicate-details-modal .duplicate-member-list,
+.duplicate-details-modal .duplicate-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  align-items: stretch;
+  margin-bottom: 12px;
+}
+
+.duplicate-details-modal .duplicate-member,
+.duplicate-details-modal .duplicate-member:has(.quarantine-member-select),
+.duplicate-details-modal .duplicate-pair article {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 7px;
+  padding: 10px;
+}
+
+.duplicate-details-modal .duplicate-member-visual {
+  width: 100%;
+  min-width: 0;
+  min-height: 92px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--winui-card-fill-alt, var(--surface));
+}
+
+.duplicate-details-modal .duplicate-member-thumb {
+  display: block;
+  width: 100%;
+  height: clamp(120px, 19vh, 180px);
+  object-fit: contain;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.duplicate-details-modal .duplicate-member-thumb-fallback {
+  border: 1px dashed var(--winui-control-stroke, var(--panel-border));
+  color: var(--muted);
+}
+
+.duplicate-details-modal .duplicate-member-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  gap: 7px;
+}
+
+.duplicate-details-modal .duplicate-member-meta-grid {
+  margin: 5px 0 8px;
+  gap: 6px;
+}
+
+.duplicate-details-modal .duplicate-member-meta-grid > div {
+  grid-template-columns: 120px minmax(0, 1fr);
+}
+
+.duplicate-details-modal .duplicate-member-actions {
+  display: flex;
+  width: 100%;
+  margin-top: auto;
+  padding-top: 6px;
+}
+
+.duplicate-details-modal .duplicate-member-actions .secondary-btn {
+  width: 100%;
+}
+
+.duplicate-details-modal .quarantine-member-select {
+  min-height: 24px;
+  align-items: center;
+}
+
+.duplicate-details-modal .quarantine-member-select input {
+  margin-top: 0;
+}
+
+.duplicate-details-modal .quarantine-actions {
+  margin: 12px 0;
+}
+
+@media (max-width: 640px) {
+  .duplicate-details-modal {
+    padding: 14px;
+  }
+
+  .duplicate-details-modal .duplicate-member-list,
+  .duplicate-details-modal .duplicate-pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .duplicate-details-modal .duplicate-member-meta-grid > div {
+    grid-template-columns: 110px minmax(0, 1fr);
+  }
+}
+
+
+/* Shared Duplicates / Conflicts list footer: export, reports and clear actions. */
+.analysis-list-footer {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px 0 0;
+}
+
+.analysis-audit-status {
+  min-width: 0;
+  flex: 1 1 auto;
+  color: var(--muted);
+  font-size: .7rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.analysis-audit-status.error {
+  color: var(--winui-error-text, #e8a8a8);
+}
+
+.analysis-list-footer-actions {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.analysis-list-footer-actions .secondary-btn,
+.analysis-list-footer-actions .danger-btn {
+  width: auto;
+  min-width: 115px;
+  padding: 8px 13px;
+}
+
+@media (max-width: 760px) {
+  .analysis-list-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .analysis-list-footer-actions {
+    width: 100%;
+  }
+
+  .analysis-list-footer-actions .secondary-btn,
+  .analysis-list-footer-actions .danger-btn {
+    flex: 1 1 135px;
+    min-width: 0;
+  }
+}

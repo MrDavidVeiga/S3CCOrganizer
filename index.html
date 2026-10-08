@@ -257,6 +257,14 @@
             <div id="duplicates-results" class="duplicates-results hidden">
               <div id="duplicates-list" class="duplicates-list" aria-live="polite"></div>
             </div>
+            <div class="analysis-list-footer">
+              <span class="analysis-audit-status" data-audit-status aria-live="polite"></span>
+              <div class="analysis-list-footer-actions">
+                <button class="secondary-btn" type="button" data-export-audit data-i18n="exportAuditReport">Export Report</button>
+                <button class="secondary-btn hidden" type="button" data-open-report-folder data-i18n="openReportFolder">Open Reports</button>
+                <button id="duplicates-clear-list-btn" class="danger-btn" type="button" data-i18n="clearList">Clear List</button>
+              </div>
+            </div>
           </section>
 
           <section id="page-conflicts" class="tool-page hidden conflicts-page">
@@ -304,6 +312,14 @@
 
             <div id="conflicts-results" class="conflicts-results hidden">
               <div id="conflicts-list" class="conflicts-list" aria-live="polite"></div>
+            </div>
+            <div class="analysis-list-footer">
+              <span class="analysis-audit-status" data-audit-status aria-live="polite"></span>
+              <div class="analysis-list-footer-actions">
+                <button class="secondary-btn" type="button" data-export-audit data-i18n="exportAuditReport">Export Report</button>
+                <button class="secondary-btn hidden" type="button" data-open-report-folder data-i18n="openReportFolder">Open Reports</button>
+                <button id="conflicts-clear-list-btn" class="danger-btn" type="button" data-i18n="clearList">Clear List</button>
+              </div>
             </div>
           </section>
 
@@ -535,7 +551,7 @@
             </div>
 
             <div id="tools-maintenance" class="tools-panel hidden">
-              <div class="tools-grid two maintenance-grid">
+              <div class="tools-grid maintenance-grid">
                 <section id="cache-panel" class="tools-card maintenance-card">
             <div class="sidebar-utility-header">
               <strong data-i18n="cacheTitle">Analysis Cache</strong>
@@ -547,17 +563,7 @@
               <button id="clear-cache-btn" class="secondary-btn compact-btn hidden" type="button" data-i18n="clearCache">Clear Cache</button>
             </div>
           </section>
-                <section id="audit-panel" class="tools-card maintenance-card">
-            <div class="sidebar-utility-header">
-              <strong data-i18n="auditReport">Audit Report</strong>
-              <span id="audit-status-dot" class="utility-dot"></span>
-            </div>
-            <div id="audit-status" class="sidebar-utility-summary" data-i18n="auditReportHint">Export classifications, duplicate findings, conflicts and review decisions.</div>
-            <div class="sidebar-utility-actions">
-              <button id="export-audit-btn" class="secondary-btn compact-btn hidden" type="button" data-i18n="exportAuditReport">Export Report</button>
-              <button id="open-report-folder-btn" class="secondary-btn compact-btn hidden" type="button" data-i18n="openReportFolder">Open Reports</button>
-            </div>
-          </section>
+
               </div>
             </div>
 
