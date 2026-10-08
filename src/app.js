@@ -2169,254 +2169,59 @@ function reportCell(value) {
     .replaceAll("\n", " ");
 }
 
-function buildAuditSnapshot() {
-  const conflicts = state.conflictsAnalysis
-    ? {
-        ...state.conflictsAnalysis,
-        findings: (state.conflictsAnalysis.findings || []).map((finding) => ({
-          ...finding,
-          reviewDecision: effectiveConflictMark(finding),
-          persistentDecision:
-            state.persistentConflictMarks[finding.decisionKey] === "intentional"
-              ? "intentional_override"
-              : null,
-        })),
-      }
-    : null;
-
-  return {
-    schemaVersion: 3,
-    generatedAt: new Date().toISOString(),
-    root: state.folder,
-    language: state.language,
-    organizer: state.stats
-      ? {
-          stats: state.stats,
-          packages: state.items.map((item) => ({
-            name: item.name,
-            path: item.path,
-            relativePath: item.relativePath,
-            status: item.status,
-            classificationConfidence: item.classificationConfidence,
-            creator: item.creator,
-            modName: item.modName,
-            gameplayCategory: item.gameplayCategory,
-            category: item.category,
-            subCategory: item.subCategory,
-            destinationPath: item.destinationPath,
-            classificationReason: item.classificationReason,
-            warnings: item.warnings || [],
-          })),
-        }
-      : null,
-    duplicates: state.duplicatesAnalysis,
-    conflicts,
-    persistentConflictDecisions: state.persistentConflictRecords,
-    manualOperations: state.manualOperations,
-    restorePreview: state.restorePlan,
-    quarantinePreview: state.quarantinePlan,
-    cache: state.cacheInfo,
-    workspace: state.workspaceStore,
-    health: state.healthReport,
-    snapshots: state.snapshots,
-    snapshotDiff: state.snapshotDiff,
-    dependencies: state.dependenciesAnalysis,
-    operationHistory: state.operationHistory,
-    inbox: {
-      sourceFolder: state.inboxFolder || null,
-      scan: state.inboxScan,
-      importPlan: state.inboxPlan,
-    },
-    performance: {
-      scan: state.stats?.totalMs ?? null,
-      duplicates: state.duplicatesAnalysis?.stats ?? null,
-      conflicts: state.conflictsAnalysis?.stats ?? null,
-    },
-  };
-}
-
-function buildAuditMarkdown(snapshot) {
-  const lines = [
-    "# S3CC Manager Audit Report",
-    "",
-    `- ${t("reportGeneratedAt")}: ${snapshot.generatedAt}`,
-    `- Root: ${snapshot.root || "—"}`,
-    `- ${t("language")}: ${snapshot.language}`,
-    "",
-    "## Manager",
-    "",
-  ];
-
-  if (!snapshot.organizer) {
-    lines.push(t("reportNotAnalyzed"), "");
-  } else {
-    const stats = snapshot.organizer.stats || {};
-    lines.push(
-      `Packages: ${stats.packages ?? snapshot.organizer.packages.length} · ${t("classified")}: ${stats.classified ?? 0} · ${t("mixed")}: ${stats.mixed ?? 0} · ${t("needsReview")}: ${stats.needsReview ?? 0} · ${t("invalid")}: ${stats.invalid ?? 0}`,
-      "",
-      "| Package | Status | Confidence | Creator / Mod | Category | Destination | Evidence |",
-      "| --- | --- | --- | --- | --- | --- | --- |"
-    );
-    for (const item of snapshot.organizer.packages) {
-      lines.push(
-        `| ${reportCell(item.relativePath || item.name)} | ${reportCell(item.status)} | ${reportCell(item.classificationConfidence)} | ${reportCell([item.creator, item.modName].filter(Boolean).join(" / "))} | ${reportCell([item.gameplayCategory, item.category, item.subCategory].filter(Boolean).join(" / "))} | ${reportCell(item.destinationPath)} | ${reportCell(item.classificationReason)} |`
-      );
-    }
-    lines.push("");
-  }
-
-  lines.push("## Duplicates", "");
-  if (!snapshot.duplicates) {
-    lines.push(t("reportNotAnalyzed"), "");
-  } else {
-    const ds = snapshot.duplicates.stats || {};
-    lines.push(
-      `Packages: ${ds.packagesScanned ?? 0} · Exact groups: ${ds.exactGroups ?? 0} · Content groups: ${ds.contentGroups ?? 0} · Retextures: ${ds.retextureRelations ?? 0} · Related: ${ds.relatedVariantRelations ?? 0}`,
-      ""
-    );
-    for (const group of snapshot.duplicates.groups || []) {
-      lines.push(
-        `### ${duplicateKindLabel(group.kind)}`,
-        "",
-        ...((group.members || []).map((member) => `- ${member.relativePath} — ${member.fileSha256 || ""}`)),
-        ""
-      );
-    }
-    for (const relation of snapshot.duplicates.relations || []) {
-      lines.push(
-        `### ${duplicateKindLabel(relation.kind)}`,
-        "",
-        `- A: ${relation.left?.relativePath || "—"}`,
-        `- B: ${relation.right?.relativePath || "—"}`,
-        `- Shared resources: ${relation.sharedResourceCount ?? 0}`,
-        ""
-      );
-    }
-  }
-
-  lines.push("## Conflicts", "");
-  if (!snapshot.conflicts) {
-    lines.push(t("reportNotAnalyzed"), "");
-  } else {
-    const cs = snapshot.conflicts.stats || {};
-    lines.push(
-      `Pairs: ${cs.packagePairs ?? 0} · Visual: ${cs.visualOverrides ?? 0} · Catalog: ${cs.catalogOverrides ?? 0} · Gameplay: ${cs.gameplayOverrides ?? 0} · Script: ${cs.scriptConflicts ?? 0}`,
-      ""
-    );
-    for (const finding of snapshot.conflicts.findings || []) {
-      lines.push(
-        `### ${finding.reviewDecision === "intentional" ? t("savedIntentionalOverride") : conflictKindLabel(finding.kind)}`,
-        "",
-        `- A: ${finding.left?.relativePath || "—"}`,
-        `- B: ${finding.right?.relativePath || "—"}`,
-        `- Decision key: ${finding.decisionKey || "—"}`,
-        `- ${t("reportDecision")}: ${finding.reviewDecision || "—"}`,
-        `- Shared TGIs: ${finding.sharedResourceCount ?? 0}`,
-        `- Different payloads: ${finding.differentPayloadCount ?? 0}`,
-        `- Load order: ${finding.loadOrderStatus || "—"}`,
-        ""
-      );
-    }
-  }
-
-  lines.push("## Saved Conflict Decisions", "");
-  if (!snapshot.persistentConflictDecisions?.length) {
-    lines.push("—", "");
-  } else {
-    for (const decision of snapshot.persistentConflictDecisions) {
-      lines.push(
-        `- ${decision.mark}: ${decision.leftRelativePath} ↔ ${decision.rightRelativePath} (${decision.decisionKey})`
-      );
-    }
-    lines.push("");
-  }
-
-  lines.push(`## ${t("manualOperations")}`, "");
-  if (!snapshot.manualOperations?.length) {
-    lines.push("—", "");
-  } else {
-    for (const operation of snapshot.manualOperations) {
-      const source = operation.sourceRelativePath || "—";
-      const destination = operation.destinationRelativePath || "—";
-      lines.push(
-        `- ${operation.createdAt} · ${operation.operation} · ${source} → ${destination}`
-      );
-    }
-    lines.push("");
-  }
-
-  lines.push("## Workspace", "");
-  if (snapshot.workspace) {
-    lines.push(
-      `- Read-only: ${snapshot.workspace.readOnly}`,
-      `- Active profile: ${snapshot.workspace.activeProfileId}`,
-      `- Profiles: ${snapshot.workspace.profiles?.length || 0}`,
-      `- Groups: ${snapshot.workspace.groups?.length || 0}`,
-      `- Tagged packages: ${Object.keys(snapshot.workspace.packageMetadata || {}).length}`,
-      ""
-    );
-  } else lines.push("—", "");
-
-  lines.push("## Mods Health", "");
-  if (snapshot.health) {
-    const hs = snapshot.health.stats || {};
-    lines.push(
-      `- Packages: ${hs.packages ?? 0}`,
-      `- Unreadable: ${hs.unreadable ?? 0}`,
-      `- Empty folders: ${hs.emptyFolders ?? 0}`,
-      `- Resource.cfg uncovered: ${hs.resourceCfgUncovered ?? 0}`,
-      `- Outside root: ${hs.packagesOutsideRoot ?? 0}`,
-      ""
-    );
-  } else lines.push(t("reportNotAnalyzed"), "");
-
-  lines.push("## Snapshots / Dependencies", "");
-  lines.push(
-    `- Snapshots: ${snapshot.snapshots?.length || 0}`,
-    `- Potential dependencies: ${snapshot.dependencies?.findings?.length || 0}`,
-    `- History entries: ${snapshot.operationHistory?.length || 0}`,
-    ""
-  );
-
-  lines.push("## Performance", "");
-  if (snapshot.performance.scan != null) {
-    lines.push(`- Scan: ${formatMs(snapshot.performance.scan)}`);
-  }
-  if (snapshot.performance.duplicates?.totalMs != null) {
-    lines.push(`- Duplicates: ${formatMs(snapshot.performance.duplicates.totalMs)}`);
-  }
-  if (snapshot.performance.conflicts?.totalMs != null) {
-    lines.push(`- Conflicts: ${formatMs(snapshot.performance.conflicts.totalMs)}`);
-  }
-  lines.push("");
-
-  return lines.join("\n");
-}
-
 
 const AUDIT_REPORT_KINDS = ["organizer", "duplicates", "conflicts"];
 
 function buildScopedAuditSnapshot(kind) {
   if (!AUDIT_REPORT_KINDS.includes(kind)) return null;
-  const full = buildAuditSnapshot();
+  // Build only the data for the requested tab. A large CC library should not
+  // materialize unrelated audits, snapshots or operation history on export.
   const shared = {
-    schemaVersion: full.schemaVersion,
+    schemaVersion: 3,
     reportKind: kind,
-    generatedAt: full.generatedAt,
-    root: full.root,
-    language: full.language,
+    generatedAt: new Date().toISOString(),
+    root: state.folder,
+    language: state.language,
   };
-
   if (kind === "organizer") {
-    return { ...shared, organizer: full.organizer };
+    return {
+      ...shared,
+      organizer: state.stats ? {
+        stats: state.stats,
+        packages: state.items.map((item) => ({
+          name: item.name,
+          path: item.path,
+          relativePath: item.relativePath,
+          status: item.status,
+          classificationConfidence: item.classificationConfidence,
+          creator: item.creator,
+          modName: item.modName,
+          gameplayCategory: item.gameplayCategory,
+          category: item.category,
+          subCategory: item.subCategory,
+          destinationPath: item.destinationPath,
+          classificationReason: item.classificationReason,
+          warnings: item.warnings || [],
+        })),
+      } : null,
+    };
   }
   if (kind === "duplicates") {
-    return { ...shared, duplicates: full.duplicates };
+    return { ...shared, duplicates: state.duplicatesAnalysis };
   }
   return {
     ...shared,
-    conflicts: full.conflicts,
-    persistentConflictDecisions: full.persistentConflictDecisions,
+    conflicts: state.conflictsAnalysis ? {
+      ...state.conflictsAnalysis,
+      findings: (state.conflictsAnalysis.findings || []).map((finding) => ({
+        ...finding,
+        reviewDecision: effectiveConflictMark(finding),
+        persistentDecision:
+          state.persistentConflictMarks[finding.decisionKey] === "intentional"
+            ? "intentional_override" : null,
+      })),
+    } : null,
+    persistentConflictDecisions: state.persistentConflictRecords,
   };
 }
 
