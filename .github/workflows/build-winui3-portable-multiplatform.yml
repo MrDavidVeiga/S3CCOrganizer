@@ -28,6 +28,10 @@ concurrency:
 
 jobs:
   portable:
+    # Windows-only validation requested for this feature branch. Creating this
+    # skipped run also supersedes any earlier in-progress Linux/macOS build
+    # via the existing cancel-in-progress concurrency group.
+    if: ${{ github.ref != 'refs/heads/fix/organize-incremental-open-folder-ui-20261008' }}
     name: WinUI 3 / ${{ matrix.label }}
     runs-on: ${{ matrix.os }}
     strategy:
