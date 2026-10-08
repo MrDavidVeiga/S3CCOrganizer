@@ -45,6 +45,24 @@ Beta 2 focuses on safer automatic organization, clearer classification evidence,
 - Added clearer Preview Plan states, classification evidence and performance diagnostics.
 - Audit reports now carry richer classification metadata.
 
+## Additional Beta 2 hardening
+
+- Renamed the main tab to **Organizer** (Manager remains the product name).
+- Integrated the latest classification fixes from the main scanner, including conservative handling of S3SA scripts embedded in objects.
+- Marked script-mod destinations inferred only from filenames/folders for manual review instead of high-confidence automatic moves.
+- Organizer scans now also start Duplicates and Conflicts automatically; either analysis can still be rerun independently.
+- Added separate Organizer, Duplicates and Conflicts audit exports in Markdown and JSON.
+- Added Clear List controls for individual analysis tabs, without removing .package files.
+- Updated the Duplicates popup to use side-by-side comparison panels.
+- Required confirmation for Restore, Quarantine Restore and interrupted-Quarantine recovery.
+- Added guarded History record removal; incomplete operation journals remain protected.
+- Hardened Organizer and Restore file transfers with verified no-overwrite destinations, more complete rollback accounting, and recoverable manifest replacement on Windows.
+- Blocked automatic organization when Resource.cfg contains unsupported loading/traversal rules.
+- Combined Sims3Pack conversion now refuses conflicting same-TGI payloads rather than silently dropping one; thumbnail cache recovery failures are reported.
+- Reanalysis enumerates the current file tree instead of relying on an old cached path list.
+
+These changes require validation in the compiled application before the updated Beta 2 can be released. They have not been confirmed by runtime tests yet.
+
 ## Validation and future corpus audit
 
 Beta 2 includes automatic GitHub validation for the frontend build and Rust library tests on relevant main-branch changes.
