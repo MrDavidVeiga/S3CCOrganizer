@@ -4809,3 +4809,14 @@ body.release-v1 .conflicts-results {
     min-width: 0;
   }
 }
+
+/* Organizer report actions span the full results area beneath Preview Plan/Clear List. */
+.manager-plan-footer .organizer-report-footer {
+  grid-column: 1 / -1;
+  min-width: 0;
+  padding-top: 6px;
+}
+
+.manager-plan-footer .organizer-report-footer .analysis-list-footer-actions {
+  justify-content: flex-end;
+}
