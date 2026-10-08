@@ -69,6 +69,33 @@ fn make_manifest_path(root: &Path) -> Result<PathBuf, String> {
     Err("Could not allocate a unique restore manifest filename.".to_string())
 }
 
+/// Prevent a pre-existing link/junction inside the chosen loading branch
+/// from redirecting an otherwise syntactically valid path outside the library.
+fn verify_destination_parent(root: &Path, destination: &Path) -> Result<(), String> {
+    let mut current = destination.parent()
+        .ok_or_else(|| format!("Missing destination parent: {}", destination.display()))?;
+    while current != root {
+        if !current.starts_with(root) {
+            return Err("Destination folder escaped the selected root.".into());
+        }
+        if current.exists() {
+            let metadata = fs::symlink_metadata(current)
+                .map_err(|error| format!("Cannot inspect destination folder: {error}"))?;
+            if metadata.file_type().is_symlink() {
+                return Err(format!("Destination uses a filesystem link: {}", current.display()));
+            }
+            let physical = current.canonicalize()
+                .map_err(|error| format!("Cannot resolve destination folder: {error}"))?;
+            if !physical.starts_with(root) {
+                return Err(format!("Destination folder resolves outside selected root: {}", current.display()));
+            }
+        }
+        current = current.parent()
+            .ok_or_else(|| "Invalid destination directory ancestry.".to_string())?;
+    }
+    Ok(())
+}
+
 fn ready_items(plan_items: &[PlanItem]) -> Vec<&PlanItem> {
     plan_items
         .iter()
@@ -440,6 +467,7 @@ fn execute_organization_core(
         validate_organization_destination(
             &root, Path::new(&item.source_path), Path::new(destination)
         )?;
+        verify_destination_parent(&root, Path::new(destination))?;
     }
 
     if ready.is_empty() {
@@ -552,6 +580,7 @@ fn execute_organization_core(
             // Defense in depth: never move a Packages CC out of Packages,
             // even if a future planner regression produces an invalid plan.
             validate_organization_destination(&root, &source, &destination)?;
+            verify_destination_parent(&root, &destination)?;
             if !source.is_file() {
                 return Err(format!("Source disappeared before move: {}", source.display()));
             }
@@ -726,7 +755,7 @@ fn execute_organization_core(
     // The selected Mods root may contain both branches. Open the actual
     // loading branch when all moved packages share it; otherwise open Mods.
     let mut organized_root = root.clone();
-    if root.file_name().is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("Mods")) {
+    if is_mods_root(&root) {
         let mut branch = None::<PathBuf>;
         let mut one_branch = true;
         for (_, destination, _, _) in &moved_pairs {
