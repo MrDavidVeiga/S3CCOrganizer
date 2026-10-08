@@ -1,4 +1,5 @@
 use crate::{
+    mods_layout::is_mods_root,
     catalog::{classify_resource, CatalogClassification, TYPE_CASP, TYPE_OBJD},
     dbpf::Package,
     i18n::AppLanguage,
@@ -2054,8 +2055,9 @@ fn physical_destination_parts(
         .unwrap_or_default();
     let source_top = source_relative.replace('\\', "/")
         .split('/').next().unwrap_or("").to_lowercase();
+    let mods_root = is_mods_root(root);
     let override_source = root_name == "overrides"
-        || (root_name == "mods" && source_top == "overrides");
+        || (mods_root && source_top == "overrides");
 
     let mut result = parts.to_vec();
     if result.first().is_some_and(|part| part.eq_ignore_ascii_case("Packages")
@@ -2066,7 +2068,7 @@ fn physical_destination_parts(
     if result.first().is_some_and(|part| part.eq_ignore_ascii_case("CAS")) {
         result.remove(0);
     }
-    if root_name == "mods" && !result.is_empty() {
+    if mods_root && !result.is_empty() {
         result.insert(0, if override_source {
             "Overrides".to_string()
         } else {
@@ -2079,9 +2081,7 @@ fn physical_destination_parts(
             ancestor.file_name().is_some_and(|name| {
                 name.to_string_lossy().eq_ignore_ascii_case("Packages")
                     || name.to_string_lossy().eq_ignore_ascii_case("Overrides")
-            }) && ancestor.parent().is_some_and(|parent| {
-                parent.file_name().is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("Mods"))
-            })
+            }) && ancestor.parent().is_some_and(is_mods_root)
         });
         if let Some(branch) = branch {
             let existing = root.strip_prefix(branch).ok().into_iter()
