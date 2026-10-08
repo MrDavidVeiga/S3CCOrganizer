@@ -366,6 +366,11 @@ pub fn recover_manifest_backups(directory: &Path) -> Result<(), String> {
         if !original.exists() {
             fs::rename(entry.path(), &original)
                 .map_err(|error| format!("Could not recover manifest {}: {error}", original.display()))?;
+        } else if read_manifest(&original).is_ok() {
+            // A valid new journal was installed; the previous backup is stale.
+            // Keep invalid replacements untouched so recovery stays possible.
+            fs::remove_file(entry.path())
+                .map_err(|error| format!("Could not clean completed manifest backup: {error}"))?;
         }
     }
     Ok(())
