@@ -1311,6 +1311,110 @@ mod tests {
         std::fs::remove_dir_all(&root).unwrap();
     }
 
+    fn cfg_with_rules(root: &Path, patterns: &[&str]) -> ResourceCfgContext {
+        use crate::resource_cfg::ResourceCfgRule;
+        ResourceCfgContext {
+            directory: root.to_path_buf(),
+            info: ResourceCfgInfo {
+                path: root.join("Resource.cfg").to_string_lossy().to_string(),
+                precedence_reliable: true,
+                warnings: Vec::new(),
+                rules: patterns.iter().enumerate().map(|(index, rule)| ResourceCfgRule {
+                    priority: 500,
+                    pattern: (*rule).to_string(),
+                    source_line: index + 1,
+                }).collect(),
+            },
+        }
+    }
+
+    #[test]
+    fn overrides_support_anatomical_folders_when_resource_cfg_matches() {
+        let mods = Path::new("The Sims 3").join("Mods");
+        let source = mods.join("Overrides").join("patch.package");
+        let context = cfg_with_rules(&mods, &[
+            "Packages/*.package",
+            "Overrides/*.package",
+            "Overrides/*/*/*/*.package",
+        ]);
+        let category = vec!["Sliders".into(), "Face".into(), "Nose".into()];
+        let (destination, _) = fit_destination_to_resource_cfg(
+            &mods, &source, std::ffi::OsStr::new("patch.package"),
+            &category, Some(&context),
+        ).unwrap();
+        assert_eq!(destination, vec!["Overrides", "Sliders", "Face", "Nose"]);
+
+        let packages_source = mods.join("Packages").join("hair.package");
+        assert!(!source_uses_overrides(&mods, &packages_source));
+        assert!(source_uses_overrides(&mods, &source));
+    }
+
+    #[test]
+    fn overrides_flat_resource_cfg_keeps_physical_file_at_override_root() {
+        let mods = Path::new("The Sims 3").join("Mods");
+        let overrides = mods.join("Overrides");
+        let context = cfg_with_rules(&mods, &["Overrides/*.package"]);
+        let cat = vec!["Sliders".into(), "Face".into(), "Nose".into()];
+        let (destination, note) = fit_destination_to_resource_cfg(
+            &mods, &overrides.join("patch.package"),
+            std::ffi::OsStr::new("patch.package"), &cat, Some(&context),
+        ).unwrap();
+        assert_eq!(destination, vec!["Overrides"]);
+        assert!(note.unwrap().contains("category is retained"));
+
+        let (selected_override, note) = fit_destination_to_resource_cfg(
+            &overrides, &overrides.join("patch.package"),
+            std::ffi::OsStr::new("patch.package"), &cat, Some(&context),
+        ).unwrap();
+        assert!(selected_override.is_empty());
+        assert!(note.unwrap().contains("category is retained"));
+    }
+
+    #[test]
+    fn missing_override_rule_never_redirects_to_packages() {
+        let mods = Path::new("The Sims 3").join("Mods");
+        let override_file = mods.join("Overrides").join("ui.package");
+        let context = cfg_with_rules(&mods, &["Packages/*.package", "Packages/*/*.package"]);
+        let category = vec!["Gameplay".into(), "Tuning".into()];
+        assert!(fit_destination_to_resource_cfg(
+            &mods, &override_file, std::ffi::OsStr::new("ui.package"),
+            &category, Some(&context),
+        ).is_err());
+        assert!(fit_destination_to_resource_cfg(
+            &mods, &override_file, std::ffi::OsStr::new("ui.package"),
+            &category, None,
+        ).is_err());
+        let (fallback, dirs) = fallback_relative_path(
+            &mods, AppLanguage::En, "Overrides/UI/ui.package", "ABCD",
+        ).unwrap();
+        assert_eq!(fallback, Path::new("Overrides/UI/ui.package"));
+        assert!(dirs.is_empty());
+    }
+
+    #[test]
+    fn selected_overrides_root_preserves_original_loading_branch() {
+        let mods = Path::new("The Sims 3").join("Mods");
+        let root = mods.join("Overrides");
+        assert!(is_overrides_root(&root));
+        assert!(source_uses_overrides(&root, &root.join("file.package")));
+        assert_eq!(
+            ensure_source_loading_branch(
+                &root,
+                &root.join("file.package"),
+                &["Packages".into(), "CAS".into(), "Sliders".into()],
+            ),
+            vec!["Sliders"]
+        );
+        assert_eq!(
+            ensure_source_loading_branch(
+                &mods,
+                &mods.join("Overrides").join("file.package"),
+                &["Packages".into(), "Sliders".into()],
+            ),
+            vec!["Overrides", "Sliders"]
+        );
+    }
+
     #[test]
     fn identifies_only_known_legacy_manager_folders_for_migration() {
         let mods = Path::new("The Sims 3").join("Mods");
