@@ -202,10 +202,59 @@ fn manifest_from_plan(plan: &QuarantinePlan, status: &str) -> QuarantineManifest
     }
 }
 
+#[cfg(windows)]
+fn quarantine_journal_backup_path(path: &Path) -> Result<PathBuf, String> {
+    let name = path.file_name().and_then(|name| name.to_str())
+        .ok_or_else(|| format!("Invalid quarantine journal path: {}", path.display()))?;
+    Ok(path.with_file_name(format!(".{name}.replace.backup")))
+}
+
+/// Reinstall a quarantine journal if Windows was interrupted between replacing
+/// the previous journal and installing its new version. Never touches CC data.
+#[cfg(windows)]
+pub(crate) fn recover_quarantine_manifest_backups(directory: &Path) -> Result<(), String> {
+    if !directory.is_dir() {
+        return Ok(());
+    }
+    for entry in fs::read_dir(directory)
+        .map_err(|error| format!("Could not list quarantine journal backups: {error}"))?
+    {
+        let entry = entry.map_err(|error| error.to_string())?;
+        if !entry.file_type().map_err(|error| error.to_string())?.is_file() {
+            continue;
+        }
+        let file_name = entry.file_name();
+        let file_name = file_name.to_string_lossy();
+        let Some(name) = file_name
+            .strip_prefix('.')
+            .and_then(|name| name.strip_suffix(".replace.backup"))
+        else { continue; };
+        if !name.ends_with(".json") {
+            continue;
+        }
+        let original = directory.join(name);
+        if !original.exists() {
+            fs::rename(entry.path(), &original)
+                .map_err(|error| format!("Could not recover journal {}: {error}", original.display()))?;
+        } else {
+            let valid = fs::read_to_string(&original).ok()
+                .and_then(|contents| serde_json::from_str::<QuarantineManifest>(&contents).ok())
+                .is_some();
+            if valid {
+                fs::remove_file(entry.path())
+                    .map_err(|error| format!("Could not clean quarantine journal backup: {error}"))?;
+            }
+        }
+    }
+    Ok(())
+}
+
 fn write_manifest_atomic(path: &Path, manifest: &QuarantineManifest) -> Result<(), String> {
     let parent = path.parent().ok_or("Manifest path is missing its parent.")?;
     fs::create_dir_all(parent)
         .map_err(|error| format!("Could not create manifest directory: {error}"))?;
+    #[cfg(windows)]
+    recover_quarantine_manifest_backups(parent)?;
     let data = serde_json::to_vec_pretty(manifest)
         .map_err(|error| format!("Could not encode quarantine manifest: {error}"))?;
     let tmp = parent.join(format!(
@@ -222,8 +271,29 @@ fn write_manifest_atomic(path: &Path, manifest: &QuarantineManifest) -> Result<(
             .map_err(|error| format!("Could not write transaction journal: {error}"))?;
         output.sync_all()
             .map_err(|error| format!("Could not flush transaction journal: {error}"))?;
-        // std::fs::rename replaces an existing file where supported.
-        // Never remove the previous journal before installing the new one.
+        // On Windows, rename will not replace an existing journal. Keep a
+        // durable recoverable backup rather than deleting the previous state.
+        #[cfg(windows)]
+        {
+            let backup = quarantine_journal_backup_path(path)?;
+            if backup.exists() {
+                return Err(format!("Unrecovered quarantine journal backup: {}", backup.display()));
+            }
+            if path.exists() {
+                fs::rename(path, &backup)
+                    .map_err(|error| format!("Could not back up quarantine journal: {error}"))?;
+            }
+            if let Err(error) = fs::rename(&tmp, path) {
+                if backup.exists() {
+                    let _ = fs::rename(&backup, path);
+                }
+                return Err(format!("Could not commit quarantine journal: {error}"));
+            }
+            if backup.exists() {
+                let _ = fs::remove_file(&backup);
+            }
+        }
+        #[cfg(not(windows))]
         fs::rename(&tmp, path)
             .map_err(|error| format!("Could not commit transaction journal: {error}"))?;
         #[cfg(unix)]
@@ -243,6 +313,8 @@ fn write_manifest_atomic(path: &Path, manifest: &QuarantineManifest) -> Result<(
 fn read_manifest(root: &Path, input: &str) -> Result<(PathBuf, QuarantineManifest, PathBuf), String> {
     checked_workspace(root)?;
     let parent = manifest_base(root);
+    #[cfg(windows)]
+    recover_quarantine_manifest_backups(&parent)?;
     let manifest_path = PathBuf::from(input.trim())
         .canonicalize()
         .map_err(|error| format!("Could not resolve quarantine manifest: {error}"))?;
