@@ -1027,7 +1027,8 @@ fn merge_packages_no_replace(target: &Path, packages: &[Package]) -> Result<usiz
             let key = (entry.type_id, entry.group, entry.instance);
             let decoded = package.data(entry)
                 .map_err(|e| format!("Could not compare duplicate resource {}: {e}", entry.key_string()))?;
-            let fingerprint: [u8; 32] = Sha256::digest(&decoded).into();
+            let mut fingerprint = [0u8; 32];
+            fingerprint.copy_from_slice(&Sha256::digest(&decoded));
             if let Some(existing) = seen.get(&key) {
                 if existing != &fingerprint {
                     return Err(format!(
