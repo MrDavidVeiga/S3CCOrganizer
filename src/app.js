@@ -3161,6 +3161,11 @@ function renderDuplicates() {
     el.duplicatesState.className = "scan-state";
   }
 
+  el.duplicatesState.dataset.fluentSeverity =
+    !state.duplicatesBusy && !state.duplicatesError && state.duplicatesAnalysis &&
+    (Number(stats.unreadablePackages || 0) > 0 || !!stats.variantAnalysisTruncated)
+      ? "warning" : "";
+
   const hasAnalysis = !!state.duplicatesAnalysis;
   el.duplicatesEmpty.classList.toggle("hidden", hasAnalysis);
   el.duplicatesResults.classList.toggle("hidden", !hasAnalysis);
@@ -3731,6 +3736,11 @@ function renderConflicts() {
     el.conflictsState.className = "scan-state";
   }
 
+  el.conflictsState.dataset.fluentSeverity =
+    !state.conflictsBusy && !state.conflictsError && analysis &&
+    (Number(stats.unreadablePackages || 0) > 0 || !!stats.analysisTruncated)
+      ? "warning" : "";
+
   const hasAnalysis = !!analysis;
   el.conflictsEmpty.classList.toggle("hidden", hasAnalysis);
   el.conflictsResults.classList.toggle("hidden", !hasAnalysis);
@@ -3817,12 +3827,30 @@ function renderOperationProgress(kind) {
     : 0;
   const roundedPercent = Math.round(percent);
 
-  bar.style.width = `${percent}%`;
-  percentText.textContent = `${roundedPercent}%`;
-  countText.textContent = total > 0
+  const phaseLabel = operationPhaseLabel(status?.phase);
+  const track = bar.parentElement;
+  const determinate = total > 0;
+  container.dataset.fluentProgress = determinate ? "determinate" : "indeterminate";
+  bar.style.width = determinate ? `${percent}%` : "";
+  percentText.textContent = determinate ? `${roundedPercent}%` : "—";
+  countText.textContent = determinate
     ? `${integerLabel(processed)} / ${integerLabel(total)}`
     : "—";
-  text.textContent = operationPhaseLabel(status?.phase);
+  text.textContent = phaseLabel;
+  // Native role + accessible value, without exposing file names or polling
+  // a second UI model. Unknown totals are genuinely indeterminate.
+  track.setAttribute("aria-valuemin", "0");
+  track.setAttribute("aria-valuemax", "100");
+  if (determinate) {
+    track.setAttribute("aria-valuenow", String(roundedPercent));
+    track.setAttribute(
+      "aria-valuetext",
+      `${roundedPercent}% — ${integerLabel(processed)} / ${integerLabel(total)}`
+    );
+  } else {
+    track.removeAttribute("aria-valuenow");
+    track.setAttribute("aria-valuetext", phaseLabel);
+  }
 
   // Never show status.current here; it contains package file names.
   cancelButton.disabled = !!status?.cancelRequested;
@@ -6180,6 +6208,11 @@ function renderRestore() {
     el.restoreState.textContent = "";
     el.restoreState.className = "scan-state";
   }
+
+  el.restoreState.dataset.fluentSeverity =
+    !state.restoreBusy && !state.restoreError && plan &&
+    (Number(stats.blocked || 0) > 0 || Number(stats.collisions || 0) > 0)
+      ? "warning" : "";
 
   el.restoreEmpty.classList.toggle("hidden", !!plan);
   el.restoreResults.classList.toggle("hidden", !plan);

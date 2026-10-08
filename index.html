@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="./src/ui/fluent/overlays.css" />
     <link rel="stylesheet" href="./src/ui/fluent/collections.css" />
     <link rel="stylesheet" href="./src/ui/fluent/scrollbars.css" />
+    <link rel="stylesheet" href="./src/ui/fluent/feedback.css" />
   </head>
   <body class="release-v1">
     <div class="app-shell">
@@ -135,7 +136,7 @@
                 <span id="scan-progress-text" class="operation-progress-text"></span>
                 <strong id="scan-progress-percent" class="operation-progress-percent">0%</strong>
               </div>
-              <div class="operation-progress-track"><span id="scan-progress-bar"></span></div>
+              <div class="operation-progress-track" role="progressbar" aria-label="Package scan" aria-labelledby="scan-progress-text" aria-valuemin="0" aria-valuemax="100"><span id="scan-progress-bar"></span></div>
               <div id="scan-progress-count" class="operation-progress-count">0 / 0</div>
               <button id="scan-cancel-btn" class="secondary-btn operation-cancel" type="button" data-operation="scan" data-i18n="cancelAnalysis">Cancel</button>
             </div>
@@ -227,7 +228,7 @@
                 <span id="duplicates-progress-text" class="operation-progress-text"></span>
                 <strong id="duplicates-progress-percent" class="operation-progress-percent">0%</strong>
               </div>
-              <div class="operation-progress-track"><span id="duplicates-progress-bar"></span></div>
+              <div class="operation-progress-track" role="progressbar" aria-label="Duplicate analysis" aria-labelledby="duplicates-progress-text" aria-valuemin="0" aria-valuemax="100"><span id="duplicates-progress-bar"></span></div>
               <div id="duplicates-progress-count" class="operation-progress-count">0 / 0</div>
               <button id="duplicates-cancel-btn" class="secondary-btn operation-cancel" type="button" data-operation="duplicates" data-i18n="cancelAnalysis">Cancel</button>
             </div>
@@ -283,7 +284,7 @@
                 <span id="conflicts-progress-text" class="operation-progress-text"></span>
                 <strong id="conflicts-progress-percent" class="operation-progress-percent">0%</strong>
               </div>
-              <div class="operation-progress-track"><span id="conflicts-progress-bar"></span></div>
+              <div class="operation-progress-track" role="progressbar" aria-label="Conflict analysis" aria-labelledby="conflicts-progress-text" aria-valuemin="0" aria-valuemax="100"><span id="conflicts-progress-bar"></span></div>
               <div id="conflicts-progress-count" class="operation-progress-count">0 / 0</div>
               <button id="conflicts-cancel-btn" class="secondary-btn operation-cancel" type="button" data-operation="conflicts" data-i18n="cancelAnalysis">Cancel</button>
             </div>
@@ -943,5 +944,6 @@
     <script type="module" src="./src/ui/fluent/menus.js"></script>
     <script type="module" src="./src/app.js"></script>
     <script type="module" src="./src/ui/fluent/listview.js"></script>
+    <script type="module" src="./src/ui/fluent/feedback.js"></script>
   </body>
 </html>
