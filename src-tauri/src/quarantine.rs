@@ -533,6 +533,56 @@ pub fn build_quarantine_plan(folder: String, selected_paths: Vec<String>) -> Res
     })
 }
 
+// Exact-copy batch selection is verified against at least one separate,
+// live, same-SHA .package survivor for every quarantined file. Re-run the
+// verification immediately before moving, not only when building the preview.
+fn verify_exact_survivors(
+    root: &Path,
+    plan: &QuarantinePlan,
+    retained_paths: &[String],
+) -> Result<(), String> {
+    if retained_paths.is_empty() || plan.items.is_empty() {
+        return Err("Exact-duplicate quarantine must retain at least one package.".into());
+    }
+    let selected = plan.items.iter()
+        .map(|item| PathBuf::from(&item.source_path))
+        .collect::<HashSet<_>>();
+    let mut retained_hashes = HashSet::<String>::new();
+    for raw in retained_paths {
+        let survivor = PathBuf::from(raw).canonicalize()
+            .map_err(|error| format!("Exact-duplicate survivor is missing: {error}"))?;
+        if !survivor.is_file() || !survivor.starts_with(root) ||
+            !require_package(&survivor) || selected.contains(&survivor)
+        {
+            return Err("Exact-duplicate survivor is invalid or also selected for quarantine.".into());
+        }
+        let (hash, _) = sha256_file(&survivor)
+            .map_err(|error| format!("Could not verify retained duplicate: {error}"))?;
+        retained_hashes.insert(hash.to_ascii_uppercase());
+    }
+    for item in &plan.items {
+        if !retained_hashes.contains(&item.sha256.to_ascii_uppercase()) {
+            return Err(format!(
+                "No unselected byte-identical survivor remains for {}. Quarantine blocked.",
+                item.source_relative_path
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn build_exact_duplicate_quarantine_plan(
+    folder: String,
+    selected_paths: Vec<String>,
+    retained_paths: Vec<String>,
+) -> Result<QuarantinePlan, String> {
+    let root = canonical_root(&folder)?;
+    let plan = build_quarantine_plan(folder, selected_paths)?;
+    verify_exact_survivors(&root, &plan, &retained_paths)?;
+    Ok(plan)
+}
+
 fn preflight_plan(root: &Path, plan: &QuarantinePlan) -> Result<(), String> {
     let qroot = validate_session_dir(root, Path::new(&plan.quarantine_root))?;
     if qroot.exists() {
@@ -557,11 +607,34 @@ pub fn execute_quarantine(
     planned_quarantine_root: Option<String>,
 ) -> Result<QuarantineResult, String> {
     let _guard = transaction_guard()?;
+    execute_quarantine_core(folder, selected_paths, planned_quarantine_root, None)
+}
+
+#[tauri::command]
+pub fn execute_exact_duplicate_quarantine(
+    folder: String,
+    selected_paths: Vec<String>,
+    planned_quarantine_root: Option<String>,
+    retained_paths: Vec<String>,
+) -> Result<QuarantineResult, String> {
+    let _guard = transaction_guard()?;
+    execute_quarantine_core(folder, selected_paths, planned_quarantine_root, Some(retained_paths))
+}
+
+fn execute_quarantine_core(
+    folder: String,
+    selected_paths: Vec<String>,
+    planned_quarantine_root: Option<String>,
+    retained_paths: Option<Vec<String>>,
+) -> Result<QuarantineResult, String> {
     let root = canonical_root(&folder)?;
     ensure_writable(&root)?;
     let mut plan = build_quarantine_plan(folder, selected_paths)?;
     if !plan.can_execute {
         return Err("Quarantine is blocked by preflight checks.".into());
+    }
+    if let Some(ref survivors) = retained_paths {
+        verify_exact_survivors(&root, &plan, survivors)?;
     }
     if let Some(requested) = planned_quarantine_root {
         let qroot = validate_session_dir(&root, Path::new(&requested))?;
@@ -834,6 +907,24 @@ mod tests {
         assert_eq!(workspace_base(&overrides), expected);
         assert_eq!(workspace_base(&mods.join("Packages")), expected);
         assert_eq!(workspace_base(&mods), Path::new("Game").join("S3CC Organizer"));
+    }
+
+    #[test]
+    fn exact_batch_cannot_quarantine_the_last_identical_copy() {
+        let mods = isolated_mods_root();
+        let first = test_package(&mods, "Jonha_BASE.package", b"same complete package");
+        let duplicate = test_package(&mods, "Jonha_Sliders_BASE.package", b"same complete package");
+        let one = vec![duplicate.to_string_lossy().to_string()];
+        let retain = vec![first.to_string_lossy().to_string()];
+        let plan = build_exact_duplicate_quarantine_plan(
+            mods.to_string_lossy().to_string(), one.clone(), retain.clone()
+        ).unwrap();
+        assert_eq!(plan.stats.ready, 1);
+        assert!(verify_exact_survivors(&mods, &plan, &retain).is_ok());
+        assert!(verify_exact_survivors(&mods, &plan, &one).is_err());
+        fs::remove_file(&first).unwrap();
+        assert!(verify_exact_survivors(&mods, &plan, &retain).is_err());
+        cleanup(&mods);
     }
 
     #[test]
