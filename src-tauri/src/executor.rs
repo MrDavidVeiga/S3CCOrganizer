@@ -734,6 +734,26 @@ mod tests {
     }
 
     #[test]
+    fn cleanup_in_renamed_mods_preserves_packages_and_overrides_roots() {
+        let base = std::env::temp_dir().join(format!(
+            "s3cc-cleanup-copy-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
+        ));
+        let mods = base.join("Mods - Copia");
+        fs::create_dir_all(mods.join("Packages/Old/Unused")).unwrap();
+        fs::create_dir_all(mods.join("Overrides/Old")).unwrap();
+        fs::create_dir_all(mods.join("Cabelos/Old")).unwrap();
+        let (removed, _, warnings) = cleanup_empty_directories_after_organization(&mods, &[]);
+        assert!(warnings.is_empty(), "{warnings:?}");
+        assert_eq!(removed, 4);
+        assert!(mods.join("Packages").is_dir());
+        assert!(mods.join("Overrides").is_dir());
+        assert!(!mods.join("Cabelos").exists());
+        fs::remove_dir_all(base).unwrap();
+    }
+
+    #[test]
     fn removes_every_empty_subfolder_after_organization_and_preserves_nonempty_ones() {
         use std::time::{SystemTime, UNIX_EPOCH};
         let nonce = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
