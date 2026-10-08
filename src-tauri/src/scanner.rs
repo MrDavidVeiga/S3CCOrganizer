@@ -130,6 +130,18 @@ pub fn cached_scan_paths(root: &Path) -> Option<Vec<PathBuf>> {
     )
 }
 
+/// Drop cached paths after a successful on-disk organization. The frontend
+/// receives the exact move mapping and can update its list incrementally;
+/// future explicit rescans or new previews must not reuse pre-move paths.
+pub fn invalidate_latest_scan_for(root: &Path) {
+    let canonical = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
+    if let Ok(mut slot) = latest_scan_slot().lock() {
+        if slot.as_ref().is_some_and(|current| current.root == canonical) {
+            *slot = None;
+        }
+    }
+}
+
 fn package_extension(path: &Path) -> bool {
     // Treat .package.disabled as an inactive DBPF for ORGANIZATION only.
     // The physical .disabled suffix is never stripped, so the game will not

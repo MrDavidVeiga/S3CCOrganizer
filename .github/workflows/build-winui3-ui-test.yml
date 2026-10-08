@@ -9,6 +9,7 @@ on:
       - fix/organize-progress-bulk-review-20261008
       - fix/manager-speed-batch-ux-20261008
       - fix/scripts-progress-legacy-packages-20261008
+      - fix/organize-incremental-open-folder-ui-20261008
     paths:
       - ".github/workflows/build-winui3-ui-test.yml"
       - "src/**"
@@ -23,6 +24,7 @@ on:
       - "scripts/test-fluent-buttons.mjs"
       - "scripts/test-fluent-theme-audit.mjs"
       - "scripts/test-manager-batch-ux.mjs"
+      - "scripts/test-organization-incremental.mjs"
   workflow_dispatch:
 
 concurrency:
@@ -100,6 +102,9 @@ jobs:
 
       - name: Test Manager duplicate and conflict multi-selection
         run: node scripts/test-manager-batch-ux.mjs
+
+      - name: Validate incremental organization reconciliation
+        run: node scripts/test-organization-incremental.mjs
 
       - name: Run Rust regression tests
         run: cargo test --manifest-path src-tauri/Cargo.toml --lib

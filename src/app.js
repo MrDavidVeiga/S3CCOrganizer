@@ -4,6 +4,9 @@ import { open } from "@tauri-apps/plugin-dialog";
 
 const I18N = {
   en: {
+    moreConflictActions: "More review and quarantine actions",
+    openOrganizedFolder: "Open Organized Folder",
+    analysisNeedsRefresh: "Files moved; analyze again to refresh duplicates and conflicts.",
     remainingLegacyFiles: "files still in original folders",
     remainingLegacyExamples: "Show remaining files (never deleted automatically)",
     disabledPackages: "Disabled",
@@ -548,6 +551,9 @@ const I18N = {
     conflictsNext: "Resource-level conflict analysis is implemented in read-only mode.",
   },
   pt: {
+    moreConflictActions: "Mais ações de revisão e quarentena",
+    openOrganizedFolder: "Abrir Pasta Organizada",
+    analysisNeedsRefresh: "Arquivos organizados. Analise novamente para atualizar duplicatas e conflitos.",
     remainingLegacyFiles: "arquivos ainda nas pastas originais",
     remainingLegacyExamples: "Ver arquivos restantes (nunca excluídos automaticamente)",
     disabledPackages: "Desativados",
@@ -1091,6 +1097,9 @@ const I18N = {
     conflictsNext: "A análise de conflitos por resource está implementada em modo somente leitura.",
   },
   es: {
+    moreConflictActions: "Más acciones de revisión y cuarentena",
+    openOrganizedFolder: "Abrir Carpeta Organizada",
+    analysisNeedsRefresh: "Archivos organizados. Analiza de nuevo para actualizar duplicados y conflictos.",
     remainingLegacyFiles: "archivos aún en las carpetas originales",
     remainingLegacyExamples: "Ver archivos restantes (nunca eliminados automáticamente)",
     disabledPackages: "Desactivados",
@@ -1677,6 +1686,7 @@ const state = {
   updateResourceCfg: false,
   organizationReview: null,
   organizationCollisionItems: [],
+  lastOrganizedDirectory: "",
   restoreManifest: "",
   restorePlan: null,
   restorePreviewManifest: "",
@@ -1950,6 +1960,8 @@ const el = {
   collisionReviewList: document.querySelector("#collision-review-list"),
   collisionReviewCloseBtn: document.querySelector("#collision-review-close-btn"),
   collisionReviewCloseFooterBtn: document.querySelector("#collision-review-close-footer-btn"),
+  openOrganizedFolderBtn: document.querySelector("#open-organized-folder-btn"),
+  openOrganizedResultBtn: document.querySelector("#open-organized-result-btn"),
   chooseManifestBtn: document.querySelector("#choose-manifest-btn"),
   previewRestoreBtn: document.querySelector("#preview-restore-btn"),
   executeRestoreBtn: document.querySelector("#execute-restore-btn"),
@@ -7245,6 +7257,7 @@ function renderOrganizationReview() {
 
   el.organizationReviewPanel?.classList.toggle("hidden", !visible);
   if (!visible) return;
+  el.openOrganizedResultBtn.disabled = !state.folder || state.executing;
 
   const summaryParts = [
     `${review.moved ?? 0} ${t("organizedPackages")}`,
@@ -7698,6 +7711,7 @@ function render() {
 
   el.folderPath.textContent = state.folder || t("noFolder");
   el.folderPath.title = state.folder;
+  el.openOrganizedFolderBtn.disabled = !state.folder || state.executing;
   el.scanBtn.disabled =
     !state.folder ||
     analysisReadsBusy() ||
@@ -7887,6 +7901,7 @@ async function chooseFolder() {
   state.analysisRunId += 1;
   state.analysisStatus = { manager: "not_run", duplicates: "not_run", conflicts: "not_run" };
   state.folder = selected;
+  state.lastOrganizedDirectory = "";
   state.postQuarantineNotice = null;
   state.lastExactGroupAnchor = null;
   state.lastConflictReviewAnchor = null;
@@ -8112,6 +8127,70 @@ async function buildPlan() {
   }
 }
 
+// Rust returns the verified source/destination pair for every completed
+// rename. Use that transaction record instead of a complete DBPF rescan,
+// which previously re-read the entire library and started both analyzers.
+function reconcileSuccessfulOrganization(result) {
+  const moved = result.movedFiles || [];
+  if (!Array.isArray(moved) || !moved.length) return;
+
+  const key = path => String(path || "").replaceAll("\\", "/").toLocaleLowerCase();
+  const bySource = new Map(moved.map(move => [key(move.sourcePath), move]));
+  const priorSelection = state.selectedId;
+  const selectedMove = bySource.get(key(priorSelection));
+  state.items = state.items.map(item => {
+    const move = bySource.get(key(item.path));
+    if (!move) return item;
+    return {
+      ...item,
+      id: move.destinationPath,
+      path: move.destinationPath,
+      relativePath: move.destinationRelativePath,
+    };
+  });
+  if (selectedMove) state.selectedId = selectedMove.destinationPath;
+  state.selectedForPlan.clear();
+  state.plan = null;
+  state.planError = "";
+  virtualViews.manager.items = null;
+  managerVisibleMemo.items = null;
+
+  // Pre-move absolute paths must never leak into previews or future actions.
+  state.packagePreviews = {};
+  state.packagePreviewLoading = {};
+  state.packagePreviewErrors = {};
+  state.technicalDetails = {};
+  state.technicalDetailsLoading = "";
+  state.technicalDetailsErrors = {};
+  state.technicalDetailsOpen.clear();
+
+  // The old conflict/duplicate paths are no longer safe for quarantine.
+  // Keep these analyzers available, but do not automatically run them.
+  state.analysisRunId += 1;
+  state.duplicatesAnalysis = null;
+  state.conflictsAnalysis = null;
+  state.analysisStatus.manager = "completed";
+  state.analysisStatus.duplicates = "not_run";
+  state.analysisStatus.conflicts = "not_run";
+  state.duplicatesError = "";
+  state.conflictsError = "";
+  state.duplicatesNotice = t("analysisNeedsRefresh");
+  state.conflictsNotice = t("analysisNeedsRefresh");
+  state.duplicateSelectedId = "";
+  state.conflictSelectedId = "";
+  state.quarantineSelected.clear();
+  state.quarantinePlan = null;
+  state.conflictQuarantineSelected.clear();
+  state.conflictQuarantinePlan = null;
+  state.conflictReviewSelected.clear();
+  state.conflictsSelectedOnly = false;
+  closeDuplicateDetails();
+  closeConflictDetails();
+  conflictVisibleMemo.analysis = null;
+  virtualViews.duplicates.items = null;
+  virtualViews.conflicts.items = null;
+}
+
 async function executeOrganization() {
   if (!planCanExecute(state.plan) || state.executing || state.structureBusy) return;
 
@@ -8150,6 +8229,8 @@ async function executeOrganization() {
     });
 
     if (result.status === "COMPLETE" || result.status === "NO_CHANGES") {
+      state.lastOrganizedDirectory = result.organizedDirectory || state.folder;
+      if (result.status === "COMPLETE") reconcileSuccessfulOrganization(result);
       state.organizationReview = {
         moved: result.moved ?? 0,
         duplicates: completedStats.duplicateSkipped ?? 0,
@@ -8188,7 +8269,9 @@ async function executeOrganization() {
   }
 
   if (!state.planError) {
-    await scanFolder(false, true);
+    // The new paths, counts and selection were reconciled locally.
+    // Refreshing restore history is cheap; do not run scan_packages or
+    // duplicates/conflicts until the user explicitly asks for analysis.
     await loadRestoreHistory();
   }
 }
@@ -8621,6 +8704,12 @@ el.toolsDependencies.addEventListener("click", analyzeDependenciesTool);
 el.toolsRefreshHistory.addEventListener("click", refreshOperationHistory);
 
 el.scanBtn.addEventListener("click", () => scanFolder(false));
+el.openOrganizedFolderBtn.addEventListener("click", () => {
+  void openDirectorySafe(state.lastOrganizedDirectory || state.folder);
+});
+el.openOrganizedResultBtn.addEventListener("click", () => {
+  void openDirectorySafe(state.lastOrganizedDirectory || state.folder);
+});
 el.clearListBtn.addEventListener("click", clearLoadedLibrary);
 el.planBtn.addEventListener("click", buildPlan);
 el.selectAllBtn.addEventListener("click", selectAllVisible);

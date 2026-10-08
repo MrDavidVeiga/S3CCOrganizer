@@ -5,6 +5,7 @@ use crate::{
         replace_manifest_atomic, sha256_file, write_manifest_atomic, RestoreEntry, RestoreManifest,
     },
     planner::{build_organization_plan_with_cfg, PlanItem},
+    scanner::invalidate_latest_scan_for,
     operation,
     resource_cfg::{parse_resource_cfg, package_priority},
     resource_cfg_update::{apply_resource_cfg_update, rollback_resource_cfg_update},
@@ -22,6 +23,10 @@ use walkdir::WalkDir;
 #[serde(rename_all = "camelCase")]
 pub struct ExecutionResult {
     pub status: String,
+    /// Verified moves allow the frontend to reconcile its scanned library
+    /// without decoding thousands of DBPFs again after organization.
+    pub moved_files: Vec<OrganizationMove>,
+    pub organized_directory: String,
     pub manifest_path: Option<String>,
     pub moved: usize,
     pub already_organized: usize,
@@ -31,6 +36,29 @@ pub struct ExecutionResult {
     pub remaining_legacy_files: usize,
     pub remaining_legacy_examples: Vec<String>,
     pub errors: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OrganizationMove {
+    pub source_path: String,
+    pub destination_path: String,
+    pub destination_relative_path: String,
+}
+
+fn organized_parent(root: &Path, pairs: &[(PathBuf, PathBuf, String, u64)]) -> PathBuf {
+    let Some((_, first, _, _)) = pairs.first() else {
+        return root.to_path_buf();
+    };
+    let mut common = first.parent().unwrap_or(root).to_path_buf();
+    for (_, destination, _, _) in pairs.iter().skip(1) {
+        while !destination.starts_with(&common) {
+            let Some(parent) = common.parent() else { return root.to_path_buf() };
+            common = parent.to_path_buf();
+        }
+    }
+    if !common.starts_with(root) { return root.to_path_buf(); }
+    common
 }
 
 fn make_manifest_path(root: &Path) -> Result<PathBuf, String> {
@@ -386,6 +414,8 @@ fn execute_organization_core(
     if ready.is_empty() {
         return Ok(ExecutionResult {
             status: "NO_CHANGES".to_string(),
+            moved_files: Vec::new(),
+            organized_directory: root.to_string_lossy().to_string(),
             manifest_path: None,
             moved: 0,
             already_organized: plan.stats.already_organized,
@@ -614,6 +644,8 @@ fn execute_organization_core(
 
         return Ok(ExecutionResult {
             status: manifest.status.clone(),
+            moved_files: Vec::new(),
+            organized_directory: root.to_string_lossy().to_string(),
             manifest_path: Some(manifest_path.to_string_lossy().to_string()),
             moved: moved_pairs.len(),
             already_organized: plan.stats.already_organized,
@@ -638,8 +670,25 @@ fn execute_organization_core(
     replace_manifest_atomic(&manifest_path, &manifest)?;
     operation::update("organize", 1, None, "complete");
 
+    // Invalidate the Rust scan cache before any later plan preview: the
+    // cache contains pre-move absolute paths and must never be reused.
+    invalidate_latest_scan_for(&root);
+    let moved_files = moved_pairs.iter().map(|(source, destination, _, _)| {
+        OrganizationMove {
+            source_path: source.to_string_lossy().to_string(),
+            destination_path: destination.to_string_lossy().to_string(),
+            destination_relative_path: destination.strip_prefix(&root)
+                .unwrap_or(destination)
+                .to_string_lossy().to_string(),
+        }
+    }).collect();
+    let organized_directory = organized_parent(&root, &moved_pairs)
+        .to_string_lossy().to_string();
+
     Ok(ExecutionResult {
         status: "COMPLETE".to_string(),
+        moved_files,
+        organized_directory,
         manifest_path: Some(manifest_path.to_string_lossy().to_string()),
         moved: moved_pairs.len(),
         already_organized: plan.stats.already_organized,
@@ -655,6 +704,36 @@ fn execute_organization_core(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn organized_folder_is_common_parent_of_actual_destinations() {
+        let root = std::env::temp_dir().join("S3CC-Test-Mods");
+        let packages = root.join("Packages");
+        let a = (root.join("Old/a.package"),
+                 packages.join("CAS/Hair/a.package"),
+                 "a".repeat(64), 10u64);
+        let b = (root.join("Old/b.package"),
+                 packages.join("Scripts/Jogabilidade/Author/b.package"),
+                 "b".repeat(64), 20u64);
+        assert_eq!(organized_parent(&root, &[a.clone(), b.clone()]), packages);
+        assert_eq!(organized_parent(&root, &[a]), packages.join("CAS/Hair"));
+        let overrides = (root.join("Overrides/x.package"),
+                         root.join("Overrides/Scripts/x.package"),
+                         "c".repeat(64), 10u64);
+        assert_eq!(organized_parent(&root, &[b, overrides]), root);
+    }
+
+    #[test]
+    fn move_result_serialization_has_reconciliable_paths() {
+        let item = OrganizationMove {
+            source_path: "Mods/Packages/Old/a.package".into(),
+            destination_path: "Mods/Packages/CAS/a.package".into(),
+            destination_relative_path: "Packages/CAS/a.package".into(),
+        };
+        let json = serde_json::to_value(item).unwrap();
+        assert!(json["sourcePath"].as_str().unwrap().ends_with("a.package"));
+        assert_eq!(json["destinationRelativePath"], "Packages/CAS/a.package");
+    }
 
     #[test]
     fn reports_leftover_sidecars_without_deleting_them() {
