@@ -405,6 +405,7 @@ const I18N = {
     allConflictTypes: "All findings",
     conflictNeedsReview: "Needs review",
     conflictOutsideLoad: "Outside loading rules",
+    conflictInactiveCount: "Not loaded together",
     conflictDifferentResources: "Different resources",
     conflictIdenticalResources: "Identical resources",
     conflictEvidenceLimited: "The visible resources are a sample; totals include all shared resources.",
@@ -859,6 +860,7 @@ const I18N = {
     allConflictTypes: "Todos os resultados",
     conflictNeedsReview: "Exige revisão",
     conflictOutsideLoad: "Fora das regras de carregamento",
+    conflictInactiveCount: "Não carregados juntos",
     conflictDifferentResources: "Recursos diferentes",
     conflictIdenticalResources: "Recursos idênticos",
     conflictEvidenceLimited: "Os recursos exibidos são uma amostra; os totais incluem todos os recursos compartilhados.",
@@ -1312,6 +1314,7 @@ const I18N = {
     allConflictTypes: "Todos los resultados",
     conflictNeedsReview: "Requiere revisión",
     conflictOutsideLoad: "Fuera de las reglas de carga",
+    conflictInactiveCount: "No cargados juntos",
     conflictDifferentResources: "Recursos diferentes",
     conflictIdenticalResources: "Recursos idénticos",
     conflictEvidenceLimited: "Los recursos mostrados son una muestra; los totales incluyen todos los recursos compartidos.",
@@ -3506,6 +3509,8 @@ function createConflictFindingRow(finding) {
   count.textContent = String(finding.differentPayloadCount ?? 0);
   const dot = document.createElement("span");
   dot.className = `conflict-severity conflict-severity-${finding.severity}`;
+  count.title = t("differentPayloadCount");
+  dot.title = finding.severity || "";
   side.append(count, dot);
 
   button.append(main, side);
@@ -3605,6 +3610,7 @@ function renderConflicts() {
     if (stats.cacheHits) parts.push(`${t("cacheReused")}: ${stats.cacheHits}`);
     if (stats.cacheMisses) parts.push(`${t("cacheUpdated")}: ${stats.cacheMisses}`);
     if (stats.analysisTruncated) parts.push(t("conflictAnalysisTruncated"));
+    if (stats.inactivePairs) parts.push(`${t("conflictInactiveCount")}: ${stats.inactivePairs}`);
     el.conflictsState.textContent = parts.join(" · ");
     el.conflictsState.className = "scan-state success";
   } else {
@@ -6202,7 +6208,7 @@ function clearLoadedLibrary() {
   state.conflictsError = "";
   state.conflictsNotice = "";
   state.conflictsSearch = "";
-  state.conflictsFilter = "all";
+  state.conflictsFilter = "attention";
   state.conflictSelectedId = "";
   state.conflictMarks = {};
 
