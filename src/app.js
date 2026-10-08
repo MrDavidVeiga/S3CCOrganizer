@@ -6182,6 +6182,22 @@ function closePlanModal() {
 }
 
 function openConfirm(action) {
+  if (action === "restore") {
+    if (!state.restorePlan?.canExecute ||
+        state.restorePlan.manifestPath !== state.restoreManifest ||
+        state.restoreBusy || workspaceReadOnly()) return;
+    state.pendingRestoreManifest = state.restoreManifest;
+  } else if (action === "remove_restore_history") {
+    const selected = state.restoreHistory.find(
+      (item) => item.path === state.restoreManifest
+    );
+    if (!selected || (selected.valid && !selected.matchesSelectedRoot) ||
+        state.restoreBusy || workspaceReadOnly()) return;
+    state.pendingRemoveManifest = selected.path;
+  } else if (action === "restore_quarantine") {
+    if (!state.pendingQuarantineRestore || state.toolsBusy || workspaceReadOnly()) return;
+  }
+
   state.pendingAction = action;
   if (action === "organize") {
     el.confirmTitle.textContent = t("confirmOrganizeTitle");
@@ -6199,18 +6215,34 @@ function openConfirm(action) {
     el.confirmTitle.textContent = t("confirmQuarantineTitle");
     el.confirmMessage.textContent = t("confirmQuarantineMessage");
     el.confirmActionBtn.textContent = t("executeQuarantine");
-  } else {
+  } else if (action === "restore") {
     el.confirmTitle.textContent = t("confirmRestoreTitle");
-    el.confirmMessage.textContent = t("confirmRestoreMessage");
+    el.confirmMessage.textContent = `${t("confirmRestoreMessage")}\n${state.restoreManifest}`;
     el.confirmActionBtn.textContent = t("executeRestore");
+  } else if (action === "remove_restore_history") {
+    el.confirmTitle.textContent = t("confirmRemoveRestoreTitle");
+    el.confirmMessage.textContent = `${t("confirmRemoveRestoreMessage")}\n${state.pendingRemoveManifest}`;
+    el.confirmActionBtn.textContent = t("removeRestoreManifest");
+  } else if (action === "restore_quarantine") {
+    el.confirmTitle.textContent = t("confirmQuarantineRestoreTitle");
+    el.confirmMessage.textContent = `${t("confirmQuarantineRestoreMessage")}\n${state.pendingQuarantineRestore.destination}`;
+    el.confirmActionBtn.textContent = t("restoreQuarantine");
+  } else {
+    state.pendingAction = "";
+    return;
   }
   el.confirmModal.classList.remove("hidden");
   el.confirmModal.setAttribute("aria-hidden", "false");
+  el.confirmActionBtn.focus();
 }
 
 function closeConfirm() {
-  if (state.executing || state.restoreBusy || state.quarantineBusy) return;
+  if (state.executing || state.restoreBusy || state.quarantineBusy ||
+      (state.toolsBusy && state.pendingAction === "restore_quarantine")) return;
   state.pendingAction = "";
+  state.pendingRemoveManifest = "";
+  state.pendingRestoreManifest = "";
+  state.pendingQuarantineRestore = null;
   el.confirmModal.classList.add("hidden");
   el.confirmModal.setAttribute("aria-hidden", "true");
 }
