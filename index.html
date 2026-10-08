@@ -280,10 +280,14 @@
               <span class="analysis-audit-status" data-audit-status="duplicates" aria-live="polite"></span>
               <div class="analysis-list-footer-actions">
                 <button id="duplicates-select-exact-btn" class="secondary-btn" type="button" data-i18n="selectExactDuplicates">Select Exact Copies</button>
+                <button id="duplicates-preview-all-btn" class="secondary-btn" type="button" data-i18n="previewQuarantine">Preview Quarantine</button>
+                <button id="duplicates-clear-selection-btn" class="secondary-btn" type="button" data-i18n="clearSelection">Clear Selection</button>
                 <button class="secondary-btn" type="button" data-export-audit="duplicates" data-i18n="exportAuditReport">Export Report</button>
                 <button class="secondary-btn hidden" type="button" data-open-report-folder="duplicates" data-i18n="openReportFolder">Open Reports</button>
                 <button id="duplicates-clear-list-btn" class="danger-btn" type="button" data-i18n="clearList">Clear List</button>
               </div>
+              <div id="duplicates-batch-summary" class="analysis-batch-summary" role="status" aria-live="polite"></div>
+              <div id="duplicates-batch-preview" class="quarantine-preview hidden" aria-live="polite"></div>
             </div>
           </section>
 
