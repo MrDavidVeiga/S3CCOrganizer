@@ -33,8 +33,10 @@ const entryOptions = select => Array.from(select.options).map((option, index) =>
 }));
 
 function displayedLabel(select) {
-  return select.selectedOptions[0]?.label ||
-    select.selectedOptions[0]?.textContent?.trim() ||
+  // selectedIndex and value are the authoritative state. Some WebView/DOM
+  // implementations may lag when updating the selectedOptions collection.
+  const selected = select.options[select.selectedIndex];
+  return selected?.label || selected?.textContent?.trim() ||
     select.options[0]?.label || "—";
 }
 
