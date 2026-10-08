@@ -1,5 +1,6 @@
 use crate::{
     i18n::AppLanguage,
+    mods_layout::{is_mods_root, validate_organization_destination},
     cache::load_cache,
     manifest::sha256_file,
     resource_cfg::{find_resource_cfg, package_priority, parse_resource_cfg, ResourceCfgInfo},
@@ -63,11 +64,6 @@ fn resource_cfg_context(root: &Path) -> Option<ResourceCfgContext> {
     }
     let directory = path.parent()?.to_path_buf();
     Some(ResourceCfgContext { info, directory })
-}
-
-fn is_mods_root(root: &Path) -> bool {
-    root.file_name()
-        .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("mods"))
 }
 
 fn is_packages_root(root: &Path) -> bool {
@@ -187,6 +183,8 @@ fn legacy_manager_source(root: &Path, source: &Path) -> bool {
         "buy", "compra", "build", "construção", "construcción",
         "objects", "objetos",
         "gameplay", "jogabilidade", "jugabilidad",
+        "careers", "carreiras", "carreras",
+        "# +18", "#+18", "fixes", "correções", "correcoes",
         "scripts", "store", "nraas",
         "localization", "localização", "localización",
         "poses and animations", "poses e animações", "poses y animaciones",
@@ -1248,20 +1246,10 @@ pub fn build_organization_plan_with_cfg(
         destination_relative.push(file_name);
 
         let destination = root.join(&destination_relative);
-        if is_mods_root(&root) {
-            let branch = if source_uses_overrides(&root, &source_canonical) {
-                "Overrides"
-            } else {
-                "Packages"
-            };
-            if !destination.starts_with(root.join(branch)) {
-                stats.blocked += 1;
-                items.push(make_blocked(
-                    item,
-                    format!("Destination escaped its original Mods/{branch} loading branch."),
-                ));
-                continue;
-            }
+        if let Err(reason) = validate_organization_destination(&root, &source_canonical, &destination) {
+            stats.blocked += 1;
+            items.push(make_blocked(item, reason));
+            continue;
         }
         let destination_relative_text = relative_key(&destination_relative);
 
