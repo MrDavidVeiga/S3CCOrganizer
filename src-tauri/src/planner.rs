@@ -1,5 +1,6 @@
 use crate::{
     i18n::AppLanguage,
+    cache::load_cache,
     manifest::sha256_file,
     resource_cfg::{find_resource_cfg, package_priority, parse_resource_cfg, ResourceCfgInfo},
     scanner::{cached_scan_for, scan_packages_core, ScanPackageItem},
@@ -63,6 +64,115 @@ fn resource_cfg_context(root: &Path) -> Option<ResourceCfgContext> {
     Some(ResourceCfgContext { info, directory })
 }
 
+fn is_mods_root(root: &Path) -> bool {
+    root.file_name()
+        .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("mods"))
+}
+
+fn is_packages_root(root: &Path) -> bool {
+    root.file_name()
+        .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("packages"))
+}
+
+fn is_overrides_root(root: &Path) -> bool {
+    root.file_name()
+        .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("overrides"))
+}
+
+// The origin decides the loading branch, not the CAS/gameplay category.
+// Normal organization must never move any Override into Packages.
+fn source_uses_overrides(root: &Path, source: &Path) -> bool {
+    if is_overrides_root(root) {
+        return true;
+    }
+    if !is_mods_root(root) {
+        return false;
+    }
+    source.strip_prefix(root).ok()
+        .and_then(|relative| relative.components().next())
+        .is_some_and(|part| match part {
+            Component::Normal(name) => name.to_string_lossy().eq_ignore_ascii_case("Overrides"),
+            _ => false,
+        })
+}
+
+fn ensure_source_loading_branch(root: &Path, source: &Path, parts: &[String]) -> Vec<String> {
+    if !source_uses_overrides(root, source) {
+        return ensure_packages_destination(root, parts);
+    }
+
+    let mut parts = parts.to_vec();
+    if parts.first().is_some_and(|part| part.eq_ignore_ascii_case("Packages")
+        || part.eq_ignore_ascii_case("Overrides"))
+    {
+        parts.remove(0);
+    }
+    if parts.first().is_some_and(|part| part.eq_ignore_ascii_case("CAS")) {
+        parts.remove(0);
+    }
+    if is_mods_root(root) {
+        parts.insert(0, "Overrides".to_string());
+    }
+    parts
+}
+
+// Older versions created their category trees beside Packages inside Mods.
+// Migrate only those recognizable legacy category roots. Never treat
+// Overrides, DCCache or unrelated custom folders as organizer-owned.
+fn legacy_manager_source(root: &Path, source: &Path) -> bool {
+    if !is_mods_root(root) {
+        return false;
+    }
+    let Ok(relative) = source.strip_prefix(root) else {
+        return false;
+    };
+    if relative.components().count() < 2 {
+        return false;
+    }
+    let Some(name) = relative.components().next().and_then(|component| match component {
+        Component::Normal(name) => Some(name.to_string_lossy().to_lowercase()),
+        _ => None,
+    }) else {
+        return false;
+    };
+    [
+        "cas", "sliders", "clothing", "roupas", "ropa",
+        "hair", "cabelos", "cabello",
+        "accessories", "acessórios", "accesorios",
+        "makeup", "maquiagem", "maquillaje",
+        "genetics", "genética", "genetica",
+        "pets", "animais", "mascotas",
+        "patterns", "padrões", "patrones",
+        "buy", "compra", "build", "construção", "construcción",
+        "objects", "objetos",
+        "gameplay", "jogabilidade", "jugabilidad",
+        "scripts", "store", "nraas",
+        "localization", "localização", "localización",
+        "poses and animations", "poses e animações", "poses y animaciones",
+    ].contains(&name.as_str())
+}
+
+// When the user selected Mods rather than Mods/Packages, the organizer's
+// destination folders must still stay inside Packages, even if the selected
+// package has no reliable Resource.cfg rule.
+fn ensure_packages_destination(root: &Path, parts: &[String]) -> Vec<String> {
+    let mut parts = parts.to_vec();
+    let has_packages_prefix = parts.first()
+        .is_some_and(|part| part.eq_ignore_ascii_case("Packages"));
+    // Explicit legacy rules may contain CAS or Packages/CAS. CAS must not
+    // consume a Resource.cfg nesting level. Never produce Packages/Packages.
+    let cas_index = usize::from(has_packages_prefix);
+    if parts.get(cas_index).is_some_and(|part| part.eq_ignore_ascii_case("CAS")) {
+        parts.remove(cas_index);
+    }
+    if is_packages_root(root) && has_packages_prefix {
+        parts.remove(0);
+    } else if is_mods_root(root) && !has_packages_prefix {
+        parts.insert(0, "Packages".to_string());
+    }
+    parts
+}
+
 fn destination_path(root: &Path, parts: &[String], file_name: &std::ffi::OsStr) -> PathBuf {
     let mut path = root.to_path_buf();
     for part in parts {
@@ -79,55 +189,57 @@ fn fit_destination_to_resource_cfg(
     parts: &[String],
     context: Option<&ResourceCfgContext>,
 ) -> Result<(Vec<String>, Option<String>), String> {
+    let override_source = source_uses_overrides(root, source);
+    let packages_parts = ensure_source_loading_branch(root, source, parts);
     let Some(context) = context else {
-        return Ok((parts.to_vec(), None));
+        if override_source {
+            return Err("Overrides cannot be moved without a readable Resource.cfg. The category remains available for manual review.".to_string());
+        }
+        return Ok((packages_parts, None));
     };
 
-    // Only enforce/compact when the current package is actually covered by
-    // this Resource.cfg. This avoids making assumptions for custom layouts
-    // whose traversal is outside the parser's reliable subset.
-    let Some(source_priority) = package_priority(&context.info, &context.directory, source) else {
-        return Ok((parts.to_vec(), None));
-    };
-
-    // Preserve the literal loading prefix from the matching PackedFile rule.
-    // For the common layout, selecting Mods (instead of Mods/Packages) must
-    // still produce Mods/Packages/... destinations.
-    let rule_prefix = source_priority
-        .rule
-        .replace('\\', "/")
-        .split('/')
-        .take_while(|component| !component.contains('*'))
-        .filter(|component| !component.is_empty())
-        .map(str::to_string)
-        .collect::<Vec<_>>();
-    let root_relative = root
-        .strip_prefix(&context.directory)
-        .ok()
-        .map(|value| {
-            value
-                .components()
-                .filter_map(|component| match component {
+    // Even when the original package sits in a legacy Mods/CAS directory
+    // that Resource.cfg never loaded, the NEW destination must match
+    // Resource.cfg or be compacted to a matching depth.
+    let source_priority = package_priority(&context.info, &context.directory, source);
+    let proposed = if let Some(source_priority) = source_priority {
+        // Preserve literal prefixes for covered packages, without
+        // accidentally repeating Mods/Packages.
+        let rule_prefix = source_priority
+            .rule
+            .replace('\\', "/")
+            .split('/')
+            .take_while(|part| !part.contains('*'))
+            .filter(|part| !part.is_empty())
+            .map(str::to_string)
+            .collect::<Vec<_>>();
+        let root_relative = root.strip_prefix(&context.directory).ok()
+            .map(|value| value.components()
+                .filter_map(|part| match part {
                     Component::Normal(value) => Some(value.to_string_lossy().to_string()),
                     _ => None,
                 })
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
-
-    let mut base_prefix = Vec::<String>::new();
-    if root_relative.len() < rule_prefix.len()
-        && rule_prefix
-            .iter()
-            .take(root_relative.len())
-            .zip(root_relative.iter())
-            .all(|(left, right)| left.eq_ignore_ascii_case(right))
-    {
-        base_prefix.extend(rule_prefix.iter().skip(root_relative.len()).cloned());
-    }
-
-    let mut proposed = base_prefix;
-    proposed.extend(parts.iter().cloned());
+                .collect::<Vec<_>>())
+            .unwrap_or_default();
+        let mut prefix = Vec::<String>::new();
+        if root_relative.len() < rule_prefix.len()
+            && rule_prefix.iter().take(root_relative.len()).zip(root_relative.iter())
+                .all(|(left, right)| left.eq_ignore_ascii_case(right))
+        {
+            prefix.extend(rule_prefix.iter().skip(root_relative.len()).cloned());
+        }
+        if packages_parts.len() >= prefix.len()
+            && prefix.iter().zip(packages_parts.iter())
+                .all(|(left, right)| left.eq_ignore_ascii_case(right))
+        {
+            packages_parts.clone()
+        } else {
+            prefix.extend(packages_parts.iter().cloned());
+            prefix
+        }
+    } else {
+        packages_parts.clone()
+    };
 
     let direct = destination_path(root, &proposed, file_name);
     if package_priority(&context.info, &context.directory, &direct).is_some() {
@@ -143,21 +255,39 @@ fn fit_destination_to_resource_cfg(
 
     let original = proposed.clone();
     let mut compacted = proposed;
-    while compacted.len() > 1 {
-        let last = compacted.pop().unwrap();
-        let previous = compacted.pop().unwrap();
-        compacted.push(format!("{previous} - {last}"));
+    // Protect the loading branch itself. If Overrides/*.package is the
+    // deepest supported rule, only a flat Overrides directory is safe:
+    // preserve the slider/category as metadata instead of creating unloaded
+    // subfolders. Never rename or merge "Overrides" with the category.
+    let minimum_depth = if override_source {
+        if is_mods_root(root) { 1 } else { 0 }
+    } else if is_mods_root(root) {
+        2
+    } else {
+        1
+    };
+    while compacted.len() > minimum_depth {
+        if override_source && compacted.len() == minimum_depth + 1 {
+            compacted.pop(); // Overrides root itself, not Overrides - Category.
+        } else {
+            let last = compacted.pop().unwrap();
+            let previous = compacted.pop().unwrap();
+            compacted.push(format!("{previous} - {last}"));
+        }
 
         let candidate = destination_path(root, &compacted, file_name);
         if package_priority(&context.info, &context.directory, &candidate).is_some() {
-            return Ok((
-                compacted.clone(),
-                Some(format!(
+            let note = if override_source && compacted.len() == minimum_depth {
+                "Resource.cfg permits only the Overrides root; the semantic category is retained in Manager without creating unloaded subfolders."
+                    .to_string()
+            } else {
+                format!(
                     "Resource.cfg depth adaptation: '{}' was compacted to '{}' so the game can load the organized package.",
                     original.join("\\"),
                     compacted.join("\\")
-                )),
-            ));
+                )
+            };
+            return Ok((compacted.clone(), Some(note)));
         }
     }
 
@@ -273,6 +403,11 @@ fn fallback_relative_path(
     source_hash: &str,
 ) -> Result<(PathBuf, Vec<String>), String> {
     let source_relative = Path::new(source_relative);
+    if source_uses_overrides(root, &root.join(source_relative)) {
+        // An uncategorized/colliding Override must never be redirected into
+        // Packages or an unsupported Overrides subfolder.
+        return Ok((source_relative.to_path_buf(), Vec::new()));
+    }
     let components = source_relative
         .components()
         .map(|component| match component {
@@ -290,6 +425,13 @@ fn fallback_relative_path(
         .ok_or_else(|| "Source relative path has no filename.".to_string())?;
 
     let mut parent_parts = components[..components.len().saturating_sub(1)].to_vec();
+    if is_mods_root(root)
+        && parent_parts
+            .first()
+            .is_some_and(|part| part.eq_ignore_ascii_case("packages"))
+    {
+        parent_parts.remove(0);
+    }
     if parent_parts
         .first()
         .map(|value| is_not_categorized_root(value))
@@ -297,9 +439,9 @@ fn fallback_relative_path(
     {
         parent_parts.remove(0);
     }
-
     let mut destination_parts = vec![language.not_categorized_folder().to_string()];
     destination_parts.extend(parent_parts);
+    destination_parts = ensure_packages_destination(root, &destination_parts);
 
     let mut destination_relative = PathBuf::new();
     for part in &destination_parts {
@@ -382,6 +524,144 @@ fn retarget_item_to_not_categorized(
     item.destination_path = Some(destination.to_string_lossy().to_string());
     item.destination_relative_path = Some(destination_relative_text);
     Ok(())
+}
+
+// Exact duplicates must stay untouched and be reviewed in Duplicates, even
+// when a duplicate happens to have a different proposed destination.
+fn index_exact_duplicates(
+    root: &Path,
+    scan_items: &[ScanPackageItem],
+    selected_hashes: &HashMap<PathBuf, String>,
+) -> HashMap<String, Vec<String>> {
+    let selected_sizes = selected_hashes
+        .keys()
+        .filter_map(|path| fs::metadata(path).ok().map(|metadata| metadata.len()))
+        .collect::<HashSet<_>>();
+    if selected_sizes.is_empty() {
+        return HashMap::new();
+    }
+    let cache = load_cache(root);
+    let mut by_hash = HashMap::<String, Vec<String>>::new();
+    for item in scan_items {
+        if !selected_sizes.contains(&item.file_size) {
+            continue;
+        }
+        let Ok(path) = PathBuf::from(&item.path).canonicalize() else {
+            continue;
+        };
+        let hash = if let Some(hash) = selected_hashes.get(&path) {
+            hash.clone()
+        } else {
+            // Reuse the same fingerprints the Duplicates analysis already
+            // recorded. Never trust a cached hash if size or mtime changed.
+            let cached_hash = cache.entries.get(path.to_string_lossy().as_ref())
+                .and_then(|cached| {
+                    let metadata = fs::metadata(&path).ok()?;
+                    let modified = metadata.modified().ok()?
+                        .duration_since(std::time::UNIX_EPOCH).ok()?.as_nanos();
+                    (cached.size == metadata.len() && cached.modified_ns == modified)
+                        .then(|| cached.file_sha256.clone())
+                });
+            match cached_hash {
+                Some(hash) => hash,
+                None => match sha256_file(&path) {
+                    Ok((hash, _)) => hash,
+                    Err(_) => continue,
+                },
+            }
+        };
+        by_hash.entry(hash.to_ascii_uppercase())
+            .or_default()
+            .push(item.relative_path.clone());
+    }
+    by_hash
+}
+
+// Pure indexed comparison makes the partial-merge heuristic regression-testable.
+// Only stronger-than-STBL evidence can hold a larger package for review.
+fn detect_merged_resource_supersets(
+    indexed: &[(String, BTreeSet<String>, bool)],
+) -> HashMap<String, Vec<String>> {
+    let mut anchored = HashMap::<String, Vec<usize>>::new();
+    for (index, (_, resources, slider)) in indexed.iter().enumerate() {
+        if *slider && resources.len() >= 2 {
+            if let Some(first) = resources.iter().next() {
+                anchored.entry(first.clone()).or_default().push(index);
+            }
+        }
+    }
+    let mut related = HashMap::<String, Vec<String>>::new();
+    for (merged_name, merged_resources, _) in &indexed {
+        let mut candidates = HashSet::<usize>::new();
+        for key in merged_resources {
+            if let Some(indices) = anchored.get(key) {
+                candidates.extend(indices);
+            }
+        }
+        for index in candidates {
+            let (loose_name, loose_resources, _) = &indexed[index];
+            if loose_name != merged_name
+                && loose_resources.len() < merged_resources.len()
+                && loose_resources.is_subset(merged_resources)
+            {
+                related.entry(merged_name.to_lowercase())
+                    .or_default().push(loose_name.clone());
+            }
+        }
+    }
+    related
+}
+
+// A merged package can contain byte-identical morph resources from several
+// standalone sliders without having the same whole-file SHA-256. This is a
+// conservative *suspected* relation, not a deletion verdict: require full
+// inclusion of at least two non-localization resources, with a real slider
+// morph and a strictly larger package. Data comes from the valid DBPF cache;
+// missing or stale cache entries never trigger a move/block.
+fn index_suspected_merged_sliders(
+    root: &Path,
+    scan_items: &[ScanPackageItem],
+) -> HashMap<String, Vec<String>> {
+    type Indexed = (String, BTreeSet<String>, bool);
+    let cache = load_cache(root);
+    let mut indexed = Vec::<Indexed>::new();
+    for item in scan_items {
+        let Ok(path) = PathBuf::from(&item.path).canonicalize() else {
+            continue;
+        };
+        let Some(cached) = cache.entries.get(path.to_string_lossy().as_ref()) else {
+            continue;
+        };
+        let Ok(metadata) = fs::metadata(&path) else {
+            continue;
+        };
+        let Ok(modified_ns) = metadata.modified()
+            .and_then(|time| time.duration_since(std::time::UNIX_EPOCH)
+                .map_err(|error| std::io::Error::other(error.to_string())))
+            .map(|duration| duration.as_nanos())
+        else {
+            continue;
+        };
+        if cached.size != metadata.len() || cached.modified_ns != modified_ns
+            || cached.parse_error.is_some()
+        {
+            continue;
+        }
+        let substantive = cached.resources.iter()
+            .filter(|resource| !matches!(resource.type_id, 0x2205_57DA | 0x0166_038C))
+            .map(|resource| {
+                format!("{:08X}-{:08X}-{:016X}-{}",
+                    resource.type_id, resource.group, resource.instance, resource.payload_sha256)
+            })
+            .collect::<BTreeSet<_>>();
+        let direct_slider = item.sub_category.as_deref() == Some("Sliders")
+            && cached.resources.iter().any(|r| {
+                matches!(r.type_id, 0x0358_B08A | 0xB52F_5055 | 0x0355_E0A6 | 0x067C_AA11)
+            });
+        indexed.push((item.relative_path.clone(), substantive, direct_slider));
+    }
+    detect_merged_resource_supersets(&indexed)
+
 }
 
 fn mark_intra_plan_destination_collisions(items: &mut [PlanItem], stats: &mut PlanStats) {
@@ -511,6 +791,26 @@ pub fn build_organization_plan(
     if !root.is_dir() {
         return Err(format!("Root is not a directory: {}", root.display()));
     }
+    if !is_mods_root(&root) && !is_packages_root(&root) && !is_overrides_root(&root) {
+        return Err(
+            "Select Mods, Mods/Packages or Mods/Overrides to organize. The source loading branch is always preserved."
+                .to_string(),
+        );
+    }
+
+    // A Mods root may also contain Overrides, DCCache and other directories.
+    // Never organize those as Packages or create category folders beside Packages.
+    let packages_root = if is_mods_root(&root) {
+        let path = root.join("Packages")
+            .canonicalize()
+            .map_err(|_| "The selected Mods folder must contain a Packages directory.".to_string())?;
+        if !path.is_dir() || !path_is_within_root(&root, &path) {
+            return Err("Mods/Packages is not a safe directory inside the selected Mods root.".to_string());
+        }
+        Some(path)
+    } else {
+        None
+    };
 
     let workspace = load_workspace_for_root(&root);
     let profile = active_profile(&workspace);
@@ -562,6 +862,9 @@ pub fn build_organization_plan(
         selected_hashes.insert(path.clone(), hash.clone());
         selected_hash_set.insert(hash);
     }
+
+    let duplicate_peers = index_exact_duplicates(&root, &scan.items, &selected_hashes);
+    let possible_merged_peers = index_suspected_merged_sliders(&root, &scan.items);
 
     let mut partial_group_hashes = HashSet::<String>::new();
 
@@ -615,6 +918,66 @@ pub fn build_organization_plan(
             .cloned()
             .ok_or_else(|| format!("Missing selected package hash: {}", source.display()))?;
 
+        if packages_root
+            .as_ref()
+            .is_some_and(|packages| !path_is_within_root(packages, &source_canonical))
+            && !legacy_manager_source(&root, &source_canonical)
+            && !source_uses_overrides(&root, &source_canonical)
+        {
+            stats.blocked += 1;
+            items.push(make_blocked(
+                item,
+                "The package is outside Mods/Packages. It will not be moved into the organized Packages library.".to_string(),
+            ));
+            continue;
+        }
+
+        let duplicates = duplicate_peers.get(&source_hash.to_ascii_uppercase());
+        if let Some(peers) = duplicates.filter(|peers| peers.len() > 1) {
+            stats.duplicate_skipped += 1;
+            items.push(PlanItem {
+                id: item.id.clone(),
+                name: item.name.clone(),
+                source_path: source_canonical.to_string_lossy().to_string(),
+                source_relative_path: item.relative_path.clone(),
+                destination_path: None,
+                destination_relative_path: None,
+                classification_status: item.status.clone(),
+                classification_reason: item.classification_reason.clone(),
+                plan_status: "duplicate_skipped".to_string(),
+                sha256: Some(source_hash),
+                size: item.file_size,
+                warnings: vec![format!(
+                    "Exact SHA-256 duplicate in the scanned library ({} matching files: {}). Kept in its current location. Review in Duplicates before any move or deletion.",
+                    peers.len(),
+                    peers.iter().take(4).cloned().collect::<Vec<_>>().join(" | ")
+                )],
+            });
+            continue;
+        }
+
+        if let Some(loose_files) = possible_merged_peers.get(&item.relative_path.to_lowercase()) {
+            stats.duplicate_skipped += 1;
+            items.push(PlanItem {
+                id: item.id.clone(),
+                name: item.name.clone(),
+                source_path: source_canonical.to_string_lossy().to_string(),
+                source_relative_path: item.relative_path.clone(),
+                destination_path: None,
+                destination_relative_path: None,
+                classification_status: item.status.clone(),
+                classification_reason: item.classification_reason.clone(),
+                plan_status: "duplicate_skipped".to_string(),
+                sha256: Some(source_hash),
+                size: item.file_size,
+                warnings: vec![format!(
+                    "Possible merged package: its non-localization resources contain the exact TGIs and payloads of standalone slider package(s): {}. This is a review candidate, not proof that the packages are interchangeable. Kept in place; inspect Duplicates before any change.",
+                    loose_files.iter().take(4).cloned().collect::<Vec<_>>().join(" | ")
+                )],
+            });
+            continue;
+        }
+
         if partial_group_hashes.contains(&source_hash) {
             stats.blocked += 1;
             items.push(make_blocked(
@@ -635,7 +998,7 @@ pub fn build_organization_plan(
             items.push(PlanItem {
                 id: item.id.clone(),
                 name: item.name.clone(),
-                source_path: source.to_string_lossy().to_string(),
+                source_path: source_canonical.to_string_lossy().to_string(),
                 source_relative_path: item.relative_path.clone(),
                 destination_path: None,
                 destination_relative_path: None,
@@ -713,13 +1076,45 @@ pub fn build_organization_plan(
                 }
             }
             Err(reason) => {
-                stats.blocked += 1;
-                items.push(make_blocked(item, reason));
+                if source_uses_overrides(&root, &source_canonical) {
+                    // Do not block the other Packages in a mixed Mods scan.
+                    // Preserve the Override and its logical classification
+                    // whenever the actual Resource.cfg cannot load a category.
+                    stats.kept_uncategorized += 1;
+                    items.push(PlanItem {
+                        id: item.id.clone(),
+                        name: item.name.clone(),
+                        source_path: source_canonical.to_string_lossy().to_string(),
+                        source_relative_path: item.relative_path.clone(),
+                        destination_path: None,
+                        destination_relative_path: None,
+                        classification_status: item.status.clone(),
+                        classification_reason: classification_reason.clone(),
+                        plan_status: "keep_uncategorized".to_string(),
+                        sha256: Some(source_hash),
+                        size: item.file_size,
+                        warnings: vec![format!(
+                            "Override kept at its original location: {reason}"
+                        )],
+                    });
+                } else {
+                    stats.blocked += 1;
+                    items.push(make_blocked(item, reason));
+                }
                 continue;
             }
         }
 
-        if let Err(reason) = validate_destination_parts(&destination_parts) {
+        // With a flat Overrides/*.package rule, the sole safe destination
+        // when Overrides itself was selected is its root (zero categories).
+        // This empty path is allowed only after fit_destination_to_resource_cfg
+        // has verified that Resource.cfg loads the resulting root-level file.
+        let validated = if is_overrides_root(&root) && destination_parts.is_empty() {
+            Ok(())
+        } else {
+            validate_destination_parts(&destination_parts)
+        };
+        if let Err(reason) = validated {
             stats.blocked += 1;
             items.push(make_blocked(item, reason));
             continue;
@@ -739,6 +1134,21 @@ pub fn build_organization_plan(
         destination_relative.push(file_name);
 
         let destination = root.join(&destination_relative);
+        if is_mods_root(&root) {
+            let branch = if source_uses_overrides(&root, &source_canonical) {
+                "Overrides"
+            } else {
+                "Packages"
+            };
+            if !destination.starts_with(root.join(branch)) {
+                stats.blocked += 1;
+                items.push(make_blocked(
+                    item,
+                    format!("Destination escaped its original Mods/{branch} loading branch."),
+                ));
+                continue;
+            }
+        }
         let destination_relative_text = relative_key(&destination_relative);
 
         if relative_key(Path::new(&item.relative_path)).eq_ignore_ascii_case(&destination_relative_text) {
@@ -746,7 +1156,7 @@ pub fn build_organization_plan(
             items.push(PlanItem {
                 id: item.id.clone(),
                 name: item.name.clone(),
-                source_path: source.to_string_lossy().to_string(),
+                source_path: source_canonical.to_string_lossy().to_string(),
                 source_relative_path: item.relative_path.clone(),
                 destination_path: Some(destination.to_string_lossy().to_string()),
                 destination_relative_path: Some(destination_relative_text),
@@ -778,7 +1188,7 @@ pub fn build_organization_plan(
             items.push(PlanItem {
                 id: item.id.clone(),
                 name: item.name.clone(),
-                source_path: source.to_string_lossy().to_string(),
+                source_path: source_canonical.to_string_lossy().to_string(),
                 source_relative_path: item.relative_path.clone(),
                 destination_path: Some(destination.to_string_lossy().to_string()),
                 destination_relative_path: Some(destination_relative_text),
@@ -805,7 +1215,7 @@ pub fn build_organization_plan(
         items.push(PlanItem {
             id: item.id.clone(),
             name: item.name.clone(),
-            source_path: source.to_string_lossy().to_string(),
+            source_path: source_canonical.to_string_lossy().to_string(),
             source_relative_path: item.relative_path.clone(),
             destination_path: Some(destination.to_string_lossy().to_string()),
             destination_relative_path: Some(destination_relative_text),
@@ -896,12 +1306,332 @@ mod tests {
     use super::*;
 
     #[test]
+    fn planned_sources_use_the_same_canonical_root_as_cleanup() {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let nonce = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let root = std::env::temp_dir().join(format!("s3cc-canonical-root-{}-{nonce}", std::process::id()));
+        let source = root.join("Packages").join("Legacy").join("a.package");
+        std::fs::create_dir_all(source.parent().unwrap()).unwrap();
+        std::fs::write(&source, b"DBPF source identity test").unwrap();
+        let canonical_root = root.canonicalize().unwrap();
+        let canonical_source = source.canonicalize().unwrap();
+        assert!(canonical_source.starts_with(&canonical_root));
+        assert!(canonical_source.parent().unwrap().starts_with(&canonical_root));
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    fn cfg_with_rules(root: &Path, patterns: &[&str]) -> ResourceCfgContext {
+        use crate::resource_cfg::ResourceCfgRule;
+        ResourceCfgContext {
+            directory: root.to_path_buf(),
+            info: ResourceCfgInfo {
+                path: root.join("Resource.cfg").to_string_lossy().to_string(),
+                precedence_reliable: true,
+                warnings: Vec::new(),
+                rules: patterns.iter().enumerate().map(|(index, rule)| ResourceCfgRule {
+                    priority: 500,
+                    pattern: (*rule).to_string(),
+                    source_line: index + 1,
+                }).collect(),
+            },
+        }
+    }
+
+    #[test]
+    fn overrides_support_anatomical_folders_when_resource_cfg_matches() {
+        let mods = Path::new("The Sims 3").join("Mods");
+        let source = mods.join("Overrides").join("patch.package");
+        let context = cfg_with_rules(&mods, &[
+            "Packages/*.package",
+            "Overrides/*.package",
+            "Overrides/*/*/*/*.package",
+        ]);
+        let category = vec!["Sliders".into(), "Face".into(), "Nose".into()];
+        let (destination, _) = fit_destination_to_resource_cfg(
+            &mods, &source, std::ffi::OsStr::new("patch.package"),
+            &category, Some(&context),
+        ).unwrap();
+        assert_eq!(destination, vec!["Overrides", "Sliders", "Face", "Nose"]);
+
+        let packages_source = mods.join("Packages").join("hair.package");
+        assert!(!source_uses_overrides(&mods, &packages_source));
+        assert!(source_uses_overrides(&mods, &source));
+    }
+
+    #[test]
+    fn overrides_flat_resource_cfg_keeps_physical_file_at_override_root() {
+        let mods = Path::new("The Sims 3").join("Mods");
+        let overrides = mods.join("Overrides");
+        let context = cfg_with_rules(&mods, &["Overrides/*.package"]);
+        let cat = vec!["Sliders".into(), "Face".into(), "Nose".into()];
+        let (destination, note) = fit_destination_to_resource_cfg(
+            &mods, &overrides.join("patch.package"),
+            std::ffi::OsStr::new("patch.package"), &cat, Some(&context),
+        ).unwrap();
+        assert_eq!(destination, vec!["Overrides"]);
+        assert!(note.unwrap().contains("category is retained"));
+
+        let (selected_override, note) = fit_destination_to_resource_cfg(
+            &overrides, &overrides.join("patch.package"),
+            std::ffi::OsStr::new("patch.package"), &cat, Some(&context),
+        ).unwrap();
+        assert!(selected_override.is_empty());
+        assert!(note.unwrap().contains("category is retained"));
+    }
+
+    #[test]
+    fn missing_override_rule_never_redirects_to_packages() {
+        let mods = Path::new("The Sims 3").join("Mods");
+        let override_file = mods.join("Overrides").join("ui.package");
+        let context = cfg_with_rules(&mods, &["Packages/*.package", "Packages/*/*.package"]);
+        let category = vec!["Gameplay".into(), "Tuning".into()];
+        assert!(fit_destination_to_resource_cfg(
+            &mods, &override_file, std::ffi::OsStr::new("ui.package"),
+            &category, Some(&context),
+        ).is_err());
+        assert!(fit_destination_to_resource_cfg(
+            &mods, &override_file, std::ffi::OsStr::new("ui.package"),
+            &category, None,
+        ).is_err());
+        let (fallback, dirs) = fallback_relative_path(
+            &mods, AppLanguage::En, "Overrides/UI/ui.package", "ABCD",
+        ).unwrap();
+        assert_eq!(fallback, Path::new("Overrides/UI/ui.package"));
+        assert!(dirs.is_empty());
+    }
+
+    #[test]
+    fn selected_overrides_root_preserves_original_loading_branch() {
+        let mods = Path::new("The Sims 3").join("Mods");
+        let root = mods.join("Overrides");
+        assert!(is_overrides_root(&root));
+        assert!(source_uses_overrides(&root, &root.join("file.package")));
+        assert_eq!(
+            ensure_source_loading_branch(
+                &root,
+                &root.join("file.package"),
+                &["Packages".into(), "CAS".into(), "Sliders".into()],
+            ),
+            vec!["Sliders"]
+        );
+        assert_eq!(
+            ensure_source_loading_branch(
+                &mods,
+                &mods.join("Overrides").join("file.package"),
+                &["Packages".into(), "Sliders".into()],
+            ),
+            vec!["Overrides", "Sliders"]
+        );
+    }
+
+    #[test]
+    fn identifies_only_known_legacy_manager_folders_for_migration() {
+        let mods = Path::new("The Sims 3").join("Mods");
+        assert!(legacy_manager_source(
+            &mods, &mods.join("CAS").join("Sliders").join("a.package")));
+        assert!(legacy_manager_source(
+            &mods, &mods.join("Roupas").join("Masculino").join("x.package")));
+        assert!(!legacy_manager_source(
+            &mods, &mods.join("Overrides").join("ui.package")));
+        assert!(!legacy_manager_source(
+            &mods, &mods.join("DCCache").join("a.package")));
+        assert!(!legacy_manager_source(
+            &mods, &mods.join("Random Folder").join("x.package")));
+    }
+
+    #[test]
+    fn mods_root_always_routes_categories_into_packages() {
+        let mods_base = Path::new("The Sims 3").join("Mods");
+        let mods = mods_base.as_path();
+        let categories = vec!["CAS".into(), "Clothing".into(), "Female".into()];
+        assert_eq!(
+            ensure_packages_destination(mods, &categories),
+            vec!["Packages", "Clothing", "Female"]
+        );
+        assert_eq!(
+            ensure_packages_destination(mods, &["Packages".into(), "CAS".into()]),
+            vec!["Packages"]
+        );
+    }
+
+    #[test]
+    fn already_selected_packages_root_does_not_duplicate_folder_name() {
+        let packages_base = Path::new("The Sims 3").join("Mods").join("Packages");
+        let packages = packages_base.as_path();
+        let categories = vec!["CAS".into(), "Hair".into()];
+        assert_eq!(ensure_packages_destination(packages, &categories), vec!["Hair"]);
+        assert_eq!(
+            ensure_packages_destination(packages, &["Packages".into(), "CAS".into(), "Hair".into()]),
+            vec!["Hair"]
+        );
+    }
+
+    #[test]
+    fn uncovered_resource_cfg_source_still_keeps_packages_prefix() {
+        let mods_base = Path::new("The Sims 3").join("Mods");
+        let root = mods_base.as_path();
+        let parts = vec!["Scripts".to_string(), "Gameplay".to_string()];
+        let (resolved, _) = fit_destination_to_resource_cfg(
+            root,
+            &root.join("Packages/Unmatched.package"),
+            std::ffi::OsStr::new("Unmatched.package"),
+            &parts,
+            None,
+        ).unwrap();
+        assert_eq!(resolved, vec!["Packages", "Scripts", "Gameplay"]);
+    }
+
+    #[test]
+    fn resource_cfg_compaction_preserves_packages_directory() {
+        use crate::resource_cfg::ResourceCfgRule;
+
+        let root = Path::new("Temporary").join("Mods");
+        let context = ResourceCfgContext {
+            directory: root.clone(),
+            info: ResourceCfgInfo {
+                path: root.join("Resource.cfg").to_string_lossy().to_string(),
+                precedence_reliable: true,
+                warnings: vec![],
+                rules: vec![
+                    ResourceCfgRule {
+                        priority: 500,
+                        pattern: "Packages/*.package".into(),
+                        source_line: 1,
+                    },
+                    ResourceCfgRule {
+                        priority: 500,
+                        pattern: "Packages/*/*.package".into(),
+                        source_line: 2,
+                    },
+                ],
+            },
+        };
+        let parts = vec![
+            "Clothing".into(), "Female".into(), "YA-A".into(), "Top".into(),
+        ];
+        let (fitted, _) = fit_destination_to_resource_cfg(
+            &root, &root.join("Packages").join("source.package"),
+            std::ffi::OsStr::new("new.package"), &parts, Some(&context),
+        ).unwrap();
+        assert_eq!(fitted.len(), 2);
+        assert_eq!(fitted[0], "Packages");
+        assert!(fitted[1].starts_with("Clothing"));
+    }
+
+    #[test]
+    fn four_cas_folders_fit_inside_packages_with_matching_resource_cfg() {
+        use crate::resource_cfg::ResourceCfgRule;
+
+        let root = Path::new("Temporary").join("Mods");
+        let context = ResourceCfgContext {
+            directory: root.clone(),
+            info: ResourceCfgInfo {
+                path: root.join("Resource.cfg").to_string_lossy().to_string(),
+                precedence_reliable: true,
+                warnings: vec![],
+                rules: vec![
+                    ResourceCfgRule {
+                        priority: 500,
+                        pattern: "Packages/*.package".into(),
+                        source_line: 1,
+                    },
+                    ResourceCfgRule {
+                        priority: 500,
+                        pattern: "Packages/*/*/*/*/*.package".into(),
+                        source_line: 2,
+                    },
+                ],
+            },
+        };
+        let parts = vec![
+            "Clothing".into(), "Female".into(), "YA-A".into(), "Top".into(),
+        ];
+        let (fitted, _) = fit_destination_to_resource_cfg(
+            &root, &root.join("Packages").join("source.package"),
+            std::ffi::OsStr::new("new.package"), &parts, Some(&context),
+        ).unwrap();
+        assert_eq!(fitted, vec!["Packages", "Clothing", "Female", "YA-A", "Top"]);
+    }
+
+    #[test]
     fn destination_components_reject_path_escape_and_windows_invalid_names() {
         assert!(validate_destination_parts(&["CAS".into(), "Roupas".into()]).is_ok());
         assert!(validate_destination_parts(&["..".into()]).is_err());
         assert!(validate_destination_parts(&["Bad/Folder".into()]).is_err());
         assert!(validate_destination_parts(&["CON".into()]).is_err());
         assert!(validate_destination_parts(&["Name.".into()]).is_err());
+    }
+
+    #[test]
+    fn exact_duplicate_index_finds_identical_contents_across_folders() {
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        let nonce = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let root = std::env::temp_dir().join(format!("s3cc-duplicate-preflight-{}-{nonce}", std::process::id()));
+        let packages = root.join("Packages");
+        std::fs::create_dir_all(packages.join("Sliders")).unwrap();
+        let first = packages.join("Jonha_BASE.package");
+        let second = packages.join("Sliders").join("Jonha_Sliders_BASE.package");
+        std::fs::write(&first, b"identical Jonha STBL resources").unwrap();
+        std::fs::write(&second, b"identical Jonha STBL resources").unwrap();
+
+        let mut selected = HashMap::new();
+        let (hash, _) = sha256_file(&first).unwrap();
+        selected.insert(first.canonicalize().unwrap(), hash.clone());
+        let scan_items = vec![&first, &second]
+            .into_iter()
+            .map(|path| ScanPackageItem {
+                id: path.to_string_lossy().to_string(),
+                name: path.file_name().unwrap().to_string_lossy().to_string(),
+                path: path.to_string_lossy().to_string(),
+                relative_path: path.strip_prefix(&packages).unwrap().to_string_lossy().to_string(),
+                file_size: std::fs::metadata(path).unwrap().len(),
+                resource_count: 0,
+                catalog_resource_count: 0,
+                resource_types: Vec::new(),
+                instances: Vec::new(),
+                scripted: false,
+                content_source: "unknown".into(),
+                source_confidence: None,
+                status: "classified".into(),
+                classification_confidence: "high".into(),
+                creator: None,
+                mod_name: None,
+                gameplay_category: None,
+                detected_from: Vec::new(),
+                category: None,
+                sub_category: None,
+                gender: None,
+                age: None,
+                species: None,
+                usage_categories: Vec::new(),
+                destination_parts: Vec::new(),
+                destination_path: None,
+                candidate_destinations: Vec::new(),
+                classifications: Vec::new(),
+                classification_reason: None,
+                warnings: Vec::new(),
+            })
+            .collect::<Vec<_>>();
+        let groups = index_exact_duplicates(&packages, &scan_items, &selected);
+        assert_eq!(groups[&hash.to_ascii_uppercase()].len(), 2);
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn partial_merged_morph_resources_hold_only_the_larger_package() {
+        let keys = |items: &[&str]| items.iter().map(|key| key.to_string())
+            .collect::<BTreeSet<_>>();
+        let candidates = vec![
+            ("single-slider.package".into(), keys(&["FACE-a", "BGEO-a"]), true),
+            ("merged-sliders.package".into(), keys(&["FACE-a", "BGEO-a", "FACE-b"]), true),
+            ("related-translation.package".into(), keys(&["STBL-a"]), false),
+            ("unrelated.package".into(), keys(&["FACE-x", "BGEO-x", "FACE-y"]), true),
+        ];
+        let related = detect_merged_resource_supersets(&candidates);
+        assert_eq!(related["merged-sliders.package"], vec!["single-slider.package"]);
+        assert!(!related.contains_key("single-slider.package"));
+        assert!(!related.contains_key("unrelated.package"));
     }
 
     #[test]

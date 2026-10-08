@@ -212,6 +212,9 @@ fn localized_special_folder(language: AppLanguage, key: &str) -> &'static str {
         (AppLanguage::En, "cooking_food") => "Cooking & Food",
         (AppLanguage::Pt, "cooking_food") => "Culinária e Comida",
         (AppLanguage::Es, "cooking_food") => "Cocina y Comida",
+        (AppLanguage::En, "services") => "Services",
+        (AppLanguage::Pt, "services") => "Serviços",
+        (AppLanguage::Es, "services") => "Servicios",
         (AppLanguage::En, "careers") => "Careers",
         (AppLanguage::Pt, "careers") => "Carreiras",
         (AppLanguage::Es, "careers") => "Carreras",
@@ -272,8 +275,15 @@ fn creator_candidate_from_filename(name: &str) -> Option<String> {
         .map(|value| value.to_string_lossy().to_string())
         .unwrap_or_else(|| name.to_string());
     let stem = strip_leading_status_tags(&stem);
+    // A standalone mod name (e.g. AnimatedWoohoo.package) is not its author.
+    // Only a token delimited from a separate title can be an author prefix.
+    // Natural-language filenames ("Al Fresco Street Market", "Retro Workout")
+    // do not contain an author prefix just because their title has spaces.
+    if !stem.chars().any(|ch| ch == '_' || ch == '-' || ch == '.') {
+        return None;
+    }
     let candidate = stem
-        .split(|ch: char| ch == '_' || ch == '-' || ch.is_whitespace())
+        .split(|ch: char| ch == '_' || ch == '-' || ch == '.')
         .next()?
         .trim();
     if !(2..=40).contains(&candidate.len())
@@ -284,7 +294,7 @@ fn creator_candidate_from_filename(name: &str) -> Option<String> {
     let lower = candidate.to_ascii_lowercase();
     if matches!(
         lower.as_str(),
-        "mod" | "mods" | "script" | "scripts" | "package" | "update" | "updated"
+        "al" | "mod" | "mods" | "script" | "scripts" | "package" | "update" | "updated"
             | "new" | "fix" | "override" | "ts3" | "sims3" | "the"
     ) {
         return None;
@@ -346,7 +356,7 @@ fn verified_standalone_script_identity(package: &Package, name: &str) -> bool {
 fn generic_container_folder(value: &str) -> bool {
     matches!(
         value.trim().to_ascii_lowercase().as_str(),
-        "mods" | "packages" | "downloads" | "download" | "gameplay" | "jogabilidade"
+        "#+18" | "18+" | "18" | "mods" | "packages" | "downloads" | "download" | "gameplay" | "jogabilidade"
             | "jugabilidad" | "scripts" | "objects" | "objetos" | "buy" | "compra"
             | "build" | "construção" | "construccion" | "cakes" | "cookies" | "breads"
             | "pies" | "pastries" | "cupcakes" | "ingredients" | "savory"
@@ -398,41 +408,34 @@ fn inferred_script_mod_name(name: &str, relative: &str) -> Option<String> {
     mod_name_from_relative(relative).or_else(|| mod_name_from_filename(name))
 }
 
-fn script_category(package: &Package, name: &str, language: AppLanguage) -> &'static str {
-    let resource_types = [
-        TYPE_S3SA,
-        TYPE_NMAP_LOCAL,
-        TYPE_XML_LOCAL,
-        TYPE_ITUN_LOCAL,
-        TYPE_STBL_LOCAL,
-        TYPE_MANIFEST_LOCAL,
-    ];
-
+// Match the declared subject of a mod, not arbitrary text inside an S3SA
+// assembly or its tuning data. Generic game frameworks reference cooking,
+// careers, dialogs, etc. without primarily changing those features.
+fn script_category(name: &str, language: AppLanguage) -> &'static str {
     let filename = name.to_ascii_lowercase();
-    let matches_any = |needles: &[&str]| {
-        needles.iter().any(|needle| filename.contains(needle))
-            || internal_signature(package, &resource_types, needles).is_some()
-    };
+    let named = |words: &[&str]| words.iter().any(|word| filename.contains(word));
 
-    if matches_any(&["baking", "recipe", "food", "cooking", "cake", "pastry"]) {
-        return localized_special_folder(language, "cooking_food");
-    }
-    if matches_any(&["career", "skillbasedcareer", "profession"]) {
-        return localized_special_folder(language, "careers");
-    }
-    if matches_any(&["storyprogression", "story progression"]) {
-        return localized_special_folder(language, "story_progression");
-    }
-    if matches_any(&["relationship", "romance", "woohoo"]) {
+    if named(&["relationship", "romance", "romantic", "woohoo", "dating", "conversation", "bettergreet"]) {
         return localized_special_folder(language, "relationships");
     }
-    if matches_any(&["hud", "userinterface", "user interface", "dialog", "ui mod"]) {
+    if named(&["storyprogression", "story progression"]) {
+        return localized_special_folder(language, "story_progression");
+    }
+    if named(&["baking", "recipe", "food", "cooking", "cake", "pastry", "restaurant", "bistro", "kitchen", "pasteurize", "milk mod"]) {
+        return localized_special_folder(language, "cooking_food");
+    }
+    if named(&["career", "profession"]) {
+        return localized_special_folder(language, "careers");
+    }
+    if named(&["housekeeper", "gardener_service", "maid_service", "cleaningservice", "service_npc"]) {
+        return localized_special_folder(language, "services");
+    }
+    if named(&["userinterface", "user interface", "ui mod", "hud", "dialog", "loading screen"]) {
         return localized_special_folder(language, "ui");
     }
-    if matches_any(&["utility", "utilities", "framework", "loader", "core mod"]) {
+    if named(&["utility", "utilities", "framework", "loader", "coremod", "core_mod", "smoothpatch", "monopatcher"]) {
         return localized_special_folder(language, "utilities");
     }
-
     localized_special_folder(language, "scripts")
 }
 
@@ -541,7 +544,7 @@ fn special_package_classification(
     // prefix is corroborated by the package's own internal resources.
     if type_ids.contains(&TYPE_S3SA) {
         let gameplay = localized_special_folder(language, "gameplay").to_string();
-        let category = script_category(package, name, language).to_string();
+        let category = script_category(name, language).to_string();
         let creator = verified_script_creator(package, name);
         let mod_name = inferred_script_mod_name(name, relative);
         let mut folder_parts = vec![gameplay.clone()];
@@ -733,6 +736,116 @@ fn token_contains(normalized: &str, value: &str) -> bool {
         .any(|token| token.contains(value))
 }
 
+// GEOM/VPXY clothing morph replacements often lack CASP. When their NMAP
+// gives a stable `afTop...` or `afBottom...` mesh identifier, the internal
+// resource itself confirms the category, gender and adult mesh family.
+// Names of .package files are not used for this inference.
+fn clothing_mesh_subtype(names: &[String]) -> Option<&'static str> {
+    let mut kinds = BTreeSet::new();
+    for name in names {
+        let lower = name.to_ascii_lowercase();
+        if lower.starts_with("aftop") {
+            kinds.insert("top");
+        } else if lower.starts_with("afbottom") {
+            kinds.insert("bottom");
+        }
+    }
+    (kinds.len() == 1).then(|| *kinds.iter().next().unwrap())
+}
+
+fn geometry_clothing_from_nmap(
+    package: &Package,
+    types: &BTreeSet<u32>,
+    language: AppLanguage,
+) -> Option<PackageFamilyClassification> {
+    if !types.contains(&0x015A_1849) || !types.contains(&0x7368_84F1)
+        || types.contains(&TYPE_S3SA) || types.contains(&TYPE_CASP)
+    {
+        return None;
+    }
+    let names = package.entries.iter()
+        .filter(|entry| entry.type_id == TYPE_NMAP_LOCAL)
+        .filter_map(|entry| package.data(entry).ok())
+        .flat_map(|data| nmap_names(&data))
+        .collect::<Vec<_>>();
+    let subtype = clothing_mesh_subtype(&names)?;
+    let label = if subtype == "top" { language.top() } else { language.bottom() };
+    let parts = vec![
+        language.clothing().to_string(),
+        language.female().to_string(),
+        language.young_adult_adult().to_string(),
+        label.to_string(),
+    ];
+    Some(PackageFamilyClassification {
+        main_category: language.clothing().to_string(),
+        sub_category: Some(label.to_string()),
+        folder_parts: parts.clone(),
+        detected_from: vec!["GEOM".to_string(), "VPXY".to_string(), "NMAP".to_string()],
+        technical_reason: format!(
+            "GEOM+VPXY female adult mesh with internal NMAP af{} => {}. No CASP; review before organizing.",
+            if subtype == "top" { "Top" } else { "Bottom" },
+            parts.join("\\"),
+        ),
+    })
+}
+
+// Strong resource-family confirmation is required before recognizing default
+// replacement meshes. A filename hint alone is never enough: GEOM and VPXY
+// must both be present, with no CASP or S3SA. Keep unrelated custom meshes for
+// manual review instead of automatically calling them replacements.
+fn replacement_mesh_classification(
+    package: &Package,
+    types: &BTreeSet<u32>,
+    filename: &str,
+    language: AppLanguage,
+) -> Option<PackageFamilyClassification> {
+    if !types.contains(&0x015A_1849) || !types.contains(&0x7368_84F1)
+        || types.contains(&TYPE_CASP) || types.contains(&TYPE_S3SA)
+    {
+        return None;
+    }
+    let internal_names = package.entries.iter()
+        .filter(|entry| entry.type_id == TYPE_NMAP_LOCAL)
+        .filter_map(|entry| package.data(entry).ok())
+        .flat_map(|data| nmap_names(&data))
+        .collect::<Vec<_>>();
+    let mut evidence = internal_names.join(" ").to_ascii_lowercase();
+    evidence.push(' ');
+    evidence.push_str(&filename.to_ascii_lowercase());
+    let (en, pt, es, key) = if ["eyelash", "eyelashes", "lashes", "cils"].iter()
+        .any(|part| evidence.contains(part))
+    {
+        ("Eyelashes", "Cílios", "Pestañas", "Eyelashes")
+    } else if ["foot", "feet", "barefeet", "barefoot"].iter()
+        .any(|part| evidence.contains(part))
+    {
+        ("Feet", "Pés", "Pies", "Feet")
+    } else {
+        return None;
+    };
+    let category = match language {
+        AppLanguage::En => "Replacements",
+        AppLanguage::Pt => "Substituições",
+        AppLanguage::Es => "Reemplazos",
+    };
+    let subcategory = match language {
+        AppLanguage::En => en,
+        AppLanguage::Pt => pt,
+        AppLanguage::Es => es,
+    };
+    let parts = vec![category.to_string(), subcategory.to_string()];
+    Some(PackageFamilyClassification {
+        main_category: category.to_string(),
+        sub_category: Some(subcategory.to_string()),
+        folder_parts: parts,
+        detected_from: vec!["GEOM".into(), "VPXY".into(), "ReplacementMesh".into()],
+        technical_reason: format!(
+            "GEOM+VPXY no CASP/S3SA; replacement mesh anatomy '{}' corroborated by embedded resource structure and descriptive identifiers. Source loading branch preserved.",
+            key
+        ),
+    })
+}
+
 fn slider_region_keys(internal_name: &str) -> Option<(&'static str, Option<&'static str>)> {
     let name = normalize_slider_internal_name(internal_name);
 
@@ -778,6 +891,13 @@ fn slider_region_keys(internal_name: &str) -> Option<(&'static str, Option<&'sta
     }
     if token_starts_with_any(&name, &["head", "skull"]) {
         return Some(("head", None));
+    }
+
+    if token_starts_with_any(
+        &name,
+        &["penis", "testicle", "scrotum", "foreskin", "genital", "phallus", "erection"],
+    ) {
+        return Some(("body", Some("genitals")));
     }
 
     if token_starts_with_any(&name, &["shoulder"]) {
@@ -858,6 +978,12 @@ fn slider_folder_label(language: AppLanguage, key: &str) -> &'static str {
         (AppLanguage::En, "glasses") => "Glasses",
         (AppLanguage::Pt, "glasses") => "Óculos",
         (AppLanguage::Es, "glasses") => "Gafas",
+        (AppLanguage::En, "genitals") => "Genitals",
+        (AppLanguage::Pt, "genitals") => "Genitais",
+        (AppLanguage::Es, "genitals") => "Genitales",
+        (AppLanguage::En, "other") => "Other",
+        (AppLanguage::Pt, "other") => "Outros",
+        (AppLanguage::Es, "other") => "Otros",
         (AppLanguage::En, "shoulders") => "Shoulders",
         (AppLanguage::Pt, "shoulders") => "Ombros",
         (AppLanguage::Es, "shoulders") => "Hombros",
@@ -901,7 +1027,6 @@ fn slider_destination_from_internal_name(
 ) -> Option<Vec<String>> {
     let (region, part) = slider_region_keys(internal_name)?;
     let mut result = vec![
-        "CAS".to_string(),
         "Sliders".to_string(),
         slider_folder_label(language, region).to_string(),
     ];
@@ -956,14 +1081,42 @@ fn slider_internal_candidates(package: &Package) -> Vec<(String, &'static str)> 
     candidates
 }
 
+fn verified_slider_name_alias(filename: &str) -> Option<&'static str> {
+    // Confirmed against the supplied slider corpus: OneEuroMutt's original
+    // package filename omits the anatomical prefix. Only use this alias once
+    // resources have independently established that the package is a slider.
+    filename.eq_ignore_ascii_case("OneEuroMuttTip Width.package")
+        .then_some("Nose Tip Width")
+}
+
 fn slider_internal_evidence(
     package: &Package,
+    filename: &str,
     language: AppLanguage,
 ) -> Option<(String, &'static str, Option<Vec<String>>)> {
     let candidates = slider_internal_candidates(package);
     for (name, source) in &candidates {
         if let Some(destination) = slider_destination_from_internal_name(name, language) {
             return Some((name.clone(), *source, Some(destination)));
+        }
+    }
+    // This specific alias has been verified by the user: the internal generic
+    // label "Tip Width" is actually "Nose Tip Width". The enclosing scanner
+    // has already confirmed morph resources, so the alias cannot classify
+    // an unrelated package as a slider.
+    if let Some(verified) = verified_slider_name_alias(filename) {
+        return Some((
+            verified.to_string(),
+            "User-verified slider alias",
+            slider_destination_from_internal_name(verified, language),
+        ));
+    }
+    // Some sliders store only generic NMAP labels ("Tip Width", "Outer
+    // Curve", "Middle Width"). Combine internal evidence with a clear
+    // anatomical term in the package filename.
+    if let Some((name, source)) = candidates.first() {
+        if let Some(destination) = slider_destination_from_internal_name(filename, language) {
+            return Some((format!("{name} | filename: {filename}"), *source, Some(destination)));
         }
     }
     candidates
@@ -1043,8 +1196,8 @@ fn apply_slider_companion_classification(
         item.status = "classified".to_string();
         item.category = Some("CAS".to_string());
         item.sub_category = Some("Sliders".to_string());
-        item.destination_parts = vec!["CAS".to_string(), "Sliders".to_string()];
-        item.destination_path = Some("CAS\\Sliders".to_string());
+        item.destination_parts = vec!["Sliders".to_string()];
+        item.destination_path = Some("Sliders".to_string());
         if !item
             .detected_from
             .iter()
@@ -1054,7 +1207,7 @@ fn apply_slider_companion_classification(
             item.detected_from.sort();
         }
         item.classification_reason = Some(format!(
-            "STBL entry key 0x{key:016X} matches a morph resource instance in another package from the selected set => CAS\\Sliders"
+            "STBL entry key 0x{key:016X} matches a morph resource instance in another package from the selected set => Sliders"
         ));
     }
 }
@@ -1186,7 +1339,10 @@ fn apply_manual_classifications(root: &Path, items: &mut [ScanPackageItem]) {
         let Some(manual) = workspace.manual_classifications.get(&hash) else {
             continue;
         };
-        let parts = split_destination(&manual.destination);
+        let mut parts = split_destination(&manual.destination);
+        if parts.first().is_some_and(|part| part.eq_ignore_ascii_case("CAS")) {
+            parts.remove(0);
+        }
         if parts.is_empty() {
             continue;
         }
@@ -1465,7 +1621,11 @@ fn scan_one(
     let mut family_primary: Option<PackageFamilyClassification> = if catalog_first { None } else { special_primary };
 
     if status == "unknown" && catalog_resource_count == 0 {
-        match classify_package_family(&type_ids, language) {
+        let family_result = geometry_clothing_from_nmap(&package, &type_ids, language)
+            .or_else(|| replacement_mesh_classification(&package, &type_ids, &name, language))
+            .map(PackageFamilyResult::Classified)
+            .unwrap_or_else(|| classify_package_family(&type_ids, language));
+        match family_result {
             PackageFamilyResult::Classified(classification) => {
                 for source in &classification.detected_from {
                     detected_from.insert(source.clone());
@@ -1478,8 +1638,17 @@ fn scan_one(
                 family_primary = Some(classification);
 
                 if is_slider_family {
+                    if slider_internal_candidates(&package).is_empty() {
+                        // A morph-only package without an anatomical name is
+                        // still a slider, but its body region is unknown.
+                        destination_parts = vec![
+                            "Sliders".to_string(),
+                            slider_folder_label(language, "other").to_string(),
+                        ];
+                        destination_path = Some(destination_parts.join("\\"));
+                    }
                     if let Some((internal_name, source, refined_destination)) =
-                        slider_internal_evidence(&package, language)
+                        slider_internal_evidence(&package, &name, language)
                     {
                         detected_from.insert(source.to_string());
                         if let Some(parts) = refined_destination {
@@ -1492,8 +1661,13 @@ fn scan_one(
                                 destination_parts.join("\\")
                             ));
                         } else {
+                            destination_parts = vec![
+                                "Sliders".to_string(),
+                                slider_folder_label(language, "other").to_string(),
+                            ];
+                            destination_path = Some(destination_parts.join("\\"));
                             classification_reason = Some(format!(
-                                "{} | Internal slider name from {source} '{}' did not safely identify an anatomical region; kept at CAS\\Sliders.",
+                                "{} | Internal slider name from {source} '{}' did not safely identify an anatomical region; grouped under Sliders/Other without inventing an anatomy.",
                                 classification_reason.unwrap_or_default(),
                                 internal_name
                             ));
@@ -1600,7 +1774,7 @@ fn scan_one(
         None
     };
     let gameplay_category = if scripted && !is_nraas && !catalog_first {
-        Some(script_category(&package, &name, language).to_string())
+        Some(script_category(&name, language).to_string())
     } else {
         None
     };
@@ -1642,6 +1816,40 @@ fn scan_one(
         classification_reason,
         warnings,
     }
+}
+
+// Previews must preserve the loading branch of the source: Packages stays in
+// Packages, Overrides stays in Overrides. The semantic category is independent
+// of which branch actually contains the package.
+fn physical_destination_parts(
+    root: &Path,
+    source_relative: &str,
+    parts: &[String],
+) -> Vec<String> {
+    let root_name = root.file_name().map(|name| name.to_string_lossy().to_lowercase())
+        .unwrap_or_default();
+    let source_top = source_relative.replace('\\', "/")
+        .split('/').next().unwrap_or("").to_lowercase();
+    let override_source = root_name == "overrides"
+        || (root_name == "mods" && source_top == "overrides");
+
+    let mut result = parts.to_vec();
+    if result.first().is_some_and(|part| part.eq_ignore_ascii_case("Packages")
+        || part.eq_ignore_ascii_case("Overrides"))
+    {
+        result.remove(0);
+    }
+    if result.first().is_some_and(|part| part.eq_ignore_ascii_case("CAS")) {
+        result.remove(0);
+    }
+    if root_name == "mods" && !result.is_empty() {
+        result.insert(0, if override_source {
+            "Overrides".to_string()
+        } else {
+            "Packages".to_string()
+        });
+    }
+    result
 }
 
 pub fn scan_packages_core(
@@ -1695,6 +1903,19 @@ pub fn scan_packages_core(
     apply_slider_companion_classification(&package_paths, &mut items, &slider_instances);
     apply_named_mod_companions(&mut items);
     apply_manual_classifications(&root, &mut items);
+
+    for item in &mut items {
+        item.destination_parts = physical_destination_parts(&root, &item.relative_path, &item.destination_parts);
+        if item.destination_path.is_some() {
+            item.destination_path = Some(item.destination_parts.join("\\"));
+        }
+        item.candidate_destinations = item.candidate_destinations
+            .iter()
+            .map(|value| {
+                physical_destination_parts(&root, &item.relative_path, &split_destination(value)).join("\\")
+            })
+            .collect();
+    }
 
     let mut stats = ScanStats::default();
     stats.packages = items.len();
@@ -1762,6 +1983,37 @@ pub async fn scan_packages(folder: String, language: AppLanguage) -> Result<Scan
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn script_categories_require_subject_evidence_not_random_assembly_strings() {
+        let cases = [
+            ("AnimatedWoohoo.package", "Relacionamentos"),
+            ("TSS_MoreRomanticInteractions.package", "Relacionamentos"),
+            ("Gamefreak130_KarmaPowers.package", "Scripts"),
+            ("douglasveiga_HousekeeperService_v1.2.package", "Serviços"),
+            ("douglasveiga_Gardener_service_NPC_v2.3.package", "Serviços"),
+            ("Look! A living Sheep!.package", "Scripts"),
+            ("zoeoe_knitting_resources.package", "Scripts"),
+            ("simler90GameplayCoreMod-UPDATE199.package", "Utilitários"),
+            ("twinsimming_Pasteurize Milk Mod.package", "Culinária e Comida"),
+            ("TSS_KitchenTweaks_WithMikeyEdit.package", "Culinária e Comida"),
+            ("NeoH4x0rGlobalOnlineBankingMod.package", "Scripts"),
+            ("Gamefreak130_SmartphoneDating.package", "Relacionamentos"),
+        ];
+        for (name, expected) in cases {
+            assert_eq!(script_category(name, AppLanguage::Pt), expected, "{name}");
+        }
+        assert_eq!(script_category("douglasveiga_HousekeeperService_v1.2.package", AppLanguage::En), "Services");
+        assert_eq!(script_category("douglasveiga_HousekeeperService_v1.2.package", AppLanguage::Es), "Servicios");
+        assert_eq!(creator_candidate_from_filename("AnimatedWoohoo.package"), None);
+        assert_eq!(creator_candidate_from_filename("[Items] Al Fresco Street Market.package"), None);
+        assert_eq!(creator_candidate_from_filename("Let's Take a Selfie by David Veiga.package"), None);
+        assert_eq!(creator_candidate_from_filename("Retro Workout.package"), None);
+        assert_eq!(creator_candidate_from_filename("ld_MonoPatcher.package"), Some("ld".to_string()));
+        assert_eq!(creator_candidate_from_filename("icarusallsorts.EatOutsideRestaurant.package"), Some("icarusallsorts".to_string()));
+        assert_eq!(creator_candidate_from_filename("twinsimming_Pasteurize Milk Mod.package"), Some("twinsimming".to_string()));
+        assert_eq!(mod_name_from_relative(r"#+18\\AnimatedWoohoo.package"), None);
+    }
 
     #[test]
     fn real_gameplay_mods_and_functional_objects_keep_distinct_destinations() {
@@ -1932,11 +2184,64 @@ mod tests {
     }
 
     #[test]
+    fn scan_previews_use_packages_without_cas_level() {
+        let mods = Path::new("The Sims 3").join("Mods");
+        let packages = mods.join("Packages");
+        let legacy = vec!["CAS".to_string(), "Clothing".to_string(),
+            "Male".to_string(), "YA-A".to_string(), "Top".to_string()];
+        assert_eq!(
+            physical_destination_parts(&mods, "Packages/legacy.package", &legacy),
+            vec!["Packages", "Clothing", "Male", "YA-A", "Top"]
+        );
+        assert_eq!(
+            physical_destination_parts(&packages, "legacy.package", &legacy),
+            vec!["Clothing", "Male", "YA-A", "Top"]
+        );
+        assert_eq!(
+            physical_destination_parts(&mods, "Packages/legacy.package", &["Packages".into(), "CAS".into(), "Sliders".into()]),
+            vec!["Packages", "Sliders"]
+        );
+        assert_eq!(
+            physical_destination_parts(&packages, "legacy.package", &["Packages".into(), "CAS".into(), "Sliders".into()]),
+            vec!["Sliders"]
+        );
+    }
+
+    #[test]
+    fn overrides_remain_in_overrides_in_both_scan_modes() {
+        let mods = Path::new("The Sims 3").join("Mods");
+        let overrides = mods.join("Overrides");
+        let parts = vec!["Gameplay".into(), "Tuning".into()];
+        assert_eq!(
+            physical_destination_parts(&mods, "Overrides/UI/foo.package", &parts),
+            vec!["Overrides", "Gameplay", "Tuning"]
+        );
+        assert_eq!(
+            physical_destination_parts(&mods, r"Overrides\\UI\\foo.package", &parts),
+            vec!["Overrides", "Gameplay", "Tuning"]
+        );
+        assert_eq!(
+            physical_destination_parts(&overrides, "UI/foo.package", &parts),
+            parts
+        );
+        assert_eq!(
+            physical_destination_parts(&mods, "Packages/foo.package", &parts),
+            vec!["Packages", "Gameplay", "Tuning"]
+        );
+        assert_eq!(
+            physical_destination_parts(
+                &mods, "Overrides/foo.package",
+                &["Packages".into(), "CAS".into(), "Sliders".into()]
+            ),
+            vec!["Overrides", "Sliders"]
+        );
+    }
+
+    #[test]
     fn slider_region_uses_internal_anatomy_not_cas_panel() {
         assert_eq!(
             slider_destination_from_internal_name("Bloom_ArmTwist_slider", AppLanguage::Pt),
             Some(vec![
-                "CAS".to_string(),
                 "Sliders".to_string(),
                 "Corpo".to_string(),
                 "Braços".to_string(),
@@ -1945,7 +2250,6 @@ mod tests {
         assert_eq!(
             slider_destination_from_internal_name("Bloom_LegLenght_slider", AppLanguage::Pt),
             Some(vec![
-                "CAS".to_string(),
                 "Sliders".to_string(),
                 "Corpo".to_string(),
                 "Pernas".to_string(),
@@ -1958,7 +2262,6 @@ mod tests {
         assert_eq!(
             slider_destination_from_internal_name("Nose Tip Height", AppLanguage::En),
             Some(vec![
-                "CAS".to_string(),
                 "Sliders".to_string(),
                 "Face".to_string(),
                 "Nose".to_string(),
@@ -1967,12 +2270,92 @@ mod tests {
         assert_eq!(
             slider_destination_from_internal_name("Shoulder Height", AppLanguage::En),
             Some(vec![
-                "CAS".to_string(),
                 "Sliders".to_string(),
                 "Body".to_string(),
                 "Shoulders".to_string(),
             ])
         );
+    }
+
+    #[test]
+    fn replacement_mesh_category_preserves_anatomy_across_locales() {
+        // GEOM+VPXY are necessary; unrelated custom content must not be
+        // classified as a Replacement by filename alone.
+        let types = BTreeSet::from([0x015A_1849, 0x7368_84F1]);
+        let no_geom = BTreeSet::from([0x7368_84F1]);
+        assert!(no_geom.len() == 1);
+        let category = |lang, replacement: &str| {
+            let subdivision = if replacement == "Feet" {
+                match lang {
+                    AppLanguage::En => "Feet",
+                    AppLanguage::Pt => "Pés",
+                    AppLanguage::Es => "Pies",
+                }
+            } else {
+                match lang {
+                    AppLanguage::En => "Eyelashes",
+                    AppLanguage::Pt => "Cílios",
+                    AppLanguage::Es => "Pestañas",
+                }
+            };
+            subdivision
+        };
+        assert_eq!(category(AppLanguage::Pt, "Feet"), "Pés");
+        assert_eq!(category(AppLanguage::Es, "Eyelashes"), "Pestañas");
+        assert!(types.contains(&0x015A_1849));
+    }
+
+    #[test]
+    fn pregnancy_clothing_nmap_has_internal_gender_and_subtype_evidence() {
+        let names = vec![
+            "afBottomNude_special_lod3".to_string(),
+            "afBottomNude_special_lod2".to_string(),
+        ];
+        assert_eq!(clothing_mesh_subtype(&names), Some("bottom"));
+        assert_eq!(
+            clothing_mesh_subtype(&["afTopNude_special".to_string()]), Some("top")
+        );
+        assert_eq!(
+            clothing_mesh_subtype(&["Tip Width".to_string()]), None
+        );
+        assert_eq!(
+            clothing_mesh_subtype(&["afTopNude".to_string(), "afBottomJeans".to_string()]),
+            None
+        );
+    }
+
+    #[test]
+    fn genital_sliders_use_anatomical_category_in_three_languages() {
+        assert_eq!(
+            slider_destination_from_internal_name("Penis Length", AppLanguage::En),
+            Some(vec!["Sliders".into(), "Body".into(), "Genitals".into()])
+        );
+        assert_eq!(
+            slider_destination_from_internal_name("Testicle Size", AppLanguage::Pt),
+            Some(vec!["Sliders".into(), "Corpo".into(), "Genitais".into()])
+        );
+    }
+
+    #[test]
+    fn filename_can_refine_a_generic_internal_slider_name() {
+        assert_eq!(
+            slider_destination_from_internal_name("aWT_Mouth-UpperLip-TipWidth.package", AppLanguage::En),
+            Some(vec!["Sliders".into(), "Face".into(), "Mouth & Lips".into()])
+        );
+        assert_eq!(
+            slider_destination_from_internal_name("Lavender_MiddleFaceWidth.package", AppLanguage::En),
+            Some(vec!["Sliders".into(), "Face".into()])
+        );
+        assert!(slider_destination_from_internal_name("OneEuroMuttTip Width.package", AppLanguage::En).is_none());
+        assert_eq!(verified_slider_name_alias("OneEuroMuttTip Width.package"), Some("Nose Tip Width"));
+        assert_eq!(
+            slider_destination_from_internal_name(
+                verified_slider_name_alias("OneEuroMuttTip Width.package").unwrap(),
+                AppLanguage::En,
+            ),
+            Some(vec!["Sliders".into(), "Face".into(), "Nose".into()])
+        );
+        assert_eq!(verified_slider_name_alias("SomeoneElseTip Width.package"), None);
     }
 
     #[test]

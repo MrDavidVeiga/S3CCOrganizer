@@ -9,7 +9,7 @@ use crate::{
 use chrono::{Local, SecondsFormat};
 use serde::Serialize;
 use std::{
-    collections::HashMap,
+    collections::{BTreeSet, HashMap},
     fs,
     path::{Path, PathBuf},
 };
@@ -23,6 +23,8 @@ pub struct ExecutionResult {
     pub moved: usize,
     pub already_organized: usize,
     pub rolled_back: usize,
+    pub old_folders_removed: usize,
+    pub old_folders_retained: usize,
     pub errors: Vec<String>,
 }
 
@@ -182,21 +184,57 @@ fn remove_empty_created_directories(root: &Path, directories: &[String]) {
     }
 }
 
-fn remove_empty_directories_below_root(root: &Path) {
-    let mut directories = WalkDir::new(root)
-        .min_depth(1)
-        .follow_links(false)
-        .contents_first(true)
-        .into_iter()
-        .filter_map(Result::ok)
-        .filter(|entry| entry.file_type().is_dir())
-        .map(|entry| entry.into_path())
-        .collect::<Vec<_>>();
+// Remove only directories vacated by files actually moved in this
+// transaction. Never sweep unrelated, user-created, or nonempty folders.
+// Packages itself must always survive; retained files such as duplicates or
+// merged packages must never be removed to make a folder disappear.
+fn cleanup_vacated_source_directories(
+    root: &Path,
+    moved_pairs: &[(PathBuf, PathBuf, String, u64)],
+) -> (usize, usize) {
+    let packages = root.join("Packages");
+    let overrides = root.join("Overrides");
+    let mods_root = root.file_name()
+        .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("Mods"));
 
-    directories.sort_by_key(|path| std::cmp::Reverse(path.components().count()));
-    for directory in directories {
-        let _ = fs::remove_dir(&directory);
+    let mut old_directories = BTreeSet::<PathBuf>::new();
+    for (source, _, _, _) in moved_pairs {
+        // Files originally placed by old Manager versions under Mods/CAS or
+        // Mods/Sliders also need their vacated category directories removed.
+        // These roots are allowed only after the planner's strict legacy
+        // category check, so a successful transaction may clean them safely.
+        let boundary = if mods_root && source.starts_with(&packages) {
+            &packages
+        } else if mods_root && source.starts_with(&overrides) {
+            &overrides
+        } else {
+            root
+        };
+        let mut current = source.parent();
+        while let Some(dir) = current {
+            if dir == boundary || !dir.starts_with(boundary) {
+                break;
+            }
+            old_directories.insert(dir.to_path_buf());
+            current = dir.parent();
+        }
     }
+
+    let mut directories = old_directories.into_iter().collect::<Vec<_>>();
+    directories.sort_by_key(|path| std::cmp::Reverse(path.components().count()));
+    let mut removed = 0;
+    let mut retained = 0;
+    for folder in directories {
+        // remove_dir succeeds ONLY for genuinely empty folders.
+        if fs::remove_dir(&folder).is_ok() {
+            removed += 1;
+        } else if folder.is_dir() {
+            // This folder may still contain an exact duplicate, a merged mod,
+            // an unclassified package or an unrelated companion file.
+            retained += 1;
+        }
+    }
+    (removed, retained)
 }
 
 #[tauri::command]
@@ -225,6 +263,8 @@ pub fn execute_organization(
             moved: 0,
             already_organized: plan.stats.already_organized,
             rolled_back: 0,
+            old_folders_removed: 0,
+            old_folders_retained: 0,
             errors: Vec::new(),
         });
     }
@@ -364,13 +404,14 @@ pub fn execute_organization(
             moved: moved_pairs.len(),
             already_organized: plan.stats.already_organized,
             rolled_back,
+            old_folders_removed: 0,
+            old_folders_retained: 0,
             errors,
         });
     }
 
-    // Old source folders are removed only when they are truly empty.
-    // Non-package companion files therefore remain untouched and keep their folders.
-    remove_empty_directories_below_root(&root);
+    let (old_folders_removed, old_folders_retained) =
+        cleanup_vacated_source_directories(&root, &moved_pairs);
 
     manifest.status = "COMPLETE".to_string();
     replace_manifest_atomic(&manifest_path, &manifest)?;
@@ -381,6 +422,8 @@ pub fn execute_organization(
         moved: moved_pairs.len(),
         already_organized: plan.stats.already_organized,
         rolled_back: 0,
+        old_folders_removed,
+        old_folders_retained,
         errors: Vec::new(),
     })
 }
@@ -388,6 +431,60 @@ pub fn execute_organization(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn removes_only_empty_old_folders_without_touching_held_duplicates() {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let nonce = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let mods = std::env::temp_dir().join(format!("s3cc-old-folder-{}-{nonce}", std::process::id())).join("Mods");
+        let packages = mods.join("Packages");
+        let old = packages.join("CAS").join("Sliders");
+        let unrelated = packages.join("Custom Empty Folder");
+        let retained = packages.join("Legacy").join("Jonha");
+        let legacy = mods.join("CAS").join("Sliders");
+        let override_old = mods.join("Overrides").join("Old Tuning");
+        std::fs::create_dir_all(&old).unwrap();
+        std::fs::create_dir_all(&unrelated).unwrap();
+        std::fs::create_dir_all(&retained).unwrap();
+        std::fs::create_dir_all(&legacy).unwrap();
+        std::fs::create_dir_all(&override_old).unwrap();
+        std::fs::write(retained.join("Jonha_BASE.package"), b"pending Duplicates review").unwrap();
+
+        let moved = vec![
+            (
+                old.join("moved.package"),
+                packages.join("Sliders").join("moved.package"),
+                String::new(),
+                0,
+            ),
+            (
+                retained.join("moved.package"),
+                packages.join("Sliders").join("other.package"),
+                String::new(),
+                0,
+            ),
+            (
+                legacy.join("moved.package"),
+                packages.join("Sliders").join("migrated.package"),
+                String::new(),
+                0,
+            ),
+            (
+                override_old.join("patch.package"),
+                mods.join("Overrides").join("Tuning").join("patch.package"),
+                String::new(),
+                0,
+            ),
+        ];
+        let (removed, preserved) = cleanup_vacated_source_directories(&mods, &moved);
+        assert_eq!(removed, 5); // Legacy CAS branches and Old Tuning within Overrides
+        assert_eq!(preserved, 2); // Legacy/Jonha and its parent
+        assert!(packages.is_dir());
+        assert!(mods.join("Overrides").is_dir());
+        assert!(retained.join("Jonha_BASE.package").is_file());
+        assert!(unrelated.is_dir());
+        std::fs::remove_dir_all(mods.parent().unwrap()).unwrap();
+    }
 
     #[test]
     fn only_ready_items_are_written_to_manifest() {
