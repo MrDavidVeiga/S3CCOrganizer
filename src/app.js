@@ -3593,6 +3593,112 @@ function isInactiveConflictFinding(finding, analysis = state.conflictsAnalysis) 
     ["unmatched", "partially_matched"].includes(finding?.loadOrderStatus);
 }
 
+// Prioritization never nominates a file for removal. It only orders
+// *active*, differing payload overlaps for manual inspection.
+function conflictRiskScore(finding) {
+  if (!finding || finding.differentPayloadCount === 0 ||
+      isInactiveConflictFinding(finding)) return 0;
+  const impacts = new Set([finding.kind, ...(finding.impactKinds || [])]);
+  const impactScore = [
+    ["script_conflict", 600],
+    ["gameplay_override", 500],
+    ["catalog_override", 400],
+    ["visual_override", 300],
+    ["cas_morph_overlap", 250],
+    ["text_override", 200],
+    ["potential_conflict", 150],
+  ].reduce((maximum, [kind, score]) => impacts.has(kind) ? Math.max(maximum, score) : maximum, 0);
+  if (!impactScore) return 0;
+  const loadUncertainty = finding.loadOrderStatus === "same_priority" ? 35
+    : finding.loadOrderStatus === "resolved_by_priority" ? 5 : 20;
+  return impactScore + loadUncertainty +
+    Math.min(25, Number(finding.differentPayloadCount || 0));
+}
+
+function conflictPriorityLabel(finding) {
+  const score = conflictRiskScore(finding);
+  return score >= 500 ? t("conflictPriorityUrgent")
+    : score >= 300 ? t("conflictPriorityHigh")
+      : score > 0 ? t("conflictPriorityReview") : t("conflictPriorityInfo");
+}
+
+function conflictSelectionSafe(selection = state.conflictQuarantineSelected) {
+  return (state.conflictsAnalysis?.findings || []).every((finding) =>
+    !finding.differentPayloadCount ||
+    !(selection.has(finding.left?.path) && selection.has(finding.right?.path))
+  );
+}
+
+async function buildConflictQuarantinePreview() {
+  if (!state.folder || !state.conflictsAnalysis ||
+      !state.conflictQuarantineSelected.size ||
+      state.quarantineBusy || state.scanning || state.analysisPipelineBusy ||
+      state.duplicatesBusy || state.conflictsBusy || state.auditBusy) return;
+  if (!conflictSelectionSafe()) {
+    state.conflictsError = t("conflictBothSelected");
+    renderConflicts();
+    return;
+  }
+  const folder = state.folder;
+  const selectedPaths = [...state.conflictQuarantineSelected].sort();
+  state.quarantineBusy = true;
+  state.conflictsError = "";
+  state.conflictQuarantinePlan = null;
+  renderConflicts();
+  try {
+    const plan = await invoke("build_quarantine_plan", {
+      folder, selectedPaths,
+    });
+    if (state.folder !== folder ||
+        selectedPaths.join("\n") !== [...state.conflictQuarantineSelected].sort().join("\n")) return;
+    state.conflictQuarantinePlan = plan;
+    if (!state.conflictSelectedId) {
+      state.conflictSelectedId = visibleConflictFindings()[0]?.id || "";
+    }
+    if (state.conflictSelectedId) openConflictDetails();
+  } catch (error) {
+    state.conflictsError = String(error);
+  } finally {
+    state.quarantineBusy = false;
+    renderConflicts();
+  }
+}
+
+async function executeConflictQuarantine() {
+  if (!state.folder || !state.conflictQuarantinePlan?.canExecute ||
+      !state.conflictQuarantineSelected.size || !conflictSelectionSafe() ||
+      state.quarantineBusy || state.scanning || state.analysisPipelineBusy ||
+      state.duplicatesBusy || state.conflictsBusy ||
+      state.conflictQuarantinePlan.stats?.selected !== state.conflictQuarantineSelected.size) return;
+  const folder = state.folder;
+  state.quarantineBusy = true;
+  renderConflicts();
+  try {
+    const result = await invoke("execute_quarantine", {
+      folder,
+      selectedPaths: [...state.conflictQuarantineSelected],
+      plannedQuarantineRoot: state.conflictQuarantinePlan.quarantineRoot,
+    });
+    state.conflictsNotice = `${t("quarantineComplete")}: ${result.moved}`;
+    state.conflictQuarantineSelected.clear();
+    state.conflictQuarantinePlan = null;
+    state.conflictsAnalysis = null;
+    state.conflictSelectedId = "";
+    closeConflictDetails();
+    await Promise.all([refreshOperationHistory(), refreshCacheInfo()]);
+    state.quarantineBusy = false;
+    await scanFolder(false, true);
+  } catch (error) {
+    state.conflictsError = String(error);
+  } finally {
+    state.quarantineBusy = false;
+    state.pendingAction = "";
+    el.confirmModal.classList.add("hidden");
+    el.confirmModal.setAttribute("aria-hidden", "true");
+    render();
+  }
+}
+
 function conflictKindLabel(kind) {
   return {
     shared_identical: t("sharedIdentical"),
@@ -3687,11 +3793,10 @@ function visibleConflictFindings() {
     );
   });
 
-  if (state.conflictsFilter === "attention") {
-    const rank = { high: 3, warning: 2, review: 1, info: 0 };
-    result.sort((a, b) =>
-      (rank[b.severity] || 0) - (rank[a.severity] || 0) ||
-      (b.differentPayloadCount || 0) - (a.differentPayloadCount || 0)
+  if (!["ignored_session", "intentional_override"].includes(state.conflictsFilter)) {
+    result.sort((a, b) => conflictRiskScore(b) - conflictRiskScore(a) ||
+      (b.differentPayloadCount || 0) - (a.differentPayloadCount || 0) ||
+      String(a.id).localeCompare(String(b.id))
     );
   }
   conflictVisibleMemo.analysis = analysis;
@@ -3753,6 +3858,10 @@ function renderConflictsPreview() {
     ? t("conflictInactiveExplanation")
     : conflictExplanation(finding.kind);
   reason.append(reasonTitle, reasonText);
+  const priority = document.createElement("p");
+  priority.className = "conflict-priority-note";
+  priority.textContent = `${conflictPriorityLabel(finding)} · ${t("conflictPriorityReason")}`;
+  reason.appendChild(priority);
   // Keep the technical type visible, without suggesting it affects gameplay now.
   if (isInactive) {
     const technicalType = document.createElement("p");
@@ -3839,6 +3948,33 @@ function renderConflictsPreview() {
     open.textContent = t("openLocation");
     open.addEventListener("click", () => revealSafe(member?.path));
     card.append(mark, visual, name, path, priority, rule, open);
+    if (!isInactive && finding.differentPayloadCount > 0 && !sessionMark) {
+      const pick = document.createElement("button");
+      pick.type = "button";
+      pick.className = "secondary-btn";
+      pick.textContent = t("chooseConflictFile");
+      pick.setAttribute("aria-pressed", String(state.conflictQuarantineSelected.has(member?.path)));
+      pick.disabled = state.quarantineBusy || state.analysisPipelineBusy || workspaceReadOnly();
+      pick.addEventListener("click", () => {
+        const candidate = member?.path;
+        if (!candidate) return;
+        if (state.conflictQuarantineSelected.has(candidate)) {
+          state.conflictQuarantineSelected.delete(candidate);
+        } else {
+          const other = label === "A" ? finding.right?.path : finding.left?.path;
+          if (other) state.conflictQuarantineSelected.delete(other);
+          state.conflictQuarantineSelected.add(candidate);
+          if (!conflictSelectionSafe()) {
+            state.conflictQuarantineSelected.delete(candidate);
+            state.conflictsError = t("conflictBothSelected");
+          }
+        }
+        state.conflictQuarantinePlan = null;
+        renderConflictsPreview();
+        renderConflictBatchControls();
+      });
+      card.appendChild(pick);
+    }
     pair.appendChild(card);
   }
 
@@ -3894,6 +4030,34 @@ function renderConflictsPreview() {
   }
 
   el.conflictsPreview.appendChild(loadOrder);
+
+  const chosen = document.createElement("p");
+  chosen.className = "analysis-batch-summary";
+  chosen.textContent = `${t("conflictSelectedSummary")}: ${state.conflictQuarantineSelected.size}. ${t("conflictSelectionHint")}`;
+  el.conflictsPreview.appendChild(chosen);
+  if (state.conflictQuarantinePlan) {
+    const plan = document.createElement("div");
+    plan.className = "quarantine-preview";
+    const heading = document.createElement("h4");
+    heading.textContent = t("quarantinePreviewOnly");
+    const destination = document.createElement("code");
+    destination.textContent = `${t("quarantineRoot")}: ${state.conflictQuarantinePlan.quarantineRoot}`;
+    const stats = document.createElement("p");
+    stats.textContent = `${t("quarantineReady")}: ${state.conflictQuarantinePlan.stats?.ready ?? 0} · ${t("blocked")}: ${state.conflictQuarantinePlan.stats?.blocked ?? 0}`;
+    const manifest = document.createElement("pre");
+    manifest.textContent = state.conflictQuarantinePlan.manifestPreview || "";
+    plan.append(heading, destination, stats, manifest);
+    if (state.conflictQuarantinePlan.canExecute) {
+      const execute = document.createElement("button");
+      execute.type = "button";
+      execute.className = "primary-btn";
+      execute.textContent = t("executeQuarantine");
+      execute.disabled = state.quarantineBusy || workspaceReadOnly();
+      execute.addEventListener("click", () => openConfirm("conflict_quarantine"));
+      plan.appendChild(execute);
+    }
+    el.conflictsPreview.appendChild(plan);
+  }
 
   const evidenceTitle = document.createElement("h4");
   evidenceTitle.textContent = t("evidence");
@@ -3966,7 +4130,7 @@ function renderConflictsPreview() {
 function createConflictFindingRow(finding) {
   const button = document.createElement("button");
   button.type = "button";
-  button.title = t("conflictDetailsTitle");
+  button.title = `${conflictPriorityLabel(finding)} · ${t("conflictPriorityReason")}`;
   button.dataset.conflictId = finding.id;
   const sessionMark = effectiveConflictMark(finding);
   const isInactive = isInactiveConflictFinding(finding);
@@ -4057,8 +4221,22 @@ function scheduleConflictVirtualRows() {
   });
 }
 
+function renderConflictBatchControls() {
+  if (!el.conflictsPrioritizeBtn) return;
+  const busy = state.quarantineBusy || state.analysisPipelineBusy ||
+    state.scanning || state.conflictsBusy || state.duplicatesBusy ||
+    state.auditBusy || state.reviewBusy || state.structureBusy;
+  el.conflictsPrioritizeBtn.disabled = !state.conflictsAnalysis || busy;
+  el.conflictsPreviewQuarantineBtn.disabled =
+    !state.conflictsAnalysis || !state.conflictQuarantineSelected.size ||
+    !conflictSelectionSafe() || busy || workspaceReadOnly();
+  el.conflictsClearQuarantineBtn.disabled =
+    !state.conflictQuarantineSelected.size || busy;
+}
+
 function renderConflicts() {
   if (!el.analyzeConflictsBtn) return;
+  renderConflictBatchControls();
   el.analyzeConflictsBtn.querySelector("[data-i18n]")?.replaceChildren(
     document.createTextNode(t(state.conflictsAnalysis ? "reanalyzeConflicts" : "analyzeConflicts"))
   );
@@ -6775,6 +6953,15 @@ function openConfirm(action) {
     el.confirmTitle.textContent = t("confirmRemoveEmptyTitle");
     el.confirmMessage.textContent = `${t("confirmRemoveEmptyMessage")}\n${state.pendingEmptyFolder}`;
     el.confirmActionBtn.textContent = t("removeEmptyFolderAction");
+  } else if (action === "conflict_quarantine") {
+    if (!state.conflictQuarantinePlan?.canExecute || !conflictSelectionSafe() ||
+        state.quarantineBusy || workspaceReadOnly()) {
+      state.pendingAction = "";
+      return;
+    }
+    el.confirmTitle.textContent = t("conflictQuarantineTitle");
+    el.confirmMessage.textContent = t("conflictQuarantineMessage");
+    el.confirmActionBtn.textContent = t("executeQuarantine");
   } else if (action === "quarantine") {
     el.confirmTitle.textContent = t("confirmQuarantineTitle");
     el.confirmMessage.textContent = t("confirmQuarantineMessage");
@@ -7590,6 +7777,18 @@ for (const button of el.openReportFolderButtons) {
 el.duplicatesClearListBtn.addEventListener("click", clearDuplicateList);
 el.duplicatesSelectExactBtn.addEventListener("click", selectExactCopiesForQuarantine);
 el.conflictsClearListBtn.addEventListener("click", clearConflictList);
+el.conflictsPrioritizeBtn.addEventListener("click", () => {
+  state.conflictsFilter = "attention";
+  el.conflictsFilter.value = "attention";
+  persistPreferences();
+  renderConflicts();
+});
+el.conflictsPreviewQuarantineBtn.addEventListener("click", buildConflictQuarantinePreview);
+el.conflictsClearQuarantineBtn.addEventListener("click", () => {
+  state.conflictQuarantineSelected.clear();
+  state.conflictQuarantinePlan = null;
+  renderConflicts();
+});
 el.structureUpBtn.addEventListener("click", () => {
   const parent = state.structureListing?.parentRelativePath;
   if (parent != null) loadStructure(parent);
@@ -7728,6 +7927,7 @@ el.confirmActionBtn.addEventListener("click", async () => {
   else if (state.pendingAction === "remove_restore_history") await removeSelectedRestoreHistory();
   else if (state.pendingAction === "remove_operation_history") await removeOperationHistoryRecord();
   else if (state.pendingAction === "quarantine") await executeQuarantine();
+  else if (state.pendingAction === "conflict_quarantine") await executeConflictQuarantine();
   else if (state.pendingAction === "clear_cache") {
     await clearAnalysisCache();
     state.pendingAction = "";
