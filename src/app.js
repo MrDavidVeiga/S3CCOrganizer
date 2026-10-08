@@ -2460,10 +2460,26 @@ function t(key) {
 
 function eligibleForPlan(item) {
   if (!item?.path || item.status !== "classified" || !item.destinationPath) return false;
-  // Mods scans can inspect Overrides and other sources, but only files inside
-  // Packages are eligible for automatic organization.
+  // Old Manager versions wrote category folders directly below Mods.
+  // Permit the user's confirmed organization preview to migrate only those
+  // recognizable legacy categories; never select Overrides or unrelated
+  // directories for automatic file moves.
   if (/[\\/]Mods[\\/]*$/i.test(state.folder || "") &&
-      !/^Packages[\\/]/i.test(String(item.relativePath || ""))) return false;
+      !/^Packages[\\/]/i.test(String(item.relativePath || ""))) {
+    const legacyRoot = String(item.relativePath || "").split(/[\\/]/)[0].toLocaleLowerCase();
+    const managedCategories = new Set([
+      "cas", "sliders", "clothing", "roupas", "ropa",
+      "hair", "cabelos", "cabello", "accessories", "acessórios", "accesorios",
+      "makeup", "maquiagem", "maquillaje", "genetics", "genética", "genetica",
+      "pets", "animais", "mascotas", "patterns", "padrões", "patrones",
+      "buy", "compra", "build", "construção", "construcción",
+      "objects", "objetos", "gameplay", "jogabilidade", "jugabilidad",
+      "scripts", "store", "nraas", "localization", "localização",
+      "localización", "poses and animations", "poses e animações",
+      "poses y animaciones",
+    ]);
+    if (!managedCategories.has(legacyRoot)) return false;
+  }
   return item.classificationConfidence === "high" || item.classificationConfidence === "manual";
 }
 
