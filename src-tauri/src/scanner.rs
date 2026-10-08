@@ -1555,6 +1555,60 @@ fn shared_casp_family(
     Some(result)
 }
 
+// One eyelash asset can expose many CASP presets in the eyeliner tab and
+// a small number in glasses/earrings slots. These are alternative UI slots
+// for the SAME package, not proof of a merged clothing/accessory collection.
+// Resolve only when the dominant slot and filename corroborate eyelashes.
+fn verified_eyelash_catalog_bundle(
+    classifications: &[CatalogClassification],
+    types: &BTreeSet<u32>,
+    filename: &str,
+    language: AppLanguage,
+) -> Option<CatalogClassification> {
+    let lower = filename.to_ascii_lowercase();
+    if !(lower.contains("eyelash") || lower.contains("lashes"))
+        || classifications.len() < 3 || !types.contains(&TYPE_CASP)
+        || types.contains(&TYPE_OBJD) || types.contains(&TYPE_S3SA)
+        || classifications.iter().any(|value| value.source != "CASP" || value.ambiguous)
+    {
+        return None;
+    }
+    let (makeup, eyeliner, accessories, earrings, glasses, eyelashes) = match language {
+        AppLanguage::En => ("Makeup", "Eyeliner", "Accessories", "Earrings", "Glasses", "Eyelashes"),
+        AppLanguage::Pt => ("Maquiagem", "Delineador", "Acessórios", "Brincos", "Óculos", "Cílios"),
+        AppLanguage::Es => ("Maquillaje", "Delineador", "Accesorios", "Pendientes", "Gafas", "Pestañas"),
+    };
+    let eyeliner_count = classifications.iter()
+        .filter(|value| value.main_category == makeup
+            && value.sub_category.as_deref() == Some(eyeliner))
+        .count();
+    if eyeliner_count * 2 <= classifications.len() {
+        return None;
+    }
+    if classifications.iter().any(|value| !(
+        value.main_category == makeup && value.sub_category.as_deref() == Some(eyeliner)
+        || value.main_category == accessories &&
+            matches!(value.sub_category.as_deref(), Some(v) if v == earrings || v == glasses)
+    )) {
+        return None;
+    }
+
+    let path = vec!["CAS".to_string(), makeup.to_string(), eyelashes.to_string()];
+    let mut result = classifications.first()?.clone();
+    result.main_category = makeup.to_string();
+    result.sub_category = Some(eyelashes.to_string());
+    result.gender = None;
+    result.age = None;
+    result.folder_parts = path.clone();
+    result.candidate_folder_parts = vec![path.clone()];
+    result.ambiguous = false;
+    result.technical_reason = format!(
+        "Eyelash asset with {eyeliner_count}/{} eyeliner CASP entries and          verified alternative accessory slots => {}",
+        classifications.len(), path.join("\\")
+    );
+    Some(result)
+}
+
 fn scan_one(
     root: &Path,
     path: &Path,
@@ -1702,7 +1756,9 @@ fn scan_one(
             Some(path),
         )
     } else if destinations.len() > 1 {
-        if let Some(shared) = shared_casp_family(&classifications, &type_ids) {
+        if let Some(shared) = shared_casp_family(&classifications, &type_ids)
+            .or_else(|| verified_eyelash_catalog_bundle(&classifications, &type_ids, &name, language))
+        {
             let path = shared.folder_parts.join("\\");
             (
                 "classified".to_string(),
@@ -2137,6 +2193,34 @@ pub async fn scan_packages(folder: String, language: AppLanguage) -> Result<Scan
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn eyelash_multi_slot_bundle_is_not_stranded_as_mixed() {
+        let mk = |main: &str, sub: &str| CatalogClassification {
+            source: "CASP".into(), kind: "cas".into(),
+            main_category: main.into(), sub_category: Some(sub.into()),
+            gender: None, age: None, species: None, usage_categories: vec![],
+            folder_parts: vec!["CAS".into(), main.into(), sub.into()],
+            candidate_folder_parts: vec![],
+            ambiguous: false, technical_reason: "".into(),
+        };
+        let mut items = vec![mk("Maquiagem", "Delineador"); 42];
+        items.extend(vec![mk("Acessórios", "Óculos"); 2]);
+        items.extend(vec![mk("Acessórios", "Brincos"); 2]);
+        let types = BTreeSet::from([TYPE_CASP]);
+        let resolved = verified_eyelash_catalog_bundle(
+            &items, &types, "sclub_ts3_eyelash_n3a.package", AppLanguage::Pt
+        ).unwrap();
+        assert_eq!(resolved.folder_parts, vec!["CAS", "Maquiagem", "Cílios"]);
+        assert_eq!(resolved.gender, None);
+        assert!(verified_eyelash_catalog_bundle(
+            &items, &types, "unrelated_bundle.package", AppLanguage::Pt
+        ).is_none());
+        items.push(mk("Roupas", "Conjunto"));
+        assert!(verified_eyelash_catalog_bundle(
+            &items, &types, "sclub_ts3_eyelash_n3a.package", AppLanguage::Pt
+        ).is_none());
+    }
 
     #[test]
     fn merged_casp_variants_share_anatomical_family_without_guessing_gender() {
