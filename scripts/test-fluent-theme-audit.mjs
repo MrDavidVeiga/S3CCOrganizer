@@ -20,9 +20,9 @@ assert.match(css,/html\[data-resolved-mode="light"\]/);
 assert.match(css,/html\[data-resolved-mode="dark"\]/);
 assert.match(css,/html\[data-theme-choice="mean-girls"\]/);
 assert.match(css,/html\[data-theme-choice="ea-app"\]/);
-assert.match(css,/--winui-control-fill-hover: rgba\(0,0,0,.065\)/);
-assert.match(css,/--fluent-list-hover-fill: rgba\(0,0,0,.075\)/);
-assert.match(css,/--fluent-list-hover-fill: rgba\(95,27,63,.115\)/);
+assert.match(css,/--winui-control-fill-hover: rgba\(0,0,0,.09\)/);
+assert.match(css,/--fluent-list-hover-fill: rgba\(0,0,0,.105\)/);
+assert.match(css,/--fluent-list-hover-fill: rgba\(95,27,63,.15\)/);
 assert.match(css,/--fluent-list-hover-fill: #2A2E3F/);
 assert.match(css,/--fluent-list-pressed-fill: rgba\(0,0,0,.13\)/);
 assert.match(css,/--fluent-list-selected-fill: rgba\(var\(--accent-rgb\),.13\)/);
@@ -104,12 +104,12 @@ for(const [label,a,b] of examples) assert(contrast(a,b)>=4.5,
   label+" contrast must meet 4.5:1; got "+contrast(a,b).toFixed(2));
 /* Semantically, pressed is always more prominent than hover. */
 const states=[
-  ["WinUI/Veiga/System light",.075,.13],
-  ["Mean Girls",.115,.17],
+  ["WinUI/Veiga/System light",.105,.17],
+  ["Mean Girls",.15,.21],
   ["WinUI/Veiga/System dark",.085,.13],
 ];
 for(const [name,hover,pressed] of states)
-  assert(pressed>hover && hover>=.07,name+" must have visible hover and stronger pressed");
+  assert(pressed>hover && hover>=.085,name+" must have visible hover and stronger pressed");
 /* The latest main/UI integrations must survive all future theme refactors. */
 const app=read("src/app.js");
 const quarantine=read("src-tauri/src/quarantine.rs");
@@ -122,4 +122,13 @@ assert.match(quarantine,/pub fn remove_quarantine_history\(/);
 assert.match(quarantine,/restore_requires_explicit_confirmation/);
 assert.match(report,/reportKind/);
 assert.match(read("src/style.css"),/\.history-record-actions/);
+const additional = ["tools-list-item","catalog-queue-item","technical-resource","duplicate-member","duplicate-pair","conflict-pair","collision-review-item","plan-item","restore-preview-item","catalog-mini-icon","catalog-row-button","history-record-actions"];
+for(const selector of additional)assert(css.includes("."+selector),"missing complete audit coverage for "+selector);
+assert.match(css,/background-color: var\(--fluent-list-hover-fill\)/);
+assert.match(css,/background-color: var\(--fluent-list-pressed-fill\)/);
+assert.match(css,/background-color: var\(--fluent-list-active-hover-fill\)/);
+assert.match(css,/cursor: not-allowed/);
+assert.match(css,/outline: 2px solid var\(--fluent-focus-outer\)/);
+assert.match(css,/--winui-control-fill-pressed: rgba\(0,0,0,.16\)/);
+assert.match(css,/--fluent-list-pressed-fill: rgba\(95,27,63,.21\)/);
 console.log("Seven-theme audit: PASS (list/menus/ComboBox states, light hover, status/text contrast, all 7 themes, no row geometry changes)");

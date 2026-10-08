@@ -12,22 +12,22 @@
 /* WinUI Light, Veiga Light and System Light: make hover clearly distinguishable
  * from normal cards. Pressed must be darker still; never use near-white here. */
 html[data-resolved-mode="light"] {
-  --winui-control-fill-hover: rgba(0,0,0,.065);
-  --winui-control-fill-pressed: rgba(0,0,0,.12);
-  --fluent-list-hover-fill: rgba(0,0,0,.075);
-  --fluent-list-pressed-fill: rgba(0,0,0,.13);
+  --winui-control-fill-hover: rgba(0,0,0,.09);
+  --winui-control-fill-pressed: rgba(0,0,0,.16);
+  --fluent-list-hover-fill: rgba(0,0,0,.105);
+  --fluent-list-pressed-fill: rgba(0,0,0,.17);
   --fluent-list-selected-fill: rgba(var(--accent-rgb),.13);
-  --fluent-list-active-hover-fill: rgba(var(--accent-rgb),.18);
+  --fluent-list-active-hover-fill: rgba(var(--accent-rgb),.22);
   --fluent-list-row-divider: rgba(0,0,0,.10);
   --fluent-list-neutral-fill: rgba(0,0,0,.028);
 }
 
 /* Pink is an identity color, not a reason to use near-white hover on white. */
 html[data-theme-choice="mean-girls"] {
-  --winui-control-fill-hover: rgba(95,27,63,.09);
-  --winui-control-fill-pressed: rgba(95,27,63,.16);
-  --fluent-list-hover-fill: rgba(95,27,63,.115);
-  --fluent-list-pressed-fill: rgba(95,27,63,.17);
+  --winui-control-fill-hover: rgba(95,27,63,.12);
+  --winui-control-fill-pressed: rgba(95,27,63,.19);
+  --fluent-list-hover-fill: rgba(95,27,63,.15);
+  --fluent-list-pressed-fill: rgba(95,27,63,.21);
   --fluent-list-selected-fill: rgba(249,47,96,.145);
   --fluent-list-active-hover-fill: rgba(249,47,96,.20);
   --fluent-list-row-divider: rgba(77,19,50,.15);
@@ -235,6 +235,84 @@ body.release-v1 :is(.package-row,.duplicate-row,.conflict-row,.restore-history-i
 }
 @media (prefers-reduced-motion: reduce) {
   body.release-v1 :is(.package-row,.duplicate-row,.conflict-row,.restore-history-item,.structure-row,.catalog-row) {
+    transition: none;
+  }
+}
+
+
+/*
+ * Completion pass: no light-theme near-white row hover may leak through
+ * inherited surfaces or high-specificity legacy controls. Keep original
+ * neutral/selected identity and make press visibly stronger than hover.
+ */
+body.release-v1 :is(
+  .tools-list-item,.catalog-queue-item,.technical-resource,
+  .duplicate-member,.duplicate-pair,.conflict-pair,
+  .collision-review-item,.plan-item,.restore-preview-item
+):hover:not(:disabled):not([aria-disabled="true"]):not(.selected):not(.active) {
+  background-color: var(--fluent-list-hover-fill);
+}
+body.release-v1 :is(
+  .tools-list-item,.catalog-queue-item,.technical-resource,
+  .duplicate-member,.duplicate-pair,.conflict-pair,
+  .collision-review-item,.plan-item,.restore-preview-item
+):active:not(:disabled):not([aria-disabled="true"]):not(.selected):not(.active) {
+  background-color: var(--fluent-list-pressed-fill);
+}
+body.release-v1 :is(.tools-list-item,.catalog-queue-item,.technical-resource,.duplicate-member,.duplicate-pair,.conflict-pair,.collision-review-item,.plan-item,.restore-preview-item).selected,
+body.release-v1 :is(.tools-list-item,.catalog-queue-item,.technical-resource,.duplicate-member,.duplicate-pair,.conflict-pair,.collision-review-item,.plan-item,.restore-preview-item).active {
+  background-color: var(--fluent-list-selected-fill);
+}
+body.release-v1 :is(.tools-list-item,.catalog-queue-item,.technical-resource,.duplicate-member,.duplicate-pair,.conflict-pair,.collision-review-item,.plan-item,.restore-preview-item).selected:hover,
+body.release-v1 :is(.tools-list-item,.catalog-queue-item,.technical-resource,.duplicate-member,.duplicate-pair,.conflict-pair,.collision-review-item,.plan-item,.restore-preview-item).active:hover {
+  background-color: var(--fluent-list-active-hover-fill);
+}
+/* Restore history, Catalog and tool rows previously had a card-fill rule
+ * with competing specificity. All real hover states share the final layer. */
+body.release-v1 :is(.restore-history-item,.structure-row,.catalog-row,.tools-list-item,.catalog-queue-item):hover:not(.active):not(.selected):not(:disabled):not([aria-disabled="true"]) {
+  background-color: var(--fluent-list-hover-fill);
+}
+/* Distinguish selected rows without replacing severity bars/checkboxes. */
+body.release-v1 :is(.restore-history-item,.structure-row,.catalog-row,.tools-list-item,.catalog-queue-item):is(.active,.selected):hover {
+  background-color: var(--fluent-list-active-hover-fill);
+}
+/* Buttons, field menus and nested actions must retain a legible state even
+ * inside a selected row or a pale/light card; do not change their width. */
+body.release-v1 :is(
+  .catalog-mini-icon,.catalog-row-button,.history-record-actions button,
+  .content-filter-menu-item,.lang-menu-item,.theme-option
+):hover:not(:disabled):not([aria-disabled="true"]) {
+  background-color: var(--fluent-list-hover-fill);
+}
+body.release-v1 :is(
+  .catalog-mini-icon,.catalog-row-button,.history-record-actions button,
+  .content-filter-menu-item,.lang-menu-item,.theme-option
+):active:not(:disabled):not([aria-disabled="true"]) {
+  background-color: var(--fluent-list-pressed-fill);
+}
+/* Disabled controls never react as active, and focus is visible without
+ * painting a new row that alters virtualization or layout. */
+body.release-v1 :is(
+  .tools-list-item,.catalog-queue-item,.technical-resource,.catalog-mini-icon,
+  .catalog-row-button,.history-record-actions button
+):is(:disabled,[aria-disabled="true"]) {
+  cursor: not-allowed;
+  opacity: .5;
+}
+body.release-v1 :is(
+  .tools-list-item,.catalog-queue-item,.technical-resource,.catalog-mini-icon,
+  .catalog-row-button,.history-record-actions button
+):focus-visible {
+  outline: 2px solid var(--fluent-focus-outer);
+  outline-offset: -2px;
+}
+@media (forced-colors: active) {
+  body.release-v1 :is(.tools-list-item,.catalog-queue-item,.technical-resource,.catalog-mini-icon,.catalog-row-button,.history-record-actions button):focus-visible {
+    outline-color: Highlight;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  body.release-v1 :is(.tools-list-item,.catalog-queue-item,.technical-resource,.catalog-mini-icon,.catalog-row-button,.history-record-actions button) {
     transition: none;
   }
 }

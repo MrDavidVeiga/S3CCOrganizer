@@ -145,3 +145,6 @@ Automated CI can validate CSS wiring, state declarations, theme coverage, status
 
 ### Final integration checkpoint
 The current WinUI branch includes the latest completed-quarantine history removal in Tools (frontend/Rust with explicit confirmation and recovered-state safeguards) and the latest main scanner improvements. The audit still uses semantic theme tokens rather than replacing these features. Windows UI-test CI now includes a seven-theme hover/selection walkthrough in the artifact README and cancels outdated runs for the same development branch.
+
+### Seven-theme finishing audit — stronger light hover and secondary list coverage
+Raised light-mode neutral ListView hover from 7.5% to 10.5% black and pressed to 17% while keeping selected accent fill. Mean Girls uses dark-plum hover at 15% with 21% pressed; theme identity and black primary actions are preserved. Completed Tools, Restore, Catalog, virtual detail rows, nested actions, disabled and keyboard focus rules. No change to row heights, virtual scroll, item selection mechanics or scanner logic. Static/WCAG test assertions were expanded; real WebView2 inspection is still required for each theme, focus, hover and DPI.
