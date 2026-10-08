@@ -755,6 +755,56 @@ pub fn recover_quarantine(folder: String, manifest_path: String) -> Result<Quara
     })
 }
 
+
+/// Delete only a completed transaction journal. Never remove the quarantined
+/// CCs, and never remove a journal required for restore or crash recovery.
+#[tauri::command]
+pub fn remove_quarantine_history(
+    folder: String,
+    manifest_path: String,
+    confirmed: bool,
+) -> Result<(), String> {
+    if !confirmed {
+        return Err("Removing quarantine history requires explicit confirmation.".into());
+    }
+    let _guard = transaction_guard()?;
+    let root = canonical_root(&folder)?;
+    ensure_writable(&root)?;
+
+    let submitted = PathBuf::from(manifest_path.trim());
+    let metadata = fs::symlink_metadata(&submitted)
+        .map_err(|error| format!("Could not inspect quarantine manifest: {error}"))?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err("Only regular quarantine manifests may be removed.".into());
+    }
+
+    // read_manifest verifies the managed directory, the selected Mods root,
+    // the session quarantine directory, and the paths/hashes of its members.
+    let (path, journal, quarantine_root) =
+        read_manifest(&root, &submitted.to_string_lossy())?;
+    if !matches!(journal.status.as_str(), "RESTORED" | "ROLLED_BACK") {
+        return Err(
+            "Quarantine is active or still needs recovery. Restore or recover it before removing its history.".into(),
+        );
+    }
+
+    // A completed journal is disposable only if none of its managed files
+    // remain in quarantine. Never delete a journal needed to recover CCs.
+    for item in &journal.items {
+        let relative = validated_relative(&item.source_relative_path)?;
+        let quarantined = checked_join(&quarantine_root, &relative)?;
+        if quarantined.exists() {
+            return Err(format!(
+                "Quarantined content still exists; record removal was blocked: {}",
+                quarantined.display()
+            ));
+        }
+    }
+
+    fs::remove_file(&path)
+        .map_err(|error| format!("Could not remove quarantine history record: {error}"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
