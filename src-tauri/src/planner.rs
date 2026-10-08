@@ -573,6 +573,30 @@ fn retarget_item_to_not_categorized(
 
 // Exact duplicates must stay untouched and be reviewed in Duplicates, even
 // when a duplicate happens to have a different proposed destination.
+// Organize one selected representative of each exact-content group. Moving
+// none leaves entire legacy source folders stranded. A second copy is never
+// deleted here: it remains available for an explicitly confirmed quarantine.
+// Disabled files are a distinct load state and must not be selected as the
+// keeper of an enabled group (or vice versa).
+fn is_disabled_package_path(path: &Path) -> bool {
+    path.file_name().is_some_and(|name| name.to_string_lossy()
+        .to_ascii_lowercase().ends_with(".package.disabled"))
+}
+
+fn is_selected_content_keeper(
+    source: &Path,
+    sha256: &str,
+    selected_hashes: &HashMap<PathBuf, String>,
+) -> bool {
+    let inactive = is_disabled_package_path(source);
+    let keeper = selected_hashes.iter()
+        .filter(|(path, hash)| hash.eq_ignore_ascii_case(sha256)
+            && is_disabled_package_path(path) == inactive)
+        .map(|(path, _)| path)
+        .min_by_key(|path| path.to_string_lossy().to_ascii_lowercase());
+    keeper.is_none_or(|path| path == source)
+}
+
 fn index_exact_duplicates(
     root: &Path,
     scan_items: &[ScanPackageItem],
@@ -987,7 +1011,12 @@ pub fn build_organization_plan_with_cfg(
         }
 
         let duplicates = duplicate_peers.get(&source_hash.to_ascii_uppercase());
-        if let Some(peers) = duplicates.filter(|peers| peers.len() > 1) {
+        if let Some(peers) = duplicates.filter(|peers| peers.len() > 1)
+            .filter(|_| !is_selected_content_keeper(&source_canonical, &source_hash, &selected_hashes))
+        {
+            // Only an additional selected same-state copy is excluded. The
+            // chosen keeper continues through classification, destination
+            // collision checks and normal transactional/Restore protection.
             stats.duplicate_skipped += 1;
             items.push(PlanItem {
                 id: item.id.clone(),
@@ -1002,7 +1031,7 @@ pub fn build_organization_plan_with_cfg(
                 sha256: Some(source_hash),
                 size: item.file_size,
                 warnings: vec![format!(
-                    "Exact SHA-256 duplicate in the scanned library ({} matching files: {}). Kept in its current location. Review in Duplicates before any move or deletion.",
+                    "Another selected copy is the keeper for this exact SHA-256 group ({} matching files: {}). This extra copy was not moved or deleted. Review it in Duplicates/Quarantine to empty the legacy folder safely.",
                     peers.len(),
                     peers.iter().take(4).cloned().collect::<Vec<_>>().join(" | ")
                 )],
@@ -1390,6 +1419,20 @@ pub fn build_organization_plan_with_cfg(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn selected_exact_duplicates_choose_one_keeper_without_reactivating_disabled() {
+        let mut hashes = HashMap::new();
+        hashes.insert(PathBuf::from("Packages/Old/C.package"), "AAA".to_string());
+        hashes.insert(PathBuf::from("Packages/Old/B.package"), "AAA".to_string());
+        hashes.insert(PathBuf::from("Packages/Old/A.package.disabled"), "AAA".to_string());
+        hashes.insert(PathBuf::from("Packages/Old/Z.package.disabled"), "AAA".to_string());
+        assert!(is_selected_content_keeper(Path::new("Packages/Old/B.package"), "AAA", &hashes));
+        assert!(!is_selected_content_keeper(Path::new("Packages/Old/C.package"), "AAA", &hashes));
+        assert!(is_selected_content_keeper(Path::new("Packages/Old/A.package.disabled"), "AAA", &hashes));
+        assert!(!is_selected_content_keeper(Path::new("Packages/Old/Z.package.disabled"), "AAA", &hashes));
+    }
+
+
     use super::*;
 
     #[test]
