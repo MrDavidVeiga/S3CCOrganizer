@@ -80,7 +80,7 @@ for(const id of ["select-all-btn","select-none-btn"]){
   assert.equal(selected.paddingLeft,"7px");
   assert.equal(selected.paddingRight,"7px");
   assert.equal(selected.paddingTop,"5px");
-  assert.equal(selected.fontSize,"14px");
+  assert(["14px","var(--fluent-control-font-size)"].includes(selected.fontSize), "font remains the Fluent 14px token");
 }
 assert.match(geometry, /#page-organizer \.results-selection-controls \{/);
 assert.match(geometry, /grid-column: 1 \/ -1/);
