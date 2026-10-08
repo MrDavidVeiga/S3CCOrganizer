@@ -4,6 +4,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 
 const I18N = {
   en: {
+    noEligibleConflictDecisions: "No eligible conflict decisions to save in this selection.",
     organizeElapsed: "Elapsed",
     selectVisibleExactGroups: "Select Filtered Exact Groups",
     exactOnlySelectionHint: "Clear other selections before using an exact-duplicate batch.",
@@ -544,6 +545,7 @@ const I18N = {
     conflictsNext: "Resource-level conflict analysis is implemented in read-only mode.",
   },
   pt: {
+    noEligibleConflictDecisions: "Nenhum conflito selecionado tem dados suficientes para salvar essa decisão.",
     organizeElapsed: "Tempo decorrido",
     selectVisibleExactGroups: "Selecionar Grupos Exatos Filtrados",
     exactOnlySelectionHint: "Limpe as outras seleções antes de selecionar duplicatas exatas em lote.",
@@ -1083,6 +1085,7 @@ const I18N = {
     conflictsNext: "A análise de conflitos por resource está implementada em modo somente leitura.",
   },
   es: {
+    noEligibleConflictDecisions: "Ningún conflicto seleccionado tiene datos suficientes para guardar esta decisión.",
     organizeElapsed: "Tiempo transcurrido",
     selectVisibleExactGroups: "Seleccionar Grupos Exactos Filtrados",
     exactOnlySelectionHint: "Limpia las otras selecciones antes de seleccionar duplicados exactos por lotes.",
@@ -4111,6 +4114,10 @@ async function applySelectedConflictReviewMark(mark) {
         rightRelativePath: right.relativePath,
       });
     }
+    if (mark === "intentional" && !changes.length) {
+      state.conflictsNotice = t("noEligibleConflictDecisions");
+      return;
+    }
     if (changes.length) {
       const records = await invoke("set_conflict_decisions_bulk", {
         folder: state.folder, changes,
@@ -4119,7 +4126,7 @@ async function applySelectedConflictReviewMark(mark) {
     }
     for (const finding of targets) delete state.conflictMarks[finding.id];
     conflictMarksVersion += 1;
-    state.conflictsNotice = `${targets.length} · ${t(mark === "intentional" ? "batchMarkedIntentional" : "batchMarksCleared")}`;
+    state.conflictsNotice = `${mark === "intentional" ? changes.length : targets.length} · ${t(mark === "intentional" ? "batchMarkedIntentional" : "batchMarksCleared")}`;
   } catch (error) {
     state.conflictsError = String(error);
   } finally {
@@ -7857,6 +7864,9 @@ async function chooseFolder() {
   state.analysisRunId += 1;
   state.analysisStatus = { manager: "not_run", duplicates: "not_run", conflicts: "not_run" };
   state.folder = selected;
+  state.postQuarantineNotice = null;
+  state.lastExactGroupAnchor = null;
+  state.lastConflictReviewAnchor = null;
   state.conflictReviewSelected.clear();
   state.conflictsSelectedOnly = false;
   conflictVisibleMemo.analysis = null;

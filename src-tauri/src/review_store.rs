@@ -75,14 +75,41 @@ fn save_store(root: &Path, store: &ConflictDecisionStore) -> Result<(), String> 
 
     #[cfg(windows)]
     {
-        if path.exists() {
-            fs::remove_file(&path)
-                .map_err(|error| format!("Could not replace review store {}: {error}", path.display()))?;
+        // A plain remove_file followed by rename could destroy existing
+        // decisions if the second operation failed. Keep a sibling backup
+        // until the replacement is successfully installed.
+        let backup = parent.join(".conflict-decisions-v1.json.backup");
+        if backup.exists() {
+            return Err(format!(
+                "Conflict decision recovery backup exists at {}; inspect it before continuing.",
+                backup.display()
+            ));
         }
+        let had_previous = path.exists();
+        if had_previous {
+            fs::rename(&path, &backup)
+                .map_err(|error| format!("Could not back up review store {}: {error}", path.display()))?;
+        }
+        if let Err(error) = fs::rename(&temp, &path) {
+            if had_previous {
+                fs::rename(&backup, &path).map_err(|restore_error| format!(
+                    "Review-store install failed: {error}; original remains at {} (restore failed: {restore_error})",
+                    backup.display()
+                ))?;
+            }
+            return Err(format!("Could not install review store {}: {error}", path.display()));
+        }
+        if had_previous {
+            let _ = fs::remove_file(&backup);
+        }
+        return Ok(());
     }
 
-    fs::rename(&temp, &path)
-        .map_err(|error| format!("Could not commit review store {}: {error}", path.display()))
+    #[cfg(not(windows))]
+    {
+        fs::rename(&temp, &path)
+            .map_err(|error| format!("Could not commit review store {}: {error}", path.display()))
+    }
 }
 
 fn normalized_hash_pair(left: &str, right: &str) -> Result<[String; 2], String> {
@@ -236,19 +263,21 @@ fn apply_bulk_changes(
 }
 
 #[tauri::command]
-pub fn set_conflict_decisions_bulk(
+pub async fn set_conflict_decisions_bulk(
     folder: String,
     changes: Vec<ConflictDecisionChange>,
 ) -> Result<Vec<ConflictDecisionRecord>, String> {
-    let root = canonical_root(&folder)?;
-    if changes.is_empty() {
-        return Ok(load_store(&root).decisions.into_values().collect());
-    }
-    let mut store = load_store(&root);
-    apply_bulk_changes(&mut store, changes)?;
-    // One persistence operation rather than N reads and writes.
-    save_store(&root, &store)?;
-    Ok(store.decisions.into_values().collect())
+    tauri::async_runtime::spawn_blocking(move || {
+        let root = canonical_root(&folder)?;
+        if changes.is_empty() {
+            return Ok(load_store(&root).decisions.into_values().collect());
+        }
+        let mut store = load_store(&root);
+        apply_bulk_changes(&mut store, changes)?;
+        // One persistence operation rather than N reads and writes.
+        save_store(&root, &store)?;
+        Ok(store.decisions.into_values().collect())
+    }).await.map_err(|error| format!("Conflict review worker failed: {error}"))?
 }
 
 #[cfg(test)]
@@ -282,6 +311,26 @@ mod tests {
         let clear = ConflictDecisionChange { mark: None, ..valid };
         apply_bulk_changes(&mut store, vec![clear]).unwrap();
         assert!(store.decisions.is_empty());
+    }
+
+    #[test]
+    fn bulk_review_scales_without_dropping_decisions() {
+        let mut changes = Vec::new();
+        for index in 1..=1_200u32 {
+            let left = format!("{index:064x}");
+            let right = "f".repeat(64);
+            changes.push(ConflictDecisionChange {
+                decision_key: expected_decision_key(&left, &right).unwrap(),
+                mark: Some(INTENTIONAL_MARK.into()),
+                left_sha256: left,
+                right_sha256: right.clone(),
+                left_relative_path: format!("Packages/Mod{index}.package"),
+                right_relative_path: "Packages/Core.package".into(),
+            });
+        }
+        let mut store = ConflictDecisionStore::default();
+        apply_bulk_changes(&mut store, changes).unwrap();
+        assert_eq!(store.decisions.len(), 1_200);
     }
 
     #[test]
