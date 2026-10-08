@@ -441,6 +441,7 @@ const I18N = {
     conflictReviewSelectedCount: "Conflicts selected for review",
     organizePlanning: "Preparing and checking organization plan…",
     organizePreparing: "Preparing recovery manifest and Resource.cfg…",
+    organizeSnapshotting: "Verifying the library and recording recovery hashes…",
     organizeMoving: "Moving and verifying packages…",
     organizeCleaning: "Removing empty subfolders…",
     organizeRollingBack: "Rolling back package changes…",
@@ -967,6 +968,7 @@ const I18N = {
     conflictReviewSelectedCount: "Conflitos selecionados para revisão",
     organizePlanning: "Preparando e conferindo o plano de organização…",
     organizePreparing: "Preparando o manifesto de recuperação e Resource.cfg…",
+    organizeSnapshotting: "Verificando o acervo e registrando hashes para recuperação…",
     organizeMoving: "Movendo e verificando os packages…",
     organizeCleaning: "Removendo todas as subpastas vazias…",
     organizeRollingBack: "Revertendo movimentações…",
@@ -1492,6 +1494,7 @@ const I18N = {
     conflictReviewSelectedCount: "Conflictos seleccionados para revisión",
     organizePlanning: "Preparando y verificando el plan de organización…",
     organizePreparing: "Preparando el manifiesto de recuperación y Resource.cfg…",
+    organizeSnapshotting: "Verificando la biblioteca y guardando hashes de recuperación…",
     organizeMoving: "Moviendo y verificando paquetes…",
     organizeCleaning: "Eliminando las subcarpetas vacías…",
     organizeRollingBack: "Revirtiendo los cambios…",
@@ -3161,18 +3164,24 @@ async function buildQuarantinePreview() {
   renderDuplicatesPreview();
   renderDuplicateBatchControls();
   try {
-    const command = state.quarantineExactBatch
+    // Handpicked subsets of SHA-identical groups get the same survivor
+    // safeguards and "N identical files" grouping as Select All.
+    const exactPaths = new Set(exactDuplicateGroups().flatMap(group =>
+      (group.members || []).map(member => member.path)));
+    const useExactBatch = [...state.quarantineSelected].every(path => exactPaths.has(path));
+    const command = useExactBatch
       ? "build_exact_duplicate_quarantine_plan" : "build_quarantine_plan";
     const folder = state.folder;
     const selected = [...state.quarantineSelected].sort();
     const plan = await invoke(command, {
       folder,
       selectedPaths: selected,
-      ...(state.quarantineExactBatch
+      ...(useExactBatch
         ? { retainedPaths: retainedExactDuplicatePaths() } : {}),
     });
     if (state.folder !== folder ||
         selected.join("\n") !== [...state.quarantineSelected].sort().join("\n")) return;
+    state.quarantineExactBatch = useExactBatch;
     state.quarantinePlan = plan;
   } catch (error) {
     state.duplicatesError = String(error);
@@ -3821,13 +3830,18 @@ function conflictPriorityLabel(finding) {
       : score > 0 ? t("conflictPriorityReview") : t("conflictPriorityInfo");
 }
 
-function toggleConflictReviewSelection(id, selected) {
+function toggleConflictReviewSelection(id, selected, row) {
   if (selected) state.conflictReviewSelected.add(id);
   else state.conflictReviewSelected.delete(id);
-  conflictVisibleMemo.analysis = null;
-  if (state.conflictsSelectedOnly && !state.conflictReviewSelected.size) {
-    state.conflictsSelectedOnly = false;
+  // Keep the checkbox focused for keyboard use. Rebuild the virtual list
+  // only when the selected-only filter actually changes visible rows.
+  if (!state.conflictsSelectedOnly) {
+    row.classList.toggle("selected", selected);
+    renderConflictBatchControls();
+    return;
   }
+  if (!state.conflictReviewSelected.size) state.conflictsSelectedOnly = false;
+  conflictVisibleMemo.analysis = null;
   renderConflicts();
   renderConflictVirtualRows(visibleConflictFindings(), true);
 }
@@ -4427,7 +4441,7 @@ function createConflictFindingRow(finding) {
   checkbox.checked = state.conflictReviewSelected.has(finding.id);
   checkbox.disabled = state.reviewBusy || state.conflictsBusy || state.quarantineBusy;
   checkbox.setAttribute("aria-label", `${t("selectConflictFinding")}: ${finding.left?.name || "A"} / ${finding.right?.name || "B"}`);
-  checkbox.addEventListener("change", () => toggleConflictReviewSelection(finding.id, checkbox.checked));
+  checkbox.addEventListener("change", () => toggleConflictReviewSelection(finding.id, checkbox.checked, wrapper));
   wrapper.append(checkbox, button);
   return wrapper;
 }
@@ -4690,6 +4704,7 @@ function renderOrganizationProgress() {
   const labels = {
     planning: t("organizePlanning"),
     preparing: t("organizePreparing"),
+    snapshotting: t("organizeSnapshotting"),
     moving: t("organizeMoving"),
     cleaning: t("organizeCleaning"),
     rolling_back: t("organizeRollingBack"),
@@ -7457,6 +7472,9 @@ function clearConflictList() {
   state.analysisStatus.conflicts = "cleared";
   state.conflictQuarantineSelected.clear();
   state.conflictQuarantinePlan = null;
+  state.conflictReviewSelected.clear();
+  state.conflictsSelectedOnly = false;
+  conflictVisibleMemo.analysis = null;
   closeConflictDetails();
   state.conflictsAnalysis = null;
   state.conflictsError = "";
@@ -7516,6 +7534,9 @@ function clearLoadedLibrary() {
   state.quarantineExactBatch = false;
   state.conflictQuarantineSelected.clear();
   state.conflictQuarantinePlan = null;
+  state.conflictReviewSelected.clear();
+  state.conflictsSelectedOnly = false;
+  conflictVisibleMemo.analysis = null;
   state.packagePreviews = {};
   state.packagePreviewLoading = {};
   state.packagePreviewErrors = {};

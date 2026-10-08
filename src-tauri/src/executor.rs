@@ -86,16 +86,22 @@ fn snapshot_entries(root: &Path, ready: &[&PlanItem]) -> Result<Vec<RestoreEntry
         planned.insert(source, (item, destination));
     }
 
-    let mut entries = Vec::new();
-
+    // Collect file paths first so we can show a genuine determinate progress
+    // bar while hashing the full pre-organization Restore snapshot. This may
+    // be a large library and cannot be represented by move count alone.
+    let mut package_paths = Vec::new();
     for entry in WalkDir::new(root).follow_links(false).into_iter() {
         let entry = entry.map_err(|error| format!("Could not snapshot package tree: {error}"))?;
-        if !entry.file_type().is_file() || !package_extension(entry.path()) {
-            continue;
+        if entry.file_type().is_file() && package_extension(entry.path()) {
+            package_paths.push(entry.path().to_path_buf());
         }
+    }
+    operation::set_total("organize", package_paths.len() + ready.len() + 2);
+    operation::update("organize", 0, None, "snapshotting");
 
-        let absolute = entry
-            .path()
+    let mut entries = Vec::with_capacity(package_paths.len());
+    for (index, file) in package_paths.iter().enumerate() {
+        let absolute = file
             .canonicalize()
             .map_err(|error| format!("Could not resolve {}: {error}", entry.path().display()))?;
         let original_relative = absolute
@@ -128,6 +134,7 @@ fn snapshot_entries(root: &Path, ready: &[&PlanItem]) -> Result<Vec<RestoreEntry
             original_relative_path: original_relative,
             organized_relative_path: organized_relative,
         });
+        operation::update("organize", index + 1, None, "snapshotting");
     }
 
     entries.sort_by_key(|entry| {
@@ -335,7 +342,6 @@ fn execute_organization_core(
     ensure_writable(&root)?;
     let ready = ready_items(&plan.items);
     let move_total = ready.len();
-    operation::set_total("organize", move_total + 2);
     operation::update("organize", 0, None, "preparing");
 
     if ready.is_empty() {
@@ -353,6 +359,8 @@ fn execute_organization_core(
 
     let manifest_path = make_manifest_path(&root)?;
     let snapshot = snapshot_entries(&root, &ready)?;
+    let snapshot_count = snapshot.len();
+    operation::update("organize", snapshot_count, None, "preparing");
     let mut manifest = manifest_from_snapshot(
         &root,
         language,
@@ -409,7 +417,7 @@ fn execute_organization_core(
         }
     }
 
-    operation::update("organize", 1, None, "moving");
+    operation::update("organize", snapshot_count + 1, None, "moving");
     let mut moved_pairs: Vec<(PathBuf, PathBuf, String, u64)> = Vec::new();
     let mut errors = Vec::new();
 
@@ -464,7 +472,7 @@ fn execute_organization_core(
                     expected_hash.clone(),
                     item.size,
                 ));
-                operation::update("organize", moved_pairs.len() + 1, None, "moving");
+                operation::update("organize", snapshot_count + moved_pairs.len() + 1, None, "moving");
             },
             Err(error) => {
                 errors.push(error);
@@ -474,7 +482,7 @@ fn execute_organization_core(
     }
 
     if !errors.is_empty() {
-        operation::update("organize", moved_pairs.len() + 1, None, "rolling_back");
+        operation::update("organize", snapshot_count + moved_pairs.len() + 1, None, "rolling_back");
         let mut rollback_errors = Vec::new();
         let mut rolled_back = 0usize;
 
@@ -563,13 +571,13 @@ fn execute_organization_core(
         });
     }
 
-    operation::update("organize", move_total + 1, None, "cleaning");
+    operation::update("organize", snapshot_count + move_total + 1, None, "cleaning");
     let (old_folders_removed, old_folders_retained, cleanup_warnings) =
         cleanup_empty_directories_after_organization(&root, &moved_pairs);
 
     manifest.status = "COMPLETE".to_string();
     replace_manifest_atomic(&manifest_path, &manifest)?;
-    operation::update("organize", move_total + 2, None, "complete");
+    operation::update("organize", snapshot_count + move_total + 2, None, "complete");
 
     Ok(ExecutionResult {
         status: "COMPLETE".to_string(),
