@@ -1,0 +1,122 @@
+name: WinUI 3 UI Test Build — Windows x64
+
+# Portable diagnostic artifact only. No release, tag or main branch mutations.
+on:
+  push:
+    branches:
+      - feature/winui3-full-fidelity
+    paths:
+      - ".github/workflows/build-winui3-ui-test.yml"
+      - "src/**"
+      - "src-tauri/**"
+      - "index.html"
+      - "package.json"
+      - "scripts/verify-fluent-foundation.mjs"
+      - "scripts/test-fluent-interactions.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-ui-test:
+    name: Build and test Windows x64 Tauri application
+    runs-on: windows-2022
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+
+      - name: Install stable Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri -> target"
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Verify Fluent foundation
+        run: node scripts/verify-fluent-foundation.mjs
+
+      - name: Install DOM test dependency
+        run: npm install --no-save jsdom@26
+
+      - name: Test Fluent ComboBox and dialog interactions
+        run: node scripts/test-fluent-interactions.mjs
+
+      - name: Reconstruct application icon
+        shell: pwsh
+        run: |
+          $encoded = (Get-Content "src-tauri/icons/manager-icon.b64" -Raw).Trim()
+          [IO.File]::WriteAllBytes("src-tauri/icons/manager-icon.png", [Convert]::FromBase64String($encoded))
+
+      - name: Generate Tauri icons
+        run: npm run tauri icon src-tauri/icons/manager-icon.png
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Run Rust regression tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib
+
+      - name: Build Windows x64 portable executable
+        run: npm run tauri build -- --no-bundle
+
+      - name: Package portable UI test executable and checksum
+        shell: pwsh
+        run: |
+          $candidate = Get-ChildItem -Path "src-tauri/target/release" -Filter "s3cc-organizer.exe" -File |
+            Select-Object -First 1 -ExpandProperty FullName
+          if (-not $candidate) { throw "Tauri portable Windows x64 executable was not produced." }
+
+          $stage = Join-Path $PWD "winui3-ui-test-stage"
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Copy-Item -LiteralPath $candidate -Destination (Join-Path $stage "Veiga's S3CC Manager.exe")
+          Copy-Item -LiteralPath "README.md" -Destination (Join-Path $stage "README.md")
+
+          $notes = @(
+            "VEIGA'S S3CC MANAGER - WINUI 3 UI TEST (WINDOWS X64)",
+            "",
+            "Source commit: ${{ github.sha }}",
+            "Branch: ${{ github.ref_name }}",
+            "",
+            "DIAGNOSTIC BUILD ONLY. NOT A NEW BETA OR A PUBLIC RELEASE.",
+            "No installation is required. Windows WebView2 runtime must be available.",
+            "",
+            "1. Extract this ZIP into a new folder.",
+            "2. Run Veiga's S3CC Manager.exe.",
+            "3. Verify dropdowns under Duplicates, Conflicts and Tools, including large lists.",
+            "4. Verify modal focus, Tab / Shift+Tab, Escape and return focus.",
+            "5. Test System, Veiga Light/Dark, Mean Girls, EA App, WinUI Light/Dark themes.",
+            "6. Use a COPY of the Mods folder for actions that can move or quarantine files.",
+            "",
+            "Please report screenshots and the exact action if something breaks."
+          )
+          $notes | Set-Content -Path (Join-Path $stage "WINUI3-TEST-README.txt") -Encoding UTF8
+
+          $zip = "VeigasS3CCManager_WinUI3_UITest_Windows_x64.zip"
+          Compress-Archive -Path "$stage/*" -DestinationPath $zip -Force -CompressionLevel Optimal
+          $hash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash
+          "$hash  $zip" | Set-Content "WINUI3-TEST_SHA256.txt" -Encoding ascii
+          Write-Host "Created: $zip"
+          Write-Host "SHA256: $hash"
+
+      - name: Upload test build
+        uses: actions/upload-artifact@v7
+        with:
+          name: S3CC-Manager-WinUI3-UITest-Windows-x64
+          path: |
+            VeigasS3CCManager_WinUI3_UITest_Windows_x64.zip
+            WINUI3-TEST_SHA256.txt
+          if-no-files-found: error
+          retention-days: 14
