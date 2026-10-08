@@ -783,6 +783,13 @@ fn slider_region_keys(internal_name: &str) -> Option<(&'static str, Option<&'sta
         return Some(("head", None));
     }
 
+    if token_starts_with_any(
+        &name,
+        &["penis", "testicle", "scrotum", "foreskin", "genital", "phallus", "erection"],
+    ) {
+        return Some(("body", Some("genitals")));
+    }
+
     if token_starts_with_any(&name, &["shoulder"]) {
         return Some(("body", Some("shoulders")));
     }
@@ -861,6 +868,12 @@ fn slider_folder_label(language: AppLanguage, key: &str) -> &'static str {
         (AppLanguage::En, "glasses") => "Glasses",
         (AppLanguage::Pt, "glasses") => "Óculos",
         (AppLanguage::Es, "glasses") => "Gafas",
+        (AppLanguage::En, "genitals") => "Genitals",
+        (AppLanguage::Pt, "genitals") => "Genitais",
+        (AppLanguage::Es, "genitals") => "Genitales",
+        (AppLanguage::En, "other") => "Other",
+        (AppLanguage::Pt, "other") => "Outros",
+        (AppLanguage::Es, "other") => "Otros",
         (AppLanguage::En, "shoulders") => "Shoulders",
         (AppLanguage::Pt, "shoulders") => "Ombros",
         (AppLanguage::Es, "shoulders") => "Hombros",
@@ -960,12 +973,22 @@ fn slider_internal_candidates(package: &Package) -> Vec<(String, &'static str)> 
 
 fn slider_internal_evidence(
     package: &Package,
+    filename: &str,
     language: AppLanguage,
 ) -> Option<(String, &'static str, Option<Vec<String>>)> {
     let candidates = slider_internal_candidates(package);
     for (name, source) in &candidates {
         if let Some(destination) = slider_destination_from_internal_name(name, language) {
             return Some((name.clone(), *source, Some(destination)));
+        }
+    }
+    // Some sliders store only generic NMAP labels ("Tip Width", "Outer
+    // Curve", "Middle Width"). Combine their internal morph evidence with
+    // anatomy explicitly present in the original package filename. A
+    // filename alone must never create an authoritative slider classification.
+    if let Some((name, source)) = candidates.first() {
+        if let Some(destination) = slider_destination_from_internal_name(filename, language) {
+            return Some((format!("{name} | filename: {filename}"), *source, Some(destination)));
         }
     }
     candidates
@@ -1483,8 +1506,17 @@ fn scan_one(
                 family_primary = Some(classification);
 
                 if is_slider_family {
+                    if slider_internal_candidates(&package).is_empty() {
+                        // A morph-only package without an anatomical name is
+                        // still a slider, but its body region is unknown.
+                        destination_parts = vec![
+                            "Sliders".to_string(),
+                            slider_folder_label(language, "other").to_string(),
+                        ];
+                        destination_path = Some(destination_parts.join("\\"));
+                    }
                     if let Some((internal_name, source, refined_destination)) =
-                        slider_internal_evidence(&package, language)
+                        slider_internal_evidence(&package, &name, language)
                     {
                         detected_from.insert(source.to_string());
                         if let Some(parts) = refined_destination {
@@ -1497,8 +1529,13 @@ fn scan_one(
                                 destination_parts.join("\\")
                             ));
                         } else {
+                            destination_parts = vec![
+                                "Sliders".to_string(),
+                                slider_folder_label(language, "other").to_string(),
+                            ];
+                            destination_path = Some(destination_parts.join("\\"));
                             classification_reason = Some(format!(
-                                "{} | Internal slider name from {source} '{}' did not safely identify an anatomical region; kept at Sliders.",
+                                "{} | Internal slider name from {source} '{}' did not safely identify an anatomical region; grouped under Sliders/Other without inventing an anatomy.",
                                 classification_reason.unwrap_or_default(),
                                 internal_name
                             ));
@@ -2066,6 +2103,31 @@ mod tests {
                 "Shoulders".to_string(),
             ])
         );
+    }
+
+    #[test]
+    fn genital_sliders_use_anatomical_category_in_three_languages() {
+        assert_eq!(
+            slider_destination_from_internal_name("Penis Length", AppLanguage::En),
+            Some(vec!["Sliders".into(), "Body".into(), "Genitals".into()])
+        );
+        assert_eq!(
+            slider_destination_from_internal_name("Testicle Size", AppLanguage::Pt),
+            Some(vec!["Sliders".into(), "Corpo".into(), "Genitais".into()])
+        );
+    }
+
+    #[test]
+    fn filename_can_refine_a_generic_internal_slider_name() {
+        assert_eq!(
+            slider_destination_from_internal_name("aWT_Mouth-UpperLip-TipWidth.package", AppLanguage::En),
+            Some(vec!["Sliders".into(), "Face".into(), "Mouth & Lips".into()])
+        );
+        assert_eq!(
+            slider_destination_from_internal_name("Lavender_MiddleFaceWidth.package", AppLanguage::En),
+            Some(vec!["Sliders".into(), "Face".into()])
+        );
+        assert!(slider_destination_from_internal_name("OneEuroMuttTip Width.package", AppLanguage::En).is_none());
     }
 
     #[test]
