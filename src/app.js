@@ -2702,7 +2702,7 @@ function renderAuditPanel() {
     state.auditBusy || workspaceReadOnly();
   el.conflictsClearListBtn.disabled =
     !state.conflictsAnalysis || state.conflictsBusy || state.duplicatesBusy ||
-    state.scanning || state.reviewBusy || state.auditBusy;
+    state.scanning || state.reviewBusy || state.auditBusy || state.quarantineBusy;
 }
 
 function t(key) {
@@ -4855,6 +4855,8 @@ function invalidateAnalysesAfterStructureChange() {
   state.restorePlan = null;
   state.quarantineSelected.clear();
   state.quarantinePlan = null;
+  state.conflictQuarantineSelected.clear();
+  state.conflictQuarantinePlan = null;
   state.auditReports = { organizer: null, duplicates: null, conflicts: null };
   state.auditErrors = { organizer: "", duplicates: "", conflicts: "" };
 }
@@ -6954,8 +6956,9 @@ function openConfirm(action) {
     el.confirmMessage.textContent = `${t("confirmRemoveEmptyMessage")}\n${state.pendingEmptyFolder}`;
     el.confirmActionBtn.textContent = t("removeEmptyFolderAction");
   } else if (action === "conflict_quarantine") {
-    if (!state.conflictQuarantinePlan?.canExecute || !conflictSelectionSafe() ||
-        state.quarantineBusy || workspaceReadOnly()) {
+    if (!state.conflictQuarantinePlan?.canExecute ||
+        state.conflictQuarantinePlan.stats?.selected !== state.conflictQuarantineSelected.size ||
+        !conflictSelectionSafe() || state.quarantineBusy || workspaceReadOnly()) {
       state.pendingAction = "";
       return;
     }
@@ -7087,9 +7090,9 @@ function render() {
 
 function clearDuplicateList() {
   if (state.analysisPipelineBusy) return;
-  state.analysisStatus.duplicates = "cleared";
   if (state.scanning || state.duplicatesBusy || state.conflictsBusy ||
       state.quarantineBusy || state.auditBusy) return;
+  state.analysisStatus.duplicates = "cleared";
   closeDuplicateDetails();
   state.duplicatesAnalysis = null;
   state.duplicatesError = "";
@@ -7099,6 +7102,8 @@ function clearDuplicateList() {
   state.duplicateSelectedId = "";
   state.quarantineSelected.clear();
   state.quarantinePlan = null;
+  state.conflictQuarantineSelected.clear();
+  state.conflictQuarantinePlan = null;
   state.operations.duplicates = null;
   virtualViews.duplicates.items = null;
   el.duplicatesSearch.value = "";
@@ -7108,9 +7113,11 @@ function clearDuplicateList() {
 
 function clearConflictList() {
   if (state.analysisPipelineBusy) return;
-  state.analysisStatus.conflicts = "cleared";
   if (state.scanning || state.duplicatesBusy || state.conflictsBusy ||
-      state.reviewBusy || state.auditBusy) return;
+      state.reviewBusy || state.auditBusy || state.quarantineBusy) return;
+  state.analysisStatus.conflicts = "cleared";
+  state.conflictQuarantineSelected.clear();
+  state.conflictQuarantinePlan = null;
   closeConflictDetails();
   state.conflictsAnalysis = null;
   state.conflictsError = "";
@@ -7167,6 +7174,8 @@ function clearLoadedLibrary() {
 
   state.quarantineSelected.clear();
   state.quarantinePlan = null;
+  state.conflictQuarantineSelected.clear();
+  state.conflictQuarantinePlan = null;
   state.packagePreviews = {};
   state.packagePreviewLoading = {};
   state.packagePreviewErrors = {};
@@ -7216,6 +7225,8 @@ async function chooseFolder() {
   applyPersistentDecisionRecords([]);
   state.quarantineSelected.clear();
   state.quarantinePlan = null;
+  state.conflictQuarantineSelected.clear();
+  state.conflictQuarantinePlan = null;
   state.technicalDetails = {};
   state.technicalDetailsLoading = "";
   state.technicalDetailsErrors = {};
@@ -7611,6 +7622,8 @@ async function analyzeConflicts({ automated = false, folder = state.folder, runI
   const previousAnalysis = state.conflictsAnalysis;
   const previousSelectedId = state.conflictSelectedId;
   state.conflictsBusy = true;
+  state.conflictQuarantineSelected.clear();
+  state.conflictQuarantinePlan = null;
   state.analysisStatus.conflicts = "running";
   state.conflictsNotice = "";
   state.conflictsError = "";
