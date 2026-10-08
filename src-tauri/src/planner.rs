@@ -297,6 +297,20 @@ fn fit_destination_to_resource_cfg(
         return Ok((proposed, note));
     }
 
+    // A depth fallback used to merge folder names such as
+    // 'Scripts - Jogabilidade - Creator'. That destroys the explicitly
+    // requested hierarchy and makes re-organization inconsistent. A
+    // Resource.cfg update must be previewed and confirmed instead.
+    let is_canonical_script = parts.first().is_some_and(|part| part == "Scripts")
+        || (parts.first().is_some_and(|part| part == "Packages" || part == "Overrides")
+            && parts.get(1).is_some_and(|part| part == "Scripts"));
+    if is_canonical_script && !override_source {
+        return Err(format!(
+            "Resource.cfg does not load the Scripts > Gameplay > Creator hierarchy '{}'. Review the planned Resource.cfg update before organizing. No script was moved.",
+            proposed.join("\\")
+        ));
+    }
+
     let original = proposed.clone();
     let mut compacted = proposed;
     // Protect the loading branch itself. If Overrides/*.package is the
