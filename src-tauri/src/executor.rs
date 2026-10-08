@@ -28,6 +28,8 @@ pub struct ExecutionResult {
     pub rolled_back: usize,
     pub old_folders_removed: usize,
     pub old_folders_retained: usize,
+    pub remaining_legacy_files: usize,
+    pub remaining_legacy_examples: Vec<String>,
     pub errors: Vec<String>,
 }
 
@@ -290,6 +292,37 @@ fn cleanup_empty_directories_after_organization(
     (removed, retained, warnings)
 }
 
+// An empty-folder cleanup cannot remove folders that still contain
+// duplicates, disabled packages, images, downloads or other user data.
+// Report direct leftovers in directories from which this run moved files,
+// without following links or silently deleting unrelated content.
+fn remaining_legacy_sources(
+    root: &Path,
+    moved_pairs: &[(PathBuf, PathBuf, String, u64)],
+) -> (usize, Vec<String>) {
+    let mut folders = BTreeSet::new();
+    for (source, _, _, _) in moved_pairs {
+        if let Some(parent) = source.parent() {
+            if parent.starts_with(root) && parent != root {
+                folders.insert(parent.to_path_buf());
+            }
+        }
+    }
+    let mut remaining = BTreeSet::new();
+    for folder in folders {
+        let Ok(entries) = fs::read_dir(&folder) else { continue; };
+        for entry in entries.flatten() {
+            if entry.file_type().is_ok_and(|type_| type_.is_file()) {
+                if let Ok(relative) = entry.path().strip_prefix(root) {
+                    remaining.insert(relative.to_string_lossy().to_string());
+                }
+            }
+        }
+    }
+    let count = remaining.len();
+    (count, remaining.into_iter().take(12).collect())
+}
+
 #[tauri::command]
 pub async fn execute_organization(
     folder: String,
@@ -359,6 +392,8 @@ fn execute_organization_core(
             rolled_back: 0,
             old_folders_removed: 0,
             old_folders_retained: 0,
+            remaining_legacy_files: 0,
+            remaining_legacy_examples: Vec::new(),
             errors: Vec::new(),
         });
     }
@@ -585,6 +620,8 @@ fn execute_organization_core(
             rolled_back,
             old_folders_removed: 0,
             old_folders_retained: 0,
+            remaining_legacy_files: 0,
+            remaining_legacy_examples: Vec::new(),
             errors,
         });
     }
@@ -593,6 +630,9 @@ fn execute_organization_core(
     operation::update("organize", 0, None, "cleaning");
     let (old_folders_removed, old_folders_retained, cleanup_warnings) =
         cleanup_empty_directories_after_organization(&root, &moved_pairs);
+
+    let (remaining_legacy_files, remaining_legacy_examples) =
+        remaining_legacy_sources(&root, &moved_pairs);
 
     manifest.status = "COMPLETE".to_string();
     replace_manifest_atomic(&manifest_path, &manifest)?;
@@ -606,6 +646,8 @@ fn execute_organization_core(
         rolled_back: 0,
         old_folders_removed,
         old_folders_retained,
+        remaining_legacy_files,
+        remaining_legacy_examples,
         errors: cleanup_warnings,
     })
 }
@@ -613,6 +655,26 @@ fn execute_organization_core(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reports_leftover_sidecars_without_deleting_them() {
+        let root = std::env::temp_dir().join(format!(
+            "s3cc-legacy-remaining-{}-{}", std::process::id(),
+            Local::now().timestamp_nanos_opt().unwrap()
+        ));
+        let old = root.join("Packages").join("Legacy");
+        fs::create_dir_all(&old).unwrap();
+        fs::write(old.join("picture.png"), b"preserve").unwrap();
+        fs::write(old.join("extra.package.disabled"), b"preserve").unwrap();
+        let source = old.join("original.package");
+        let moved = vec![(source, root.join("Packages/Sliders/original.package"), String::new(), 0)];
+        let (count, examples) = remaining_legacy_sources(&root, &moved);
+        assert_eq!(count, 2);
+        assert_eq!(examples.len(), 2);
+        assert!(old.join("picture.png").exists());
+        assert!(old.join("extra.package.disabled").exists());
+        fs::remove_dir_all(&root).unwrap();
+    }
 
     #[test]
     fn removes_every_empty_subfolder_after_organization_and_preserves_nonempty_ones() {
