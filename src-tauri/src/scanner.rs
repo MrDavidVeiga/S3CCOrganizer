@@ -212,6 +212,9 @@ fn localized_special_folder(language: AppLanguage, key: &str) -> &'static str {
         (AppLanguage::En, "cooking_food") => "Cooking & Food",
         (AppLanguage::Pt, "cooking_food") => "Culinária e Comida",
         (AppLanguage::Es, "cooking_food") => "Cocina y Comida",
+        (AppLanguage::En, "services") => "Services",
+        (AppLanguage::Pt, "services") => "Serviços",
+        (AppLanguage::Es, "services") => "Servicios",
         (AppLanguage::En, "careers") => "Careers",
         (AppLanguage::Pt, "careers") => "Carreiras",
         (AppLanguage::Es, "careers") => "Carreras",
@@ -272,8 +275,13 @@ fn creator_candidate_from_filename(name: &str) -> Option<String> {
         .map(|value| value.to_string_lossy().to_string())
         .unwrap_or_else(|| name.to_string());
     let stem = strip_leading_status_tags(&stem);
+    // A standalone mod name (e.g. AnimatedWoohoo.package) is not its author.
+    // Only a token delimited from a separate title can be an author prefix.
+    if !stem.chars().any(|ch| ch == '_' || ch == '-' || ch == '.' || ch.is_whitespace()) {
+        return None;
+    }
     let candidate = stem
-        .split(|ch: char| ch == '_' || ch == '-' || ch.is_whitespace())
+        .split(|ch: char| ch == '_' || ch == '-' || ch == '.' || ch.is_whitespace())
         .next()?
         .trim();
     if !(2..=40).contains(&candidate.len())
@@ -326,7 +334,7 @@ fn verified_script_creator(package: &Package, name: &str) -> Option<String> {
 fn generic_container_folder(value: &str) -> bool {
     matches!(
         value.trim().to_ascii_lowercase().as_str(),
-        "mods" | "packages" | "downloads" | "download" | "gameplay" | "jogabilidade"
+        "#+18" | "18+" | "18" | "mods" | "packages" | "downloads" | "download" | "gameplay" | "jogabilidade"
             | "jugabilidad" | "scripts" | "objects" | "objetos" | "buy" | "compra"
             | "build" | "construção" | "construccion" | "cakes" | "cookies" | "breads"
             | "pies" | "pastries" | "cupcakes" | "ingredients" | "savory"
@@ -378,41 +386,34 @@ fn inferred_script_mod_name(name: &str, relative: &str) -> Option<String> {
     mod_name_from_relative(relative).or_else(|| mod_name_from_filename(name))
 }
 
-fn script_category(package: &Package, name: &str, language: AppLanguage) -> &'static str {
-    let resource_types = [
-        TYPE_S3SA,
-        TYPE_NMAP_LOCAL,
-        TYPE_XML_LOCAL,
-        TYPE_ITUN_LOCAL,
-        TYPE_STBL_LOCAL,
-        TYPE_MANIFEST_LOCAL,
-    ];
-
+// Match the declared subject of a mod, not arbitrary text inside an S3SA
+// assembly or its tuning data. Generic game frameworks reference cooking,
+// careers, dialogs, etc. without primarily changing those features.
+fn script_category(name: &str, language: AppLanguage) -> &'static str {
     let filename = name.to_ascii_lowercase();
-    let matches_any = |needles: &[&str]| {
-        needles.iter().any(|needle| filename.contains(needle))
-            || internal_signature(package, &resource_types, needles).is_some()
-    };
+    let named = |words: &[&str]| words.iter().any(|word| filename.contains(word));
 
-    if matches_any(&["baking", "recipe", "food", "cooking", "cake", "pastry"]) {
-        return localized_special_folder(language, "cooking_food");
-    }
-    if matches_any(&["career", "skillbasedcareer", "profession"]) {
-        return localized_special_folder(language, "careers");
-    }
-    if matches_any(&["storyprogression", "story progression"]) {
-        return localized_special_folder(language, "story_progression");
-    }
-    if matches_any(&["relationship", "romance", "woohoo"]) {
+    if named(&["relationship", "romance", "romantic", "woohoo", "dating", "conversation", "bettergreet"]) {
         return localized_special_folder(language, "relationships");
     }
-    if matches_any(&["hud", "userinterface", "user interface", "dialog", "ui mod"]) {
+    if named(&["storyprogression", "story progression"]) {
+        return localized_special_folder(language, "story_progression");
+    }
+    if named(&["baking", "recipe", "food", "cooking", "cake", "pastry", "restaurant", "bistro", "kitchen", "pasteurize", "milk mod"]) {
+        return localized_special_folder(language, "cooking_food");
+    }
+    if named(&["career", "profession"]) {
+        return localized_special_folder(language, "careers");
+    }
+    if named(&["housekeeper", "gardener_service", "maid_service", "cleaningservice", "service_npc"]) {
+        return localized_special_folder(language, "services");
+    }
+    if named(&["userinterface", "user interface", "ui mod", "hud", "dialog", "loading screen"]) {
         return localized_special_folder(language, "ui");
     }
-    if matches_any(&["utility", "utilities", "framework", "loader", "core mod"]) {
+    if named(&["utility", "utilities", "framework", "loader", "coremod", "core_mod", "smoothpatch", "monopatcher"]) {
         return localized_special_folder(language, "utilities");
     }
-
     localized_special_folder(language, "scripts")
 }
 
@@ -520,7 +521,7 @@ fn special_package_classification(
     // prefix is corroborated by the package's own internal resources.
     if type_ids.contains(&TYPE_S3SA) {
         let gameplay = localized_special_folder(language, "gameplay").to_string();
-        let category = script_category(package, name, language).to_string();
+        let category = script_category(name, language).to_string();
         let creator = verified_script_creator(package, name);
         let mod_name = inferred_script_mod_name(name, relative);
         let mut folder_parts = vec![gameplay.clone()];
@@ -1571,7 +1572,7 @@ fn scan_one(
         None
     };
     let gameplay_category = if scripted && !is_nraas && !catalog_first {
-        Some(script_category(&package, &name, language).to_string())
+        Some(script_category(&name, language).to_string())
     } else {
         None
     };
@@ -1733,6 +1734,32 @@ pub async fn scan_packages(folder: String, language: AppLanguage) -> Result<Scan
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn script_categories_require_subject_evidence_not_random_assembly_strings() {
+        let cases = [
+            ("AnimatedWoohoo.package", "Relacionamentos"),
+            ("TSS_MoreRomanticInteractions.package", "Relacionamentos"),
+            ("Gamefreak130_KarmaPowers.package", "Scripts"),
+            ("douglasveiga_HousekeeperService_v1.2.package", "Serviços"),
+            ("douglasveiga_Gardener_service_NPC_v2.3.package", "Serviços"),
+            ("Look! A living Sheep!.package", "Scripts"),
+            ("zoeoe_knitting_resources.package", "Scripts"),
+            ("simler90GameplayCoreMod-UPDATE199.package", "Utilitários"),
+            ("twinsimming_Pasteurize Milk Mod.package", "Culinária e Comida"),
+            ("TSS_KitchenTweaks_WithMikeyEdit.package", "Culinária e Comida"),
+            ("NeoH4x0rGlobalOnlineBankingMod.package", "Scripts"),
+            ("Gamefreak130_SmartphoneDating.package", "Relacionamentos"),
+        ];
+        for (name, expected) in cases {
+            assert_eq!(script_category(name, AppLanguage::Pt), expected, "{name}");
+        }
+        assert_eq!(script_category("douglasveiga_HousekeeperService_v1.2.package", AppLanguage::En), "Services");
+        assert_eq!(script_category("douglasveiga_HousekeeperService_v1.2.package", AppLanguage::Es), "Servicios");
+        assert_eq!(creator_candidate_from_filename("AnimatedWoohoo.package"), None);
+        assert_eq!(creator_candidate_from_filename("twinsimming_Pasteurize Milk Mod.package"), Some("twinsimming".to_string()));
+        assert_eq!(mod_name_from_relative(r"#+18\\AnimatedWoohoo.package"), None);
+    }
 
     #[test]
     fn real_gameplay_mods_and_functional_objects_keep_distinct_destinations() {
