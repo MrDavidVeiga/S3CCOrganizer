@@ -140,6 +140,7 @@ pub fn remove_restore_history(
     if !confirmed {
         return Err("Removing a restore record requires explicit confirmation.".to_string());
     }
+    let _transaction = crate::quarantine::transaction_guard()?;
     let root = PathBuf::from(folder.trim())
         .canonicalize()
         .map_err(|error| format!("Could not resolve restore root: {error}"))?;
