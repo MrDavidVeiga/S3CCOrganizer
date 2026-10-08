@@ -3511,6 +3511,7 @@ function renderConflictsPreview() {
 function createConflictFindingRow(finding) {
   const button = document.createElement("button");
   button.type = "button";
+  button.title = t("conflictDetailsTitle");
   button.dataset.conflictId = finding.id;
   const sessionMark = effectiveConflictMark(finding);
   button.className =
@@ -3656,6 +3657,10 @@ function renderConflicts() {
 
   const findings = visibleConflictFindings();
   if (!findings.some((item) => item.id === state.conflictSelectedId)) {
+    // After marking a pair intentional/ignored, it may disappear from the
+    // review filter. Close its modal rather than silently jumping to a
+    // different pair's details without user action.
+    closeConflictDetails();
     state.conflictSelectedId = findings[0]?.id || "";
   }
   renderConflictVirtualRows(findings);
