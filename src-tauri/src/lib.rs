@@ -21,6 +21,7 @@ pub mod restore;
 pub mod restore_history;
 pub mod review_store;
 pub mod resource_cfg;
+pub mod resource_cfg_update;
 pub mod scanner;
 pub mod sims3pack_converter;
 pub mod structure_manager;
@@ -126,7 +127,9 @@ pub fn run() {
             quarantine::recover_quarantine,
             quarantine::remove_quarantine_history,
             planner::build_organization_plan,
+            planner::build_organization_plan_with_cfg,
             executor::execute_organization,
+            executor::execute_organization_with_cfg,
             restore::preview_restore,
             restore::execute_restore
         ])

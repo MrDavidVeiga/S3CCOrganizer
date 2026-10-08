@@ -3,6 +3,7 @@ use crate::{
     cache::load_cache,
     manifest::sha256_file,
     resource_cfg::{find_resource_cfg, package_priority, parse_resource_cfg, ResourceCfgInfo},
+    resource_cfg_update::{preview_resource_cfg_update, ResourceCfgUpdate},
     scanner::{cached_scan_for, scan_packages_core, ScanPackageItem},
     workspace::{
         active_profile, is_protected, load_workspace_for_root, matching_rule,
@@ -349,6 +350,7 @@ pub struct OrganizationPlan {
     pub stats: PlanStats,
     pub directories_to_create: Vec<String>,
     pub manifest_preview: String,
+    pub resource_cfg_update: Option<ResourceCfgUpdate>,
     pub can_execute: bool,
 }
 
@@ -824,6 +826,16 @@ pub fn build_organization_plan(
     language: AppLanguage,
     selected_paths: Vec<String>,
 ) -> Result<OrganizationPlan, String> {
+    build_organization_plan_with_cfg(folder, language, selected_paths, false)
+}
+
+#[tauri::command]
+pub fn build_organization_plan_with_cfg(
+    folder: String,
+    language: AppLanguage,
+    selected_paths: Vec<String>,
+    update_resource_cfg: bool,
+) -> Result<OrganizationPlan, String> {
     if selected_paths.is_empty() {
         return Err("No packages were selected.".to_string());
     }
@@ -1100,13 +1112,22 @@ pub fn build_organization_plan(
             .file_name()
             .ok_or_else(|| format!("Source has no filename: {}", source.display()))?;
 
-        match fit_destination_to_resource_cfg(
-            &root,
-            &source_canonical,
-            file_name,
-            &destination_parts,
-            resource_cfg.as_ref(),
-        ) {
+        // Updating Resource.cfg is explicitly opt-in. With consent, preserve
+        // the full category tree rather than compacting it to existing depth.
+        let cfg_opt_in = update_resource_cfg
+            && (is_mods_root(&root) || is_within_packages(&root) || is_within_overrides(&root));
+        let cfg_fit = if cfg_opt_in {
+            Ok((ensure_source_loading_branch(&root, &source_canonical, &destination_parts), None))
+        } else {
+            fit_destination_to_resource_cfg(
+                &root,
+                &source_canonical,
+                file_name,
+                &destination_parts,
+                resource_cfg.as_ref(),
+            )
+        };
+        match cfg_fit {
             Ok((fitted, note)) => {
                 destination_parts = fitted;
                 if let Some(note) = note {
@@ -1332,11 +1353,27 @@ pub fn build_organization_plan(
     stats.directories_to_create = directories.len();
 
     let can_execute = plan_can_execute(&stats, workspace.read_only);
+    let cfg_opt_in = update_resource_cfg
+        && (is_mods_root(&root) || is_within_packages(&root) || is_within_overrides(&root));
+    let resource_cfg_update = if cfg_opt_in {
+        // Include both new destinations and existing packages in the scanned
+        // branch. Partial organization must not cause old CC to stop loading.
+        let mut paths = ready_items.iter()
+            .filter_map(|item| item.destination_path.as_ref().map(PathBuf::from))
+            .collect::<Vec<_>>();
+        paths.extend(scan.items.iter().map(|item| PathBuf::from(&item.path)).filter(|path| {
+            root.ancestors().find(|parent| is_mods_root(parent)).is_some_and(|mods| {
+                path.starts_with(mods.join("Packages")) || path.starts_with(mods.join("Overrides"))
+            })
+        }));
+        preview_resource_cfg_update(&root, &paths)?
+    } else { None };
 
     Ok(OrganizationPlan {
         root: root.to_string_lossy().to_string(),
         manifest_preview: manifest_preview(&root, language, &ready_items),
         directories_to_create: directories.into_iter().collect(),
+        resource_cfg_update,
         stats,
         items,
         can_execute,

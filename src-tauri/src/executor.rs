@@ -4,7 +4,9 @@ use crate::{
     manifest::{
         replace_manifest_atomic, sha256_file, write_manifest_atomic, RestoreEntry, RestoreManifest,
     },
-    planner::{build_organization_plan, PlanItem},
+    planner::{build_organization_plan_with_cfg, PlanItem},
+    resource_cfg::{parse_resource_cfg, package_priority},
+    resource_cfg_update::{apply_resource_cfg_update, rollback_resource_cfg_update},
 };
 use chrono::{Local, SecondsFormat};
 use serde::Serialize;
@@ -243,7 +245,19 @@ pub fn execute_organization(
     language: AppLanguage,
     selected_paths: Vec<String>,
 ) -> Result<ExecutionResult, String> {
-    let plan = build_organization_plan(folder, language, selected_paths)?;
+    execute_organization_with_cfg(folder, language, selected_paths, false, None, Vec::new())
+}
+
+#[tauri::command]
+pub fn execute_organization_with_cfg(
+    folder: String,
+    language: AppLanguage,
+    selected_paths: Vec<String>,
+    update_resource_cfg: bool,
+    expected_cfg_hash: Option<String>,
+    expected_cfg_rules: Vec<String>,
+) -> Result<ExecutionResult, String> {
+    let plan = build_organization_plan_with_cfg(folder, language, selected_paths, update_resource_cfg)?;
 
     // Only explicitly ready items will be moved. Keep every blocked item,
     // duplicate and conflicting destination in place for later manual review.
@@ -274,7 +288,35 @@ pub fn execute_organization(
         snapshot,
         &plan.directories_to_create,
     );
+    // Persist recovery information before touching Resource.cfg or CC files.
     write_manifest_atomic(&manifest_path, &manifest)?;
+
+    let mut applied_cfg = None;
+    if update_resource_cfg {
+        let change = plan.resource_cfg_update.as_ref()
+            .ok_or("Resource.cfg opt-in requires a valid Mods root.")?;
+        if expected_cfg_hash.as_deref() != Some(change.original_hash.as_str())
+            || expected_cfg_rules != change.added_rules {
+            return Err("Resource.cfg preview is stale; review the new plan before executing.".into());
+        }
+        applied_cfg = apply_resource_cfg_update(change)?;
+        // Recheck the real installed file before touching any packages.
+        let cfg_path = PathBuf::from(&change.path);
+        if cfg_path.is_file() {
+            let parsed = parse_resource_cfg(&cfg_path)?;
+            let cfg_dir = cfg_path.parent().ok_or("Resource.cfg parent missing")?;
+            let uncovered = ready.iter().filter(|item| {
+                item.destination_path.as_ref()
+                    .is_none_or(|path| package_priority(&parsed, cfg_dir, Path::new(path)).is_none())
+            }).count();
+            if uncovered != 0 {
+                if let Some(applied) = applied_cfg.take() {
+                    rollback_resource_cfg_update(applied)?;
+                }
+                return Err(format!("Updated Resource.cfg still misses {uncovered} planned packages; no packages were moved."));
+            }
+        }
+    }
 
     let mut moved_pairs: Vec<(PathBuf, PathBuf, String, u64)> = Vec::new();
     let mut errors = Vec::new();
@@ -393,6 +435,15 @@ pub fn execute_organization(
             rollback_errors.push(error);
         }
 
+        if rollback_errors.is_empty() {
+            if let Some(applied) = applied_cfg.take() {
+                if let Err(error) = rollback_resource_cfg_update(applied) {
+                    rollback_errors.push(error);
+                    manifest.status = "ROLLBACK_INCOMPLETE".to_string();
+                    let _ = replace_manifest_atomic(&manifest_path, &manifest);
+                }
+            }
+        }
         errors.extend(rollback_errors);
 
         return Ok(ExecutionResult {

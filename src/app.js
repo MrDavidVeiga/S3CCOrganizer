@@ -60,7 +60,11 @@ const I18N = {
     selectAllVisible: "Select All",
     selectNoneVisible: "Select None",
     selected: "Selected",
-    organizationPlan: "Organization Plan",
+    resourceCfgUpdateLabel: "Extend Resource.cfg for organized subfolders (backup required)",
+  resourceCfgNewRules: "rules to add",
+  resourceCfgNoUpdate: "No Resource.cfg changes in this plan.",
+  resourceCfgConfirm: "Resource.cfg will be backed up and updated:",
+  organizationPlan: "Organization Plan",
     simulationOnly: "Preflight preview. Nothing moves until you choose Organize Selected.",
     readyToMove: "Ready",
     collisions: "Collisions",
@@ -570,7 +574,11 @@ const I18N = {
     selectAllVisible: "Selecionar Tudo",
     selectNoneVisible: "Selecionar Nenhum",
     selected: "Selecionados",
-    organizationPlan: "Plano de Organização",
+    resourceCfgUpdateLabel: "Ampliar Resource.cfg para ler subpastas organizadas (com backup)",
+  resourceCfgNewRules: "regras a adicionar",
+  resourceCfgNoUpdate: "Este plano não altera o Resource.cfg.",
+  resourceCfgConfirm: "O Resource.cfg será copiado e atualizado:",
+  organizationPlan: "Plano de Organização",
     simulationOnly: "Preview de segurança. Nada será movido até escolher Organizar Selecionados.",
     readyToMove: "Prontos",
     collisions: "Colisões",
@@ -1079,7 +1087,11 @@ const I18N = {
     selectAllVisible: "Seleccionar Todo",
     selectNoneVisible: "Seleccionar Ninguno",
     selected: "Seleccionados",
-    organizationPlan: "Plan de Organización",
+    resourceCfgUpdateLabel: "Ampliar Resource.cfg para leer subcarpetas organizadas (con copia)",
+  resourceCfgNewRules: "reglas por añadir",
+  resourceCfgNoUpdate: "Este plan no modifica Resource.cfg.",
+  resourceCfgConfirm: "Se guardará una copia de Resource.cfg y se actualizará:",
+  organizationPlan: "Plan de Organización",
     simulationOnly: "Vista previa de seguridad. Nada se moverá hasta elegir Organizar Seleccionados.",
     readyToMove: "Listos",
     collisions: "Colisiones",
@@ -1571,6 +1583,7 @@ const state = {
   planError: "",
   notice: "",
   plan: null,
+  updateResourceCfg: false,
   organizationReview: null,
   organizationCollisionItems: [],
   restoreManifest: "",
@@ -1810,6 +1823,8 @@ const el = {
   planCloseFooterBtn: document.querySelector("#plan-close-footer-btn"),
   planExecuteBtn: document.querySelector("#plan-execute-btn"),
   planPartialNotice: document.querySelector("#plan-partial-notice"),
+  planCfgCheckbox: document.querySelector("#plan-cfg-checkbox"),
+  planCfgSummary: document.querySelector("#plan-cfg-summary"),
   planItems: document.querySelector("#plan-items"),
   planDirectories: document.querySelector("#plan-directories"),
   planTree: document.querySelector("#plan-tree"),
@@ -6794,6 +6809,10 @@ function renderPlan() {
   el.planStatBlocked.textContent = stats.blocked ?? 0;
   el.planStatFolders.textContent = stats.directoriesToCreate ?? 0;
   el.planExecuteBtn.disabled = !planCanExecute(plan) || state.executing;
+  const cfg = plan.resourceCfgUpdate;
+  el.planCfgCheckbox.checked = state.updateResourceCfg;
+  el.planCfgCheckbox.disabled = state.planning || state.executing;
+  el.planCfgSummary.textContent = cfg ? `${cfg.path}\n${cfg.addedRules.length} ${t("resourceCfgNewRules")}\n${cfg.addedRules.join("\n")}` : t("resourceCfgNoUpdate");
   if (el.planPartialNotice) {
     const excluded = Number(stats.blocked || 0);
     el.planPartialNotice.textContent = excluded && Number(stats.ready || 0)
@@ -7062,6 +7081,7 @@ function openConfirm(action) {
           .replace("{ready}", String(readyCount))
           .replace("{blocked}", String(blockedCount))}`
       : t("confirmOrganizeMessage");
+    if (state.updateResourceCfg && state.plan?.resourceCfgUpdate) el.confirmMessage.textContent += `\n\n${t("resourceCfgConfirm")}\n${state.plan.resourceCfgUpdate.path}\n${state.plan.resourceCfgUpdate.addedRules.join("\n")}`;
     el.confirmActionBtn.textContent = t("organizeSelected");
   } else if (action === "clear_cache") {
     el.confirmTitle.textContent = t("confirmClearCacheTitle");
@@ -7519,10 +7539,11 @@ async function buildPlan() {
   render();
 
   try {
-    state.plan = await invoke("build_organization_plan", {
+    state.plan = await invoke("build_organization_plan_with_cfg", {
       folder: state.folder,
       language: state.language,
       selectedPaths: [...state.selectedForPlan],
+      updateResourceCfg: state.updateResourceCfg,
     });
   } catch (error) {
     state.plan = null;
@@ -7553,10 +7574,13 @@ async function executeOrganization() {
   render();
 
   try {
-    const result = await invoke("execute_organization", {
+    const result = await invoke("execute_organization_with_cfg", {
       folder: state.folder,
       language: state.language,
       selectedPaths: [...state.selectedForPlan],
+      updateResourceCfg: state.updateResourceCfg,
+      expectedCfgHash: completedPlan.resourceCfgUpdate?.originalHash ?? null,
+      expectedCfgRules: completedPlan.resourceCfgUpdate?.addedRules ?? [],
     });
 
     if (result.status === "COMPLETE" || result.status === "NO_CHANGES") {
@@ -8003,6 +8027,12 @@ el.conflictsList.addEventListener("scroll", scheduleConflictVirtualRows, { passi
 el.planCloseBtn.addEventListener("click", closePlanModal);
 el.planCloseFooterBtn.addEventListener("click", closePlanModal);
 el.planExecuteBtn.addEventListener("click", () => openConfirm("organize"));
+el.planCfgCheckbox.addEventListener("change", async event => {
+  state.updateResourceCfg = event.currentTarget.checked;
+  state.plan = null;
+  el.planModal.__renderedPlan = null;
+  await buildPlan();
+});
 el.reviewDuplicatesBtn.addEventListener("click", async () => {
   state.tab = "duplicates";
   persistPreferences();
