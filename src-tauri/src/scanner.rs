@@ -736,6 +736,59 @@ fn token_contains(normalized: &str, value: &str) -> bool {
         .any(|token| token.contains(value))
 }
 
+// GEOM/VPXY clothing morph replacements often lack CASP. When their NMAP
+// gives a stable `afTop...` or `afBottom...` mesh identifier, the internal
+// resource itself confirms the category, gender and adult mesh family.
+// Names of .package files are not used for this inference.
+fn clothing_mesh_subtype(names: &[String]) -> Option<&'static str> {
+    let mut kinds = BTreeSet::new();
+    for name in names {
+        let lower = name.to_ascii_lowercase();
+        if lower.starts_with("aftop") {
+            kinds.insert("top");
+        } else if lower.starts_with("afbottom") {
+            kinds.insert("bottom");
+        }
+    }
+    (kinds.len() == 1).then(|| *kinds.iter().next().unwrap())
+}
+
+fn geometry_clothing_from_nmap(
+    package: &Package,
+    types: &BTreeSet<u32>,
+    language: AppLanguage,
+) -> Option<PackageFamilyClassification> {
+    if !types.contains(&0x015A_1849) || !types.contains(&0x7368_84F1)
+        || types.contains(&TYPE_S3SA) || types.contains(&TYPE_CASP)
+    {
+        return None;
+    }
+    let names = package.entries.iter()
+        .filter(|entry| entry.type_id == TYPE_NMAP_LOCAL)
+        .filter_map(|entry| package.data(entry).ok())
+        .flat_map(|data| nmap_names(&data))
+        .collect::<Vec<_>>();
+    let subtype = clothing_mesh_subtype(&names)?;
+    let label = if subtype == "top" { language.top() } else { language.bottom() };
+    let parts = vec![
+        language.clothing().to_string(),
+        language.female().to_string(),
+        language.young_adult_adult().to_string(),
+        label.to_string(),
+    ];
+    Some(PackageFamilyClassification {
+        main_category: language.clothing().to_string(),
+        sub_category: Some(label.to_string()),
+        folder_parts: parts.clone(),
+        detected_from: vec!["GEOM".to_string(), "VPXY".to_string(), "NMAP".to_string()],
+        technical_reason: format!(
+            "GEOM+VPXY female adult mesh with internal NMAP af{} => {}. No CASP; review before organizing.",
+            if subtype == "top" { "Top" } else { "Bottom" },
+            parts.join("\\"),
+        ),
+    })
+}
+
 fn slider_region_keys(internal_name: &str) -> Option<(&'static str, Option<&'static str>)> {
     let name = normalize_slider_internal_name(internal_name);
 
@@ -1493,7 +1546,10 @@ fn scan_one(
     let mut family_primary: Option<PackageFamilyClassification> = if catalog_first { None } else { special_primary };
 
     if status == "unknown" && catalog_resource_count == 0 {
-        match classify_package_family(&type_ids, language) {
+        let family_result = geometry_clothing_from_nmap(&package, &type_ids, language)
+            .map(PackageFamilyResult::Classified)
+            .unwrap_or_else(|| classify_package_family(&type_ids, language));
+        match family_result {
             PackageFamilyResult::Classified(classification) => {
                 for source in &classification.detected_from {
                     detected_from.insert(source.clone());
@@ -2102,6 +2158,25 @@ mod tests {
                 "Body".to_string(),
                 "Shoulders".to_string(),
             ])
+        );
+    }
+
+    #[test]
+    fn pregnancy_clothing_nmap_has_internal_gender_and_subtype_evidence() {
+        let names = vec![
+            "afBottomNude_special_lod3".to_string(),
+            "afBottomNude_special_lod2".to_string(),
+        ];
+        assert_eq!(clothing_mesh_subtype(&names), Some("bottom"));
+        assert_eq!(
+            clothing_mesh_subtype(&["afTopNude_special".to_string()]), Some("top")
+        );
+        assert_eq!(
+            clothing_mesh_subtype(&["Tip Width".to_string()]), None
+        );
+        assert_eq!(
+            clothing_mesh_subtype(&["afTopNude".to_string(), "afBottomJeans".to_string()]),
+            None
         );
     }
 
