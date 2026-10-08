@@ -3069,6 +3069,7 @@ async function buildQuarantinePreview() {
   state.quarantineBusy = true;
   state.quarantinePlan = null;
   renderDuplicatesPreview();
+  renderDuplicateBatchControls();
   try {
     const command = state.quarantineExactBatch
       ? "build_exact_duplicate_quarantine_plan" : "build_quarantine_plan";
@@ -3313,6 +3314,7 @@ function renderDuplicatesPreview() {
         const checkbox = document.createElement("input");
         checkbox.type = "checkbox";
         checkbox.checked = state.quarantineSelected.has(member.path);
+        checkbox.disabled = state.quarantineBusy || state.analysisPipelineBusy || workspaceReadOnly();
         checkbox.title = t("selectForQuarantine");
         checkbox.addEventListener("change", () => {
           if (checkbox.checked) {
@@ -3326,6 +3328,7 @@ function renderDuplicatesPreview() {
           }
           state.quarantinePlan = null;
           renderDuplicatesPreview();
+          renderDuplicateBatchControls();
         });
         selector.appendChild(checkbox);
         card.appendChild(selector);
@@ -3356,6 +3359,7 @@ function renderDuplicatesPreview() {
         state.quarantinePlan = null;
         state.quarantineExactBatch = false;
         renderDuplicatesPreview();
+        renderDuplicateBatchControls();
       });
       const summary = document.createElement("span");
       summary.className = "analysis-batch-summary";
