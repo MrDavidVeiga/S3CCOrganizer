@@ -78,6 +78,21 @@ fn transaction_guard() -> Result<std::sync::MutexGuard<'static, ()>, String> {
 }
 
 fn workspace_base(root: &Path) -> PathBuf {
+    // Preserve the historical Mods/S3CC Organizer workspace for packages
+    // selected at any depth inside a game-loading branch. Never place the
+    // quarantined package in a directory that Resource.cfg may still load.
+    if let Some(branch) = root.ancestors().find(|ancestor| {
+        ancestor.file_name().is_some_and(|name| {
+            name.to_string_lossy().eq_ignore_ascii_case("Packages")
+                || name.to_string_lossy().eq_ignore_ascii_case("Overrides")
+        }) && ancestor.parent().is_some_and(|parent| {
+            parent.file_name().is_some_and(|name| {
+                name.to_string_lossy().eq_ignore_ascii_case("Mods")
+            })
+        })
+    }) {
+        return branch.parent().unwrap().join("S3CC Organizer");
+    }
     root.parent().unwrap_or(root).join("S3CC Organizer")
 }
 
@@ -808,6 +823,18 @@ pub fn remove_quarantine_history(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn nested_package_and_override_quarantine_remain_outside_loading_branches() {
+        let mods = Path::new("Game").join("Mods");
+        let packages = mods.join("Packages").join("CAS").join("Clothing");
+        let overrides = mods.join("Overrides").join("Gameplay");
+        let expected = mods.join("S3CC Organizer");
+        assert_eq!(workspace_base(&packages), expected);
+        assert_eq!(workspace_base(&overrides), expected);
+        assert_eq!(workspace_base(&mods.join("Packages")), expected);
+        assert_eq!(workspace_base(&mods), Path::new("Game").join("S3CC Organizer"));
+    }
 
     #[test]
     fn normalize_legacy_windows_paths_and_reject_traversal() {
