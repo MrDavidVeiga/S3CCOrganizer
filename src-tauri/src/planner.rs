@@ -53,14 +53,21 @@ struct ResourceCfgContext {
     directory: PathBuf,
 }
 
-fn resource_cfg_context(root: &Path) -> Option<ResourceCfgContext> {
-    let path = find_resource_cfg(root)?;
-    let info = parse_resource_cfg(&path).ok()?;
+fn resource_cfg_context(root: &Path) -> Result<Option<ResourceCfgContext>, String> {
+    let Some(path) = find_resource_cfg(root) else { return Ok(None); };
+    let info = parse_resource_cfg(&path)?;
+    // Returning None here used to bypass destination validation entirely.
+    // Refuse automatic moves if the loader configuration cannot be modelled.
     if !info.precedence_reliable || info.rules.is_empty() {
-        return None;
+        return Err(format!(
+            "Resource.cfg contains unsupported traversal, or no usable PackedFile rules: {}. Automatic organization is blocked until the loading rules can be verified.",
+            path.display()
+        ));
     }
-    let directory = path.parent()?.to_path_buf();
-    Some(ResourceCfgContext { info, directory })
+    let directory = path.parent()
+        .ok_or_else(|| format!("Resource.cfg has no parent directory: {}", path.display()))?
+        .to_path_buf();
+    Ok(Some(ResourceCfgContext { info, directory }))
 }
 
 fn destination_path(root: &Path, parts: &[String], file_name: &std::ffi::OsStr) -> PathBuf {
@@ -514,7 +521,7 @@ pub fn build_organization_plan(
 
     let workspace = load_workspace_for_root(&root);
     let profile = active_profile(&workspace);
-    let resource_cfg = resource_cfg_context(&root);
+    let resource_cfg = resource_cfg_context(&root)?;
     let scan = match cached_scan_for(&root, language) {
         Some(scan) => scan,
         None => scan_packages_core(root.to_string_lossy().to_string(), language, None)?,
