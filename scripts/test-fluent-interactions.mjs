@@ -67,13 +67,35 @@ assert(gamma,"visible option must be rendered");
 gamma.click();
 assert.equal(select.value,"c","pointer option selection must work");
 assert.equal(changes,2);
+
+// A CLOSED WinUI ComboBox changes selection immediately with arrow keys.
+// It must not expand the popup or bypass the original native change event.
+send(trigger,"ArrowUp");
+assert.equal(select.value,"b","closed ArrowUp selects the previous entry");
+assert.equal(popup.hidden,true,"closed arrows do not expand ComboBox");
+assert.equal(changes,3);
+send(trigger,"ArrowDown");
+assert.equal(select.value,"c","closed ArrowDown selects the next entry");
+assert.equal(popup.hidden,true);
+assert.equal(changes,4);
+
+// Pointer hover updates visible highlight without replacing the hovered node.
+trigger.click();
+const betaOption=[...popup.querySelectorAll('[role="option"]')].find(e=>e.textContent.includes("Beta"));
+assert(betaOption);
+betaOption.dispatchEvent(new window.Event("pointerenter"));
+assert.equal(betaOption.classList.contains("active"),true,"pointer hover must visibly highlight option");
+assert.equal(trigger.getAttribute("aria-activedescendant"),betaOption.id);
+assert.equal(popup.querySelectorAll('.fluent-combobox-option.active').length,1);
+send(trigger,"Escape");
+assert.equal(popup.hidden,true);
 const delta=document.createElement("option");delta.value="d";delta.textContent="Delta";select.append(delta);
 await flush();
 trigger.click();
 send(trigger,"d");
 send(trigger,"Enter");
 assert.equal(select.value,"d","dynamic option changes must be available");
-assert.equal(changes,3);
+assert.equal(changes,5);
 
 const big=document.getElementById("big-select");
 big.value="v900";
@@ -82,6 +104,12 @@ bigTrigger.click();
 assert(popup.querySelectorAll('[role="option"]').length<80,"long option lists must be virtualized");
 send(bigTrigger,"End");
 send(bigTrigger,"Enter");
+assert.equal(big.value,"v1199");
+assert.equal(popup.hidden,true);
+send(bigTrigger,"ArrowUp");
+assert.equal(big.value,"v1198","virtual list closed arrows select immediately");
+assert.equal(popup.hidden,true);
+send(bigTrigger,"ArrowDown");
 assert.equal(big.value,"v1199");
 assert.equal(popup.hidden,true);
 
@@ -127,5 +155,22 @@ assert.equal(window.activeFluentDialogId(),null);
 assert.equal(document.querySelector(".app-shell").inert,false);
 assert.equal(document.activeElement,launcher,"closing parent dialog restores launcher focus");
 
-console.log("Fluent interaction tests: PASS (ComboBox, virtualization, menus, nested dialogs, focus)");
+// Guard against regressing EA App to coral; also ensure list row sizes do
+// not drift away from the virtualization stride in app.js.
+const themeSource=read("src/theme.js");
+const tokensSource=read("src/ui/fluent/tokens.css");
+const swatchSource=read("src/winui.css");
+const collectionStyles=read("src/ui/fluent/collections.css");
+const comboStyles=read("src/ui/fluent/combobox.css");
+const htmlSource=read("index.html");
+assert.match(themeSource, /EA_APP_ACCENT = "#276AFC"/);
+assert.match(themeSource, /light1: "#3978FC"/);
+assert.match(themeSource, /dark1: "#215BD8"/);
+assert.match(swatchSource, /\.ea-app-swatch[^]*?#276AFC/);
+assert.match(tokensSource, /html\[data-theme-choice="ea-app"\][^]*?--fluent-accent-foreground: #ffffff/);
+assert.match(comboStyles, /\.fluent-combobox-option:hover:not\(\.disabled\)/);
+assert.match(collectionStyles, /height: 53px/);
+assert.match(collectionStyles, /height: 56px/);
+assert.match(htmlSource, /src\/ui\/fluent\/collections\.css/);
+console.log("Fluent interaction tests: PASS (closed-arrow selection, pointer hover, EA App blue, aligned rows, virtualization, menus, nested dialogs, focus)");
 dom.window.close();
