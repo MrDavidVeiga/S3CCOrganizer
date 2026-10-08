@@ -212,6 +212,9 @@ fn localized_special_folder(language: AppLanguage, key: &str) -> &'static str {
         (AppLanguage::En, "cooking_food") => "Cooking & Food",
         (AppLanguage::Pt, "cooking_food") => "Culinária e Comida",
         (AppLanguage::Es, "cooking_food") => "Cocina y Comida",
+        (AppLanguage::En, "services") => "Services",
+        (AppLanguage::Pt, "services") => "Serviços",
+        (AppLanguage::Es, "services") => "Servicios",
         (AppLanguage::En, "careers") => "Careers",
         (AppLanguage::Pt, "careers") => "Carreiras",
         (AppLanguage::Es, "careers") => "Carreras",
@@ -272,8 +275,15 @@ fn creator_candidate_from_filename(name: &str) -> Option<String> {
         .map(|value| value.to_string_lossy().to_string())
         .unwrap_or_else(|| name.to_string());
     let stem = strip_leading_status_tags(&stem);
+    // A standalone mod name (e.g. AnimatedWoohoo.package) is not its author.
+    // Only a token delimited from a separate title can be an author prefix.
+    // Natural-language filenames ("Al Fresco Street Market", "Retro Workout")
+    // do not contain an author prefix just because their title has spaces.
+    if !stem.chars().any(|ch| ch == '_' || ch == '-' || ch == '.') {
+        return None;
+    }
     let candidate = stem
-        .split(|ch: char| ch == '_' || ch == '-' || ch.is_whitespace())
+        .split(|ch: char| ch == '_' || ch == '-' || ch == '.')
         .next()?
         .trim();
     if !(2..=40).contains(&candidate.len())
@@ -284,7 +294,7 @@ fn creator_candidate_from_filename(name: &str) -> Option<String> {
     let lower = candidate.to_ascii_lowercase();
     if matches!(
         lower.as_str(),
-        "mod" | "mods" | "script" | "scripts" | "package" | "update" | "updated"
+        "al" | "mod" | "mods" | "script" | "scripts" | "package" | "update" | "updated"
             | "new" | "fix" | "override" | "ts3" | "sims3" | "the"
     ) {
         return None;
@@ -323,10 +333,30 @@ fn verified_script_creator(package: &Package, name: &str) -> Option<String> {
     Some(pretty_creator_label(&candidate))
 }
 
+// A standalone assembly name is not a creator. Match the complete package
+// stem against embedded identifiers to recover primary gameplay assemblies
+// that also include unrelated CASP/OBJD resources.
+fn verified_standalone_script_identity(package: &Package, name: &str) -> bool {
+    if creator_candidate_from_filename(name).is_some() {
+        return false;
+    }
+    let Some(stem) = Path::new(name).file_stem() else { return false };
+    let stem = strip_leading_status_tags(&stem.to_string_lossy());
+    let stem = stem.trim();
+    if !(8..=80).contains(&stem.len()) || !stem.chars().any(|ch| ch.is_ascii_alphabetic()) {
+        return false;
+    }
+    internal_signature(
+        package,
+        &[TYPE_S3SA, TYPE_NMAP_LOCAL, TYPE_XML_LOCAL, TYPE_ITUN_LOCAL, TYPE_STBL_LOCAL, TYPE_MANIFEST_LOCAL],
+        &[stem],
+    ).is_some()
+}
+
 fn generic_container_folder(value: &str) -> bool {
     matches!(
         value.trim().to_ascii_lowercase().as_str(),
-        "mods" | "packages" | "downloads" | "download" | "gameplay" | "jogabilidade"
+        "#+18" | "18+" | "18" | "mods" | "packages" | "downloads" | "download" | "gameplay" | "jogabilidade"
             | "jugabilidad" | "scripts" | "objects" | "objetos" | "buy" | "compra"
             | "build" | "construção" | "construccion" | "cakes" | "cookies" | "breads"
             | "pies" | "pastries" | "cupcakes" | "ingredients" | "savory"
@@ -378,42 +408,110 @@ fn inferred_script_mod_name(name: &str, relative: &str) -> Option<String> {
     mod_name_from_relative(relative).or_else(|| mod_name_from_filename(name))
 }
 
-fn script_category(package: &Package, name: &str, language: AppLanguage) -> &'static str {
-    let resource_types = [
-        TYPE_S3SA,
-        TYPE_NMAP_LOCAL,
-        TYPE_XML_LOCAL,
-        TYPE_ITUN_LOCAL,
-        TYPE_STBL_LOCAL,
-        TYPE_MANIFEST_LOCAL,
-    ];
-
+// Match the declared subject of a mod, not arbitrary text inside an S3SA
+// assembly or its tuning data. Generic game frameworks reference cooking,
+// careers, dialogs, etc. without primarily changing those features.
+fn script_category(name: &str, language: AppLanguage) -> &'static str {
     let filename = name.to_ascii_lowercase();
-    let matches_any = |needles: &[&str]| {
-        needles.iter().any(|needle| filename.contains(needle))
-            || internal_signature(package, &resource_types, needles).is_some()
-    };
+    let named = |words: &[&str]| words.iter().any(|word| filename.contains(word));
 
-    if matches_any(&["baking", "recipe", "food", "cooking", "cake", "pastry"]) {
-        return localized_special_folder(language, "cooking_food");
-    }
-    if matches_any(&["career", "skillbasedcareer", "profession"]) {
-        return localized_special_folder(language, "careers");
-    }
-    if matches_any(&["storyprogression", "story progression"]) {
-        return localized_special_folder(language, "story_progression");
-    }
-    if matches_any(&["relationship", "romance", "woohoo"]) {
+    if named(&["relationship", "romance", "romantic", "woohoo", "dating", "conversation", "bettergreet"]) {
         return localized_special_folder(language, "relationships");
     }
-    if matches_any(&["hud", "userinterface", "user interface", "dialog", "ui mod"]) {
+    if named(&["storyprogression", "story progression"]) {
+        return localized_special_folder(language, "story_progression");
+    }
+    if named(&["baking", "recipe", "food", "cooking", "cake", "pastry", "restaurant", "bistro", "kitchen", "pasteurize", "milk mod"]) {
+        return localized_special_folder(language, "cooking_food");
+    }
+    if named(&["career", "profession"]) {
+        return localized_special_folder(language, "careers");
+    }
+    if named(&["housekeeper", "gardener_service", "maid_service", "cleaningservice", "service_npc"]) {
+        return localized_special_folder(language, "services");
+    }
+    if named(&["userinterface", "user interface", "ui mod", "hud", "dialog", "loading screen"]) {
         return localized_special_folder(language, "ui");
     }
-    if matches_any(&["utility", "utilities", "framework", "loader", "core mod"]) {
+    if named(&["utility", "utilities", "framework", "loader", "coremod", "core_mod", "smoothpatch", "monopatcher"]) {
         return localized_special_folder(language, "utilities");
     }
-
     localized_special_folder(language, "scripts")
+}
+
+// A script assembly in an object does not by itself make a standalone gameplay
+// mod. Conversely, actual gameplay mods may bundle CASP/OBJD resources. A
+// verified internal author or an explicitly scripted source tree is independent
+// evidence that the assembly is primary rather than embedded object behavior.
+fn script_source_roles(relative: &str) -> (bool, bool, bool) {
+    let mut gameplay = false;
+    let mut scripts = false;
+    let mut catalog_root = false;
+    let mut first = true;
+    for part in relative.split(['\\', '/']) {
+        let normalized = part.trim().to_ascii_lowercase();
+        if normalized.ends_with(".package") {
+            break;
+        }
+        if first {
+            catalog_root = matches!(normalized.as_str(), "buy" | "build" | "cas" | "objects");
+            first = false;
+        }
+        if normalized == "gameplay" {
+            gameplay = true;
+        }
+        if matches!(normalized.as_str(), "scripts" | "#8 scripts") {
+            scripts = true;
+        }
+    }
+    (gameplay, scripts, catalog_root)
+}
+
+// Choose catalog classification for a functional object with an embedded S3SA,
+// but preserve independent gameplay mods even when they package supporting
+// CASP/OBJD records. Store sets are bundles, not individual gameplay mods.
+fn catalog_precedes_embedded_script(
+    special: Option<&PackageFamilyClassification>,
+    catalog_resource_count: usize,
+    relative: &str,
+    catalog_destinations: usize,
+    catalog_ambiguous: bool,
+) -> bool {
+    if catalog_resource_count == 0 {
+        return false;
+    }
+    let Some(classification) = special else { return false };
+    if !classification.detected_from.iter().any(|source| source == "S3SA")
+        || classification.detected_from.iter().any(|source| source == "NRaasInternal")
+    {
+        return false;
+    }
+    if store_name_hint(relative) {
+        return true;
+    }
+
+    let (gameplay_folder, scripts_folder, catalog_root) = script_source_roles(relative);
+    if gameplay_folder && !catalog_root {
+        return false;
+    }
+    if catalog_root {
+        return true;
+    }
+    // A single unambiguous OBJD/CASP destination is authoritative even when
+    // an author name appears inside an object's script metadata.
+    if catalog_destinations == 1 && !catalog_ambiguous {
+        return true;
+    }
+    if scripts_folder {
+        return false;
+    }
+    if classification.detected_from.iter().any(|source| {
+        source == "InternalCreator" || source == "InternalScriptIdentity"
+    }) && (catalog_destinations != 1 || catalog_ambiguous)
+    {
+        return false;
+    }
+    true
 }
 
 fn special_package_classification(
@@ -446,11 +544,19 @@ fn special_package_classification(
     // prefix is corroborated by the package's own internal resources.
     if type_ids.contains(&TYPE_S3SA) {
         let gameplay = localized_special_folder(language, "gameplay").to_string();
-        let category = script_category(package, name, language).to_string();
+        let category = script_category(name, language).to_string();
         let creator = verified_script_creator(package, name);
         let mod_name = inferred_script_mod_name(name, relative);
         let mut folder_parts = vec![gameplay.clone()];
         let mut detected_from = vec!["S3SA".to_string()];
+        if catalog_resource_count > 0
+            && type_ids.contains(&TYPE_CASP)
+            && type_ids.contains(&TYPE_OBJD)
+            && !store_name_hint(relative)
+            && verified_standalone_script_identity(package, name)
+        {
+            detected_from.push("InternalScriptIdentity".to_string());
+        }
 
         if let Some(creator) = creator {
             folder_parts.push(creator);
@@ -1301,7 +1407,11 @@ fn scan_one(
         }
     }
 
-    let (mut status, primary, mut destination_parts, mut destination_path) = if let Some(special) = &special_primary {
+    let catalog_first = catalog_precedes_embedded_script(
+        special_primary.as_ref(), catalog_resource_count, &relative, destinations.len(), has_ambiguous
+    );
+    let active_special = if catalog_first { None } else { special_primary.as_ref() };
+    let (mut status, primary, mut destination_parts, mut destination_path) = if let Some(special) = active_special {
         (
             "classified".to_string(),
             None,
@@ -1348,15 +1458,14 @@ fn scan_one(
         )
     };
 
-    let mut classification_reason = special_primary
-        .as_ref()
+    let mut classification_reason = active_special
         .map(|classification| classification.technical_reason.clone())
         .or_else(|| {
             primary
                 .as_ref()
                 .map(|classification| classification.technical_reason.clone())
         });
-    let mut family_primary: Option<PackageFamilyClassification> = special_primary;
+    let mut family_primary: Option<PackageFamilyClassification> = if catalog_first { None } else { special_primary };
 
     if status == "unknown" && catalog_resource_count == 0 {
         match classify_package_family(&type_ids, language) {
@@ -1486,13 +1595,15 @@ fn scan_one(
     } else {
         None
     };
-    let mod_name = if scripted && !is_nraas {
+    // Embedded gameplay assemblies are still tracked by the 'scripted' flag,
+    // but must not supply an unrelated mod/category label to a catalog object.
+    let mod_name = if scripted && !is_nraas && !catalog_first {
         inferred_script_mod_name(&name, &relative)
     } else {
         None
     };
-    let gameplay_category = if scripted && !is_nraas {
-        Some(script_category(&package, &name, language).to_string())
+    let gameplay_category = if scripted && !is_nraas && !catalog_first {
+        Some(script_category(&name, language).to_string())
     } else {
         None
     };
@@ -1654,6 +1765,103 @@ pub async fn scan_packages(folder: String, language: AppLanguage) -> Result<Scan
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn script_categories_require_subject_evidence_not_random_assembly_strings() {
+        let cases = [
+            ("AnimatedWoohoo.package", "Relacionamentos"),
+            ("TSS_MoreRomanticInteractions.package", "Relacionamentos"),
+            ("Gamefreak130_KarmaPowers.package", "Scripts"),
+            ("douglasveiga_HousekeeperService_v1.2.package", "Serviços"),
+            ("douglasveiga_Gardener_service_NPC_v2.3.package", "Serviços"),
+            ("Look! A living Sheep!.package", "Scripts"),
+            ("zoeoe_knitting_resources.package", "Scripts"),
+            ("simler90GameplayCoreMod-UPDATE199.package", "Utilitários"),
+            ("twinsimming_Pasteurize Milk Mod.package", "Culinária e Comida"),
+            ("TSS_KitchenTweaks_WithMikeyEdit.package", "Culinária e Comida"),
+            ("NeoH4x0rGlobalOnlineBankingMod.package", "Scripts"),
+            ("Gamefreak130_SmartphoneDating.package", "Relacionamentos"),
+        ];
+        for (name, expected) in cases {
+            assert_eq!(script_category(name, AppLanguage::Pt), expected, "{name}");
+        }
+        assert_eq!(script_category("douglasveiga_HousekeeperService_v1.2.package", AppLanguage::En), "Services");
+        assert_eq!(script_category("douglasveiga_HousekeeperService_v1.2.package", AppLanguage::Es), "Servicios");
+        assert_eq!(creator_candidate_from_filename("AnimatedWoohoo.package"), None);
+        assert_eq!(creator_candidate_from_filename("[Items] Al Fresco Street Market.package"), None);
+        assert_eq!(creator_candidate_from_filename("Let's Take a Selfie by David Veiga.package"), None);
+        assert_eq!(creator_candidate_from_filename("Retro Workout.package"), None);
+        assert_eq!(creator_candidate_from_filename("ld_MonoPatcher.package"), Some("ld".to_string()));
+        assert_eq!(creator_candidate_from_filename("icarusallsorts.EatOutsideRestaurant.package"), Some("icarusallsorts".to_string()));
+        assert_eq!(creator_candidate_from_filename("twinsimming_Pasteurize Milk Mod.package"), Some("twinsimming".to_string()));
+        assert_eq!(mod_name_from_relative(r"#+18\\AnimatedWoohoo.package"), None);
+    }
+
+    #[test]
+    fn real_gameplay_mods_and_functional_objects_keep_distinct_destinations() {
+        let script = PackageFamilyClassification {
+            main_category: "Gameplay".into(),
+            sub_category: Some("Scripts".into()),
+            folder_parts: vec!["Gameplay".into(), "Scripts".into()],
+            detected_from: vec!["S3SA".into()],
+            technical_reason: "S3SA evidence".into(),
+        };
+        let catalog = |relative: &str, destinations, ambiguous| {
+            catalog_precedes_embedded_script(Some(&script), 2, relative, destinations, ambiguous)
+        };
+        // Store bundles and premium content should never become Gameplay
+        // just because an XML/assembly contains keyword matches.
+        assert!(catalog("Packages/#9 Store/Store Content/[Items] Al Fresco.package", 4, false));
+        assert!(catalog("Packages/#9 Store/Store Content/[PC] Basketball Hoop.package", 1, false));
+        assert!(catalog("Buy/Entertainment/Sports/[PC] Basketball Hoop.package", 1, false));
+        assert!(catalog("Buy/Debug/Buzz_ShellSoundEmitter.package", 1, false));
+        assert!(catalog("Packages/ani_BistroStove.package", 1, false));
+        assert!(catalog("Packages/Scripts/cmomoney_TimeShifter.package", 1, false));
+        assert!(catalog("Packages/#8 Scripts/Objects/Fantuanss12_ProfessionalOven.package", 1, false));
+        // Gameplay mods may bundle multiple object types or unreadable OBJD.
+        assert!(!catalog("Packages/#8 Scripts/Gameplay/Services/HousekeeperService.package", 2, false));
+        assert!(!catalog("Packages/#8 Scripts/Gameplay/Global Online Banking Mod/Bank.package", 1, false));
+        assert!(!catalog("Packages/Scripts/Gamefreak130_KarmaPowers.package", 0, true));
+        assert!(!catalog_precedes_embedded_script(None, 2, "Buy/Sports/Hoop.package", 1, false));
+        assert!(!catalog_precedes_embedded_script(Some(&script), 0, "Buy/Sports/Hoop.package", 1, false));
+
+        let verified = PackageFamilyClassification {
+            detected_from: vec!["S3SA".into(), "InternalCreator".into()],
+            ..script.clone()
+        };
+        assert!(!catalog_precedes_embedded_script(
+            Some(&verified), 2, "#+18/AnimatedWoohoo.package", 2, false
+        ));
+        let standalone_identity = PackageFamilyClassification {
+            detected_from: vec!["S3SA".into(), "InternalScriptIdentity".into()],
+            ..script.clone()
+        };
+        assert!(!catalog_precedes_embedded_script(
+            Some(&standalone_identity), 2, "#+18/AnimatedWoohoo.package", 2, false
+        ));
+        assert!(catalog_precedes_embedded_script(
+            Some(&standalone_identity), 2, "Packages/#9 Store/Store Content/[Items] Al Fresco.package", 2, false
+        ));
+        assert!(catalog_precedes_embedded_script(
+            Some(&script), 2, "#+18/UnknownResourceBundle.package", 2, false
+        ));
+        assert!(catalog_precedes_embedded_script(
+            Some(&verified), 2, "Packages/#9 Store/Store Content/[Items] Le Cinema.package", 2, false
+        ));
+        assert!(catalog_precedes_embedded_script(
+            Some(&verified), 2, "Packages/ani_BistroStove.package", 1, false
+        ));
+        assert!(catalog_precedes_embedded_script(
+            Some(&verified), 2, "Buy/Decor/Fantuanss12_GroceryDeliveryService.package", 2, true
+        ));
+        let nraas = PackageFamilyClassification {
+            detected_from: vec!["NRaasInternal".into()],
+            ..script
+        };
+        assert!(!catalog_precedes_embedded_script(
+            Some(&nraas), 2, "Packages/Scripts/NRaas.package", 1, false
+        ));
+    }
 
     #[test]
     fn generic_source_folders_cannot_reassign_unrelated_packages() {
