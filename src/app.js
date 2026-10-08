@@ -2378,58 +2378,187 @@ function buildAuditMarkdown(snapshot) {
   return lines.join("\n");
 }
 
-async function exportAuditReport() {
-  if (!state.folder || state.auditBusy || state.reviewBusy || state.structureBusy) return;
+
+const AUDIT_REPORT_KINDS = ["organizer", "duplicates", "conflicts"];
+
+function buildScopedAuditSnapshot(kind) {
+  if (!AUDIT_REPORT_KINDS.includes(kind)) return null;
+  const full = buildAuditSnapshot();
+  const shared = {
+    schemaVersion: full.schemaVersion,
+    reportKind: kind,
+    generatedAt: full.generatedAt,
+    root: full.root,
+    language: full.language,
+  };
+
+  if (kind === "organizer") {
+    return { ...shared, organizer: full.organizer };
+  }
+  if (kind === "duplicates") {
+    return { ...shared, duplicates: full.duplicates };
+  }
+  return {
+    ...shared,
+    conflicts: full.conflicts,
+    persistentConflictDecisions: full.persistentConflictDecisions,
+  };
+}
+
+function buildScopedAuditMarkdown(snapshot) {
+  const kind = snapshot.reportKind;
+  const label = kind === "organizer" ? "Organizer"
+    : kind === "duplicates" ? "Duplicates" : "Conflicts";
+  const lines = [
+    `# Veiga's S3CC Manager — ${label} Audit Report`,
+    "",
+    `- ${t("reportGeneratedAt")}: ${snapshot.generatedAt}`,
+    `- Root: ${snapshot.root || "—"}`,
+    `- ${t("language")}: ${snapshot.language}`,
+    "",
+  ];
+
+  if (kind === "organizer") {
+    const organizer = snapshot.organizer;
+    const stats = organizer?.stats || {};
+    lines.push("## Organizer", "");
+    lines.push(
+      `Packages: ${stats.packages ?? organizer?.packages?.length ?? 0} · ${t("classified")}: ${stats.classified ?? 0} · ${t("mixed")}: ${stats.mixed ?? 0} · ${t("needsReview")}: ${stats.needsReview ?? 0} · ${t("invalid")}: ${stats.invalid ?? 0}`,
+      "",
+      "| Package | Status | Confidence | Creator / Mod | Category | Destination | Evidence | Warnings |",
+      "| --- | --- | --- | --- | --- | --- | --- | --- |"
+    );
+    for (const item of organizer?.packages || []) {
+      lines.push(
+        `| ${reportCell(item.relativePath || item.name)} | ${reportCell(item.status)} | ${reportCell(item.classificationConfidence)} | ${reportCell([item.creator, item.modName].filter(Boolean).join(" / "))} | ${reportCell([item.gameplayCategory, item.category, item.subCategory].filter(Boolean).join(" / "))} | ${reportCell(item.destinationPath)} | ${reportCell(item.classificationReason)} | ${reportCell((item.warnings || []).join("; "))} |`
+      );
+    }
+    lines.push("");
+  } else if (kind === "duplicates") {
+    const duplicates = snapshot.duplicates || {};
+    const stats = duplicates.stats || {};
+    lines.push(
+      "## Duplicates", "",
+      `Packages: ${stats.packagesScanned ?? 0} · Exact groups: ${stats.exactGroups ?? 0} · Content groups: ${stats.contentGroups ?? 0} · Retextures: ${stats.retextureRelations ?? 0} · Related: ${stats.relatedVariantRelations ?? 0}`, ""
+    );
+    for (const group of duplicates.groups || []) {
+      lines.push(`### ${duplicateKindLabel(group.kind)}`, "");
+      for (const member of group.members || []) {
+        lines.push(`- ${member.relativePath || "—"} — SHA-256: ${member.fileSha256 || "—"}`);
+      }
+      lines.push("");
+    }
+    for (const relation of duplicates.relations || []) {
+      lines.push(
+        `### ${duplicateKindLabel(relation.kind)}`, "",
+        `- A: ${relation.left?.relativePath || "—"}`,
+        `- B: ${relation.right?.relativePath || "—"}`,
+        `- Shared resources: ${relation.sharedResourceCount ?? 0}`, ""
+      );
+    }
+  } else {
+    const conflicts = snapshot.conflicts || {};
+    const stats = conflicts.stats || {};
+    lines.push(
+      "## Conflicts", "",
+      `Pairs: ${stats.packagePairs ?? 0} · Visual: ${stats.visualOverrides ?? 0} · Catalog: ${stats.catalogOverrides ?? 0} · Gameplay: ${stats.gameplayOverrides ?? 0} · Script: ${stats.scriptConflicts ?? 0}`,
+      ""
+    );
+    for (const finding of conflicts.findings || []) {
+      lines.push(
+        `### ${finding.reviewDecision === "intentional" ? t("savedIntentionalOverride") : conflictKindLabel(finding.kind)}`, "",
+        `- A: ${finding.left?.relativePath || "—"}`,
+        `- B: ${finding.right?.relativePath || "—"}`,
+        `- Decision key: ${finding.decisionKey || "—"}`,
+        `- ${t("reportDecision")}: ${finding.reviewDecision || "—"}`,
+        `- Shared TGIs: ${finding.sharedResourceCount ?? 0}`,
+        `- Different payloads: ${finding.differentPayloadCount ?? 0}`,
+        `- Load order: ${finding.loadOrderStatus || "—"}`, ""
+      );
+    }
+    lines.push("## Saved Conflict Decisions", "");
+    for (const decision of snapshot.persistentConflictDecisions || []) {
+      lines.push(`- ${decision.mark}: ${decision.leftRelativePath} ↔ ${decision.rightRelativePath} (${decision.decisionKey})`);
+    }
+    if (!snapshot.persistentConflictDecisions?.length) lines.push("—");
+    lines.push("");
+  }
+  return lines.join("\n");
+}
+
+async function exportAuditReport(kind) {
+  if (!AUDIT_REPORT_KINDS.includes(kind) || !state.folder ||
+      state.auditBusy || state.scanning || state.duplicatesBusy ||
+      state.conflictsBusy || state.reviewBusy || state.structureBusy ||
+      (kind === "organizer" && !state.stats) ||
+      (kind === "duplicates" && !state.duplicatesAnalysis) ||
+      (kind === "conflicts" && !state.conflictsAnalysis)) return;
+
+  const selectedRoot = state.folder;
   state.auditBusy = true;
-  state.auditError = "";
+  state.auditBusyKind = kind;
+  state.auditErrors[kind] = "";
   renderAuditPanel();
   renderStructure();
 
   try {
-    await refreshManualOperations();
-    const snapshot = buildAuditSnapshot();
+    const snapshot = buildScopedAuditSnapshot(kind);
     const result = await invoke("save_audit_report", {
-      folder: state.folder,
-      markdown: buildAuditMarkdown(snapshot),
+      folder: selectedRoot,
+      kind,
+      markdown: buildScopedAuditMarkdown(snapshot),
       jsonContent: JSON.stringify(snapshot, null, 2),
     });
-    state.lastAuditReport = result;
+    if (state.folder === selectedRoot) state.auditReports[kind] = result;
   } catch (error) {
-    state.auditError = String(error);
+    if (state.folder === selectedRoot) state.auditErrors[kind] = String(error);
   } finally {
     state.auditBusy = false;
+    state.auditBusyKind = null;
     renderAuditPanel();
     renderStructure();
   }
 }
 
 function renderAuditPanel() {
-  let message = t("auditReportHint");
-  if (state.auditBusy) {
-    message = t("exportingAuditReport");
-  } else if (state.auditError) {
-    message = `${t("auditReportFailed")}: ${state.auditError}`;
-  } else if (state.lastAuditReport) {
-    message = `${t("auditReportSaved")}: ${state.lastAuditReport.markdownPath}`;
+  for (const kind of AUDIT_REPORT_KINDS) {
+    const status = el.auditStatuses.find((element) => element.dataset.auditStatus === kind);
+    const saved = state.auditReports[kind];
+    const error = state.auditErrors[kind];
+    const exporting = state.auditBusy && state.auditBusyKind === kind;
+    const message = exporting
+      ? t("exportingAuditReport")
+      : error
+        ? `${t("auditReportFailed")}: ${error}`
+        : saved
+          ? `${t("auditReportSaved")}: ${saved.markdownPath}`
+          : kind === "organizer"
+            ? t("auditReportHintOrganizer")
+            : kind === "duplicates"
+              ? t("auditReportHintDuplicates")
+              : t("auditReportHintConflicts");
+
+    if (status) {
+      status.textContent = message;
+      status.classList.toggle("error", !!error);
+    }
+
+    const ready = kind === "organizer" ? !!state.stats
+      : kind === "duplicates" ? !!state.duplicatesAnalysis
+      : !!state.conflictsAnalysis;
+    const canExport = !!state.folder && ready &&
+      !state.scanning && !state.duplicatesBusy && !state.conflictsBusy &&
+      !state.auditBusy && !state.reviewBusy && !state.structureBusy;
+    const exportButton = el.exportAuditButtons.find((button) => button.dataset.exportAudit === kind);
+    if (exportButton) exportButton.disabled = !canExport;
+
+    const openButton = el.openReportFolderButtons.find((button) => button.dataset.openReportFolder === kind);
+    if (openButton) {
+      openButton.classList.toggle("hidden", !saved?.directory);
+      openButton.disabled = state.auditBusy;
+    }
   }
 
-  for (const status of el.auditStatuses) {
-    status.textContent = message;
-    status.classList.toggle("error", !!state.auditError);
-  }
-
-  const canExport = !!state.folder &&
-    (state.items.length > 0 || !!state.duplicatesAnalysis || !!state.conflictsAnalysis) &&
-    !state.scanning && !state.duplicatesBusy && !state.conflictsBusy &&
-    !state.auditBusy && !state.reviewBusy && !state.structureBusy;
-
-  for (const button of el.exportAuditButtons) {
-    button.disabled = !canExport;
-  }
-  for (const button of el.openReportFolderButtons) {
-    button.classList.toggle("hidden", !state.lastAuditReport?.directory);
-    button.disabled = state.auditBusy;
-  }
   el.duplicatesClearListBtn.disabled =
     !state.duplicatesAnalysis || state.duplicatesBusy || state.conflictsBusy ||
     state.scanning || state.quarantineBusy || state.auditBusy;
