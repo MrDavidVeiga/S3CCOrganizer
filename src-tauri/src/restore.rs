@@ -2,6 +2,7 @@ use crate::{
     workspace::ensure_writable,
     i18n::AppLanguage,
     manifest::{read_manifest, replace_manifest_atomic, sha256_file, RestoreManifest},
+    resource_cfg_update::restore_cfg_if_safe,
 };
 use serde::Serialize;
 use std::{
@@ -71,6 +72,7 @@ pub struct RestoreExecutionResult {
     pub new_files_relocated: usize,
     pub rolled_back: usize,
     pub errors: Vec<String>,
+    pub warnings: Vec<String>,
 }
 
 fn is_package(path: &Path) -> bool {
@@ -805,10 +807,23 @@ pub fn execute_restore(
                 .count(),
             rolled_back,
             errors,
+            warnings: Vec::new(),
         });
     }
 
     remove_organizer_directories(&root, &manifest);
+
+    // Recover Resource.cfg only if the old rules still cover every live
+    // package. Never hide newly added CC or replace a user's later edits.
+    let mut warnings = Vec::new();
+    if let Some(cfg) = &manifest.resource_cfg_restore {
+        match restore_cfg_if_safe(&root, cfg) {
+            Ok(Some(warning)) => warnings.push(warning),
+            Ok(None) => {}
+            Err(error) => warnings.push(format!("Resource.cfg was not reverted: {error}")),
+        }
+    }
+
     manifest.status = "RESTORED".to_string();
     replace_manifest_atomic(&manifest_file, &manifest)?;
 
@@ -825,6 +840,7 @@ pub fn execute_restore(
             .count(),
         rolled_back: 0,
         errors: Vec::new(),
+        warnings,
     })
 }
 

@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - feature/winui3-full-fidelity
+      - fix/resourcecfg-restore-build-20261008
     paths:
       - ".github/workflows/build-winui3-ui-test.yml"
       - "src/**"

@@ -152,6 +152,7 @@ fn manifest_from_snapshot(
         root: root.to_path_buf(),
         status: "PENDING".to_string(),
         created_directories: created_directories.iter().map(PathBuf::from).collect(),
+        resource_cfg_restore: None,
         entries,
     }
 }
@@ -294,15 +295,19 @@ pub fn execute_organization_with_cfg(
     let mut applied_cfg = None;
     if update_resource_cfg {
         let change = plan.resource_cfg_update.as_ref()
-            .ok_or("Resource.cfg opt-in requires a valid Mods root.")?;
+            .ok_or("Resource.cfg opt-in requires a valid Mods/Packages or Mods/Overrides root.")?;
         if expected_cfg_hash.as_deref() != Some(change.original_hash.as_str())
             || expected_cfg_rules != change.added_rules {
-            return Err("Resource.cfg preview is stale; review the new plan before executing.".into());
+            manifest.status = "ROLLED_BACK".to_string();
+            let _ = replace_manifest_atomic(&manifest_path, &manifest);
+            return Err("Resource.cfg preview is stale; review the new plan before organizing.".into());
         }
         applied_cfg = apply_resource_cfg_update(change)?;
-        // Recheck the real installed file before touching any packages.
-        let cfg_path = PathBuf::from(&change.path);
-        if cfg_path.is_file() {
+
+        // Every updated target must be loadable before the first package move.
+        // A parsing / IO failure here must also roll the newly installed cfg back.
+        let cfg_validation = (|| -> Result<(), String> {
+            let cfg_path = PathBuf::from(&change.path);
             let parsed = parse_resource_cfg(&cfg_path)?;
             let cfg_dir = cfg_path.parent().ok_or("Resource.cfg parent missing")?;
             let uncovered = ready.iter().filter(|item| {
@@ -310,10 +315,26 @@ pub fn execute_organization_with_cfg(
                     .is_none_or(|path| package_priority(&parsed, cfg_dir, Path::new(path)).is_none())
             }).count();
             if uncovered != 0 {
+                return Err(format!("Updated Resource.cfg misses {uncovered} planned packages."));
+            }
+            Ok(())
+        })();
+        if let Err(error) = cfg_validation {
+            if let Some(applied) = applied_cfg.take() {
+                rollback_resource_cfg_update(applied)?;
+            }
+            manifest.status = "ROLLED_BACK".to_string();
+            let _ = replace_manifest_atomic(&manifest_path, &manifest);
+            return Err(format!("{error} No packages were moved; Resource.cfg was restored."));
+        }
+
+        if let Some(applied) = &applied_cfg {
+            manifest.resource_cfg_restore = Some(applied.restore_snapshot(change));
+            if let Err(error) = replace_manifest_atomic(&manifest_path, &manifest) {
                 if let Some(applied) = applied_cfg.take() {
                     rollback_resource_cfg_update(applied)?;
                 }
-                return Err(format!("Updated Resource.cfg still misses {uncovered} planned packages; no packages were moved."));
+                return Err(format!("Could not persist Resource.cfg recovery metadata: {error}"));
             }
         }
     }
@@ -437,10 +458,19 @@ pub fn execute_organization_with_cfg(
 
         if rollback_errors.is_empty() {
             if let Some(applied) = applied_cfg.take() {
-                if let Err(error) = rollback_resource_cfg_update(applied) {
-                    rollback_errors.push(error);
-                    manifest.status = "ROLLBACK_INCOMPLETE".to_string();
-                    let _ = replace_manifest_atomic(&manifest_path, &manifest);
+                match rollback_resource_cfg_update(applied) {
+                    Ok(()) => {
+                        manifest.resource_cfg_restore = None;
+                        if let Err(error) = replace_manifest_atomic(&manifest_path, &manifest) {
+                            rollback_errors.push(error);
+                            manifest.status = "ROLLBACK_INCOMPLETE".into();
+                        }
+                    }
+                    Err(error) => {
+                        rollback_errors.push(error);
+                        manifest.status = "ROLLBACK_INCOMPLETE".to_string();
+                        let _ = replace_manifest_atomic(&manifest_path, &manifest);
+                    }
                 }
             }
         }

@@ -16,6 +16,14 @@ pub struct RestoreEntry {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResourceCfgRestoreSnapshot {
+    pub path: PathBuf,
+    pub backup_path: Option<PathBuf>,
+    pub original_sha256: String,
+    pub updated_sha256: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RestoreManifest {
     pub version: u32,
     pub created_at: String,
@@ -26,6 +34,8 @@ pub struct RestoreManifest {
     pub status: String,
     #[serde(default)]
     pub created_directories: Vec<PathBuf>,
+    #[serde(default)]
+    pub resource_cfg_restore: Option<ResourceCfgRestoreSnapshot>,
     pub entries: Vec<RestoreEntry>,
 }
 
@@ -80,6 +90,14 @@ pub fn serialize_manifest(manifest: &RestoreManifest) -> String {
     for directory in &manifest.created_directories {
         out.push_str(&format!("created_dir={}\n", directory.display()));
     }
+    if let Some(cfg) = &manifest.resource_cfg_restore {
+        out.push_str(&format!("resource_cfg_path={}\n", cfg.path.display()));
+        if let Some(backup) = &cfg.backup_path {
+            out.push_str(&format!("resource_cfg_backup={}\n", backup.display()));
+        }
+        out.push_str(&format!("resource_cfg_original_sha256={}\n", cfg.original_sha256));
+        out.push_str(&format!("resource_cfg_updated_sha256={}\n", cfg.updated_sha256));
+    }
     out.push('\n');
 
     for entry in &manifest.entries {
@@ -118,6 +136,10 @@ pub fn parse_manifest(text: &str) -> Result<RestoreManifest, String> {
     let mut declared_files = None;
     let mut declared_directories = None;
     let mut created_directories = Vec::new();
+    let mut cfg_path = None;
+    let mut cfg_backup = None;
+    let mut cfg_original = None;
+    let mut cfg_updated = None;
     let mut entries = Vec::new();
 
     let all_lines = lines.collect::<Vec<_>>();
@@ -223,6 +245,10 @@ pub fn parse_manifest(text: &str) -> Result<RestoreManifest, String> {
                 )
             }
             "created_dir" => created_directories.push(PathBuf::from(value.trim())),
+            "resource_cfg_path" => cfg_path = Some(PathBuf::from(value.trim())),
+            "resource_cfg_backup" => cfg_backup = Some(PathBuf::from(value.trim())),
+            "resource_cfg_original_sha256" => cfg_original = Some(value.trim().to_string()),
+            "resource_cfg_updated_sha256" => cfg_updated = Some(value.trim().to_string()),
             // Backward compatibility with the early preview format.
             "language" if organization_language.is_none() => {
                 organization_language = parse_language(value)
@@ -232,7 +258,25 @@ pub fn parse_manifest(text: &str) -> Result<RestoreManifest, String> {
         }
     }
 
+    let has_cfg = cfg_path.is_some() || cfg_backup.is_some()
+        || cfg_original.is_some() || cfg_updated.is_some();
+    let resource_cfg_restore = if has_cfg {
+        let original = cfg_original.ok_or("Resource.cfg manifest lacks original hash.")?;
+        let updated = cfg_updated.ok_or("Resource.cfg manifest lacks updated hash.")?;
+        if [original.as_str(), updated.as_str()].iter()
+            .any(|hash| hash.len() != 64 || !hash.chars().all(|ch| ch.is_ascii_hexdigit())) {
+            return Err("Restore manifest contains an invalid Resource.cfg hash.".into());
+        }
+        Some(ResourceCfgRestoreSnapshot {
+            path: cfg_path.ok_or("Resource.cfg manifest lacks its path.")?,
+            backup_path: cfg_backup,
+            original_sha256: original,
+            updated_sha256: updated,
+        })
+    } else { None };
+
     let manifest = RestoreManifest {
+        resource_cfg_restore,
         version: version.ok_or_else(|| "Manifest is missing version.".to_string())?,
         created_at: created_at.unwrap_or_default(),
         organization_language: organization_language
@@ -389,6 +433,7 @@ mod tests {
             root: PathBuf::from("Packages"),
             status: "COMPLETE".to_string(),
             created_directories: vec![],
+            resource_cfg_restore: None,
             entries: vec![],
         };
 
@@ -402,6 +447,30 @@ mod tests {
     }
 
     #[test]
+    fn round_trip_resource_cfg_restore_record_and_old_manifest() {
+        let base = RestoreManifest {
+            version: 1, created_at: "2026-10-08".into(),
+            organization_language: AppLanguage::Pt,
+            root: PathBuf::from("Mods/Packages"), status: "COMPLETE".into(),
+            created_directories: vec![], entries: vec![],
+            resource_cfg_restore: None,
+        };
+        assert!(parse_manifest(&serialize_manifest(&base)).unwrap().resource_cfg_restore.is_none());
+        let mut updated = base;
+        updated.resource_cfg_restore = Some(ResourceCfgRestoreSnapshot {
+            path: PathBuf::from("Mods/Resource.cfg"),
+            backup_path: Some(PathBuf::from("Mods/Resource.cfg.s3cc-backup-test")),
+            original_sha256: "a".repeat(64),
+            updated_sha256: "b".repeat(64),
+        });
+        let parsed = parse_manifest(&serialize_manifest(&updated)).unwrap();
+        let cfg = parsed.resource_cfg_restore.unwrap();
+        assert_eq!(cfg.original_sha256, "a".repeat(64));
+        assert_eq!(cfg.updated_sha256, "b".repeat(64));
+        assert_eq!(cfg.backup_path.unwrap(), PathBuf::from("Mods/Resource.cfg.s3cc-backup-test"));
+    }
+
+    #[test]
     fn manifest_round_trip_preserves_paths_and_identity() {
         let manifest = RestoreManifest {
             version: 1,
@@ -410,6 +479,7 @@ mod tests {
             root: PathBuf::from(r"C:\Mods\Packages"),
             status: "COMPLETE".to_string(),
             created_directories: vec![],
+            resource_cfg_restore: None,
             entries: vec![RestoreEntry {
                 sha256: "A".repeat(64),
                 size: 123,

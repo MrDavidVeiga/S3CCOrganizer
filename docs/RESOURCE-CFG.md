@@ -1,8 +1,30 @@
 # Resource.cfg load-order support
 
-The Organizer reads Resource.cfg only to add evidence to conflict analysis.
+The Manager reads Resource.cfg to evaluate load order and coverage. By default it does not modify the file.
 
-It does not modify Resource.cfg.
+## Optional organization-time extension
+
+A user can explicitly check **Extend Resource.cfg** in Organization Plan for roots within
+`Mods`, `Mods/Packages` or `Mods/Overrides`. This preserves the full suggested
+category folders rather than flattening them to old configuration depth.
+
+Before moving a single CC package, the Manager:
+- previews every new PackedFile depth rule and preserves the existing priorities;
+- refuses advanced directives, multiple priority tiers for the same loading branch,
+  unsupported settings and paths outside loading branches instead of guessing;
+- confirms the proposed rules and exact SHA-256 of the original configuration;
+- saves the original Resource.cfg to a unique `Resource.cfg.s3cc-backup-*` sibling;
+- installs the expanded rules without rewriting existing lines;
+- checks that every selected destination is loadable, rolling back a failed change;
+- records both hashes and the backup location in the organization restore manifest.
+
+During normal Restore, the original Resource.cfg is recovered **only when** its
+backup is unchanged, the currently installed cfg matches the recorded update, and
+all existing Packages/Overrides are covered by the original rules. If any check
+fails, Restore keeps the updated configuration and warns the user rather than
+making packages invisible. A backup remains for manual recovery.
+
+Ordinary external/staging libraries are never offered the Resource.cfg option.
 
 ## Supported commands
 

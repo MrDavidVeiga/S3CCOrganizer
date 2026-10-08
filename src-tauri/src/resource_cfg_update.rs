@@ -1,6 +1,8 @@
 //! Opt-in, conservative Resource.cfg depth extension for actual Sims 3 Mods trees.
 //! Existing lines and priority groups are never rewritten.
 use crate::resource_cfg::{find_resource_cfg, package_priority, parse_resource_cfg, ResourceCfgInfo, ResourceCfgRule};
+use crate::manifest::ResourceCfgRestoreSnapshot;
+use walkdir::WalkDir;
 use chrono::Local;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -19,6 +21,17 @@ pub struct AppliedResourceCfg {
     path: PathBuf,
     backup_path: Option<PathBuf>,
     installed_text: String,
+}
+
+impl AppliedResourceCfg {
+    pub fn restore_snapshot(&self, change: &ResourceCfgUpdate) -> ResourceCfgRestoreSnapshot {
+        ResourceCfgRestoreSnapshot {
+            path: self.path.clone(),
+            backup_path: self.backup_path.clone(),
+            original_sha256: change.original_hash.clone(),
+            updated_sha256: hash_text(&self.installed_text),
+        }
+    }
 }
 
 fn hash_text(text: &str) -> String {
@@ -200,9 +213,91 @@ pub fn rollback_resource_cfg_update(applied: AppliedResourceCfg) -> Result<(), S
     Ok(())
 }
 
+/// After a successful CC restore, restore the old cfg only when doing so
+/// cannot hide an existing package. On any uncertainty keep the updated cfg
+/// and its backup, and return an explicit warning.
+pub fn restore_cfg_if_safe(
+    root: &Path,
+    snapshot: &ResourceCfgRestoreSnapshot,
+) -> Result<Option<String>, String> {
+    let mods = mods_ancestor(root).ok_or("Restore root has no Mods ancestor.")?;
+    let expected = mods.join("Resource.cfg");
+    if snapshot.path != expected {
+        return Err("Resource.cfg restore record points outside the selected Mods root.".into());
+    }
+    let current = fs::read(&expected).map_err(|e| format!("Could not inspect Resource.cfg before restore: {e}"))?;
+    let current_hash = format!("{:x}", Sha256::digest(&current));
+    if current_hash.eq_ignore_ascii_case(&snapshot.original_sha256) {
+        return Ok(None);
+    }
+    if !current_hash.eq_ignore_ascii_case(&snapshot.updated_sha256) {
+        return Ok(Some("Resource.cfg was modified after organization. Kept current configuration and original backup.".into()));
+    }
+
+    let Some(backup) = &snapshot.backup_path else {
+        // Removing the only loading file could hide CC: do not delete it.
+        return Ok(Some("No original Resource.cfg existed; kept the generated configuration for safety.".into()));
+    };
+    let safe_backup = backup.parent() == Some(mods)
+        && backup.file_name().and_then(|n| n.to_str())
+            .is_some_and(|n| n.starts_with("Resource.cfg.s3cc-backup-"));
+    if !safe_backup {
+        return Err("Resource.cfg manifest points to a backup outside the Mods directory.".into());
+    }
+    let old_content = fs::read(backup).map_err(|e| format!("Resource.cfg backup is missing: {e}"))?;
+    if format!("{:x}", Sha256::digest(&old_content)) != snapshot.original_sha256.to_ascii_lowercase() {
+        return Err("Resource.cfg backup checksum differs from the original; current configuration preserved.".into());
+    }
+    let old_rules = parse_resource_cfg(backup)?;
+    if !old_rules.precedence_reliable {
+        return Ok(Some("Original Resource.cfg has advanced directives; kept current configuration pending manual review.".into()));
+    }
+    for branch in ["Packages", "Overrides"] {
+        let dir = mods.join(branch);
+        if !dir.is_dir() { continue; }
+        for item in WalkDir::new(&dir).follow_links(false).into_iter() {
+            let item = item.map_err(|e| format!("Cannot validate packages before restoring Resource.cfg: {e}"))?;
+            if !item.file_type().is_file() || !item.path().extension()
+                .is_some_and(|ext| ext.to_string_lossy().eq_ignore_ascii_case("package")) {
+                continue;
+            }
+            if package_priority(&old_rules, mods, item.path()).is_none() {
+                return Ok(Some(format!(
+                    "Original Resource.cfg does not load '{}'; kept expanded configuration to protect existing CC.",
+                    item.path().display()
+                )));
+            }
+        }
+    }
+    // Backups survive restore for manual recovery; never overwrite them.
+    fs::write(&expected, old_content)
+        .map_err(|e| format!("Cannot restore backed-up Resource.cfg (current file retained if possible): {e}"))?;
+    Ok(None)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn restore_cfg_recovers_original_when_all_packages_are_covered() {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
+        let root = std::env::temp_dir().join(format!("s3cc-cfg-restore-{}-{nonce}", std::process::id()));
+        let mods = root.join("Mods");
+        fs::create_dir_all(mods.join("Packages")).unwrap();
+        let cfg = mods.join("Resource.cfg");
+        let original = "Priority 500\nPackedFile Packages/*.package\n";
+        fs::write(&cfg, original).unwrap();
+        let future = mods.join("Packages/Category/test.package");
+        let change = preview_resource_cfg_update(&mods, &[future]).unwrap().unwrap();
+        let applied = apply_resource_cfg_update(&change).unwrap().unwrap();
+        let record = applied.restore_snapshot(&change);
+        assert!(restore_cfg_if_safe(&mods, &record).unwrap().is_none());
+        assert_eq!(fs::read_to_string(&cfg).unwrap(), original);
+        assert!(record.backup_path.unwrap().exists());
+        let _ = fs::remove_dir_all(root);
+    }
+
     #[test]
     fn appends_only_missing_depth_and_preserves_priorities() {
         let root = std::env::temp_dir().join(format!("s3cc-cfg-depth-{}", std::process::id()));

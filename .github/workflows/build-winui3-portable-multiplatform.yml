@@ -5,8 +5,12 @@ on:
   push:
     branches:
       - feature/winui3-full-fidelity
+      - fix/resourcecfg-restore-build-20261008
     paths:
       - ".github/workflows/build-winui3-portable-multiplatform.yml"
+      - "src/**"
+      - "src-tauri/**"
+      - "index.html"
   workflow_dispatch:
 
 permissions:

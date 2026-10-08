@@ -63,6 +63,7 @@ const I18N = {
     resourceCfgUpdateLabel: "Extend Resource.cfg for organized subfolders (backup required)",
   resourceCfgNewRules: "rules to add",
   resourceCfgNoUpdate: "No Resource.cfg changes in this plan.",
+  resourceCfgAlreadyCovered: "All selected paths are already covered.",
   resourceCfgConfirm: "Resource.cfg will be backed up and updated:",
   organizationPlan: "Organization Plan",
     simulationOnly: "Preflight preview. Nothing moves until you choose Organize Selected.",
@@ -577,6 +578,7 @@ const I18N = {
     resourceCfgUpdateLabel: "Ampliar Resource.cfg para ler subpastas organizadas (com backup)",
   resourceCfgNewRules: "regras a adicionar",
   resourceCfgNoUpdate: "Este plano não altera o Resource.cfg.",
+  resourceCfgAlreadyCovered: "Todas as pastas selecionadas já estão cobertas.",
   resourceCfgConfirm: "O Resource.cfg será copiado e atualizado:",
   organizationPlan: "Plano de Organização",
     simulationOnly: "Preview de segurança. Nada será movido até escolher Organizar Selecionados.",
@@ -1090,6 +1092,7 @@ const I18N = {
     resourceCfgUpdateLabel: "Ampliar Resource.cfg para leer subcarpetas organizadas (con copia)",
   resourceCfgNewRules: "reglas por añadir",
   resourceCfgNoUpdate: "Este plan no modifica Resource.cfg.",
+  resourceCfgAlreadyCovered: "Todas las carpetas seleccionadas ya están cubiertas.",
   resourceCfgConfirm: "Se guardará una copia de Resource.cfg y se actualizará:",
   organizationPlan: "Plan de Organización",
     simulationOnly: "Vista previa de seguridad. Nada se moverá hasta elegir Organizar Seleccionados.",
@@ -1823,6 +1826,7 @@ const el = {
   planCloseFooterBtn: document.querySelector("#plan-close-footer-btn"),
   planExecuteBtn: document.querySelector("#plan-execute-btn"),
   planPartialNotice: document.querySelector("#plan-partial-notice"),
+  planCfgRow: document.querySelector("#plan-cfg-row"),
   planCfgCheckbox: document.querySelector("#plan-cfg-checkbox"),
   planCfgSummary: document.querySelector("#plan-cfg-summary"),
   planItems: document.querySelector("#plan-items"),
@@ -2771,6 +2775,15 @@ function statusLabel(status) {
     unknown: t("unknown"),
     invalid: t("invalid"),
   }[status] || status;
+}
+
+function supportsResourceCfgUpdate(folder) {
+  const parts = String(folder || "").replaceAll("\\", "/").split("/").filter(Boolean);
+  const mods = parts.findLastIndex(part => part.toLowerCase() === "mods");
+  if (mods < 0) return false;
+  return mods === parts.length - 1 ||
+    (mods === parts.length - 2 && /^(packages|overrides)$/i.test(parts[mods + 1])) ||
+    (mods < parts.length - 2 && /^(packages|overrides)$/i.test(parts[mods + 1]));
 }
 
 function planCanExecute(plan) {
@@ -6810,9 +6823,13 @@ function renderPlan() {
   el.planStatFolders.textContent = stats.directoriesToCreate ?? 0;
   el.planExecuteBtn.disabled = !planCanExecute(plan) || state.executing;
   const cfg = plan.resourceCfgUpdate;
-  el.planCfgCheckbox.checked = state.updateResourceCfg;
-  el.planCfgCheckbox.disabled = state.planning || state.executing;
-  el.planCfgSummary.textContent = cfg ? `${cfg.path}\n${cfg.addedRules.length} ${t("resourceCfgNewRules")}\n${cfg.addedRules.join("\n")}` : t("resourceCfgNoUpdate");
+  const cfgSupported = supportsResourceCfgUpdate(state.folder);
+  el.planCfgRow.classList.toggle("hidden", !cfgSupported);
+  el.planCfgCheckbox.checked = cfgSupported && state.updateResourceCfg;
+  el.planCfgCheckbox.disabled = !cfgSupported || state.planning || state.executing;
+  el.planCfgSummary.textContent = cfg && state.updateResourceCfg
+    ? `${cfg.path}\n${cfg.addedRules.length} ${t("resourceCfgNewRules")}\n${cfg.addedRules.join("\n") || t("resourceCfgAlreadyCovered")}`
+    : t("resourceCfgNoUpdate");
   if (el.planPartialNotice) {
     const excluded = Number(stats.blocked || 0);
     el.planPartialNotice.textContent = excluded && Number(stats.ready || 0)
@@ -7348,6 +7365,7 @@ async function chooseFolder() {
   state.analysisRunId += 1;
   state.analysisStatus = { manager: "not_run", duplicates: "not_run", conflicts: "not_run" };
   state.folder = selected;
+  state.updateResourceCfg = false;
   persistPreferences();
   window.dispatchEvent(new CustomEvent("s3cc-folder-changed", { detail: state.folder }));
   state.items = [];
@@ -7536,6 +7554,7 @@ async function buildPlan() {
   state.planning = true;
   state.planError = "";
   state.notice = "";
+  if (!supportsResourceCfgUpdate(state.folder)) state.updateResourceCfg = false;
   render();
 
   try {
@@ -7692,6 +7711,9 @@ async function executeRestore() {
     if (result.status === "RESTORED") {
       state.restoreNotice =
         `${t("restoreComplete")}: ${result.restored} + ${result.newFilesRelocated} ${t("newFiles")}`;
+      if (result.warnings?.length) {
+        state.restoreNotice += `\n${result.warnings.join("\n")}`;
+      }
     } else {
       state.restoreError =
         `${t("executionRolledBack")}: ${(result.errors || []).join(" ")}`;
@@ -8028,10 +8050,15 @@ el.planCloseBtn.addEventListener("click", closePlanModal);
 el.planCloseFooterBtn.addEventListener("click", closePlanModal);
 el.planExecuteBtn.addEventListener("click", () => openConfirm("organize"));
 el.planCfgCheckbox.addEventListener("change", async event => {
-  state.updateResourceCfg = event.currentTarget.checked;
+  state.updateResourceCfg = event.currentTarget.checked && supportsResourceCfgUpdate(state.folder);
   state.plan = null;
   el.planModal.__renderedPlan = null;
+  el.planExecuteBtn.disabled = true;
   await buildPlan();
+  if (state.planError) {
+    el.planCfgSummary.textContent = state.planError;
+    el.planCfgRow.classList.remove("hidden");
+  }
 });
 el.reviewDuplicatesBtn.addEventListener("click", async () => {
   state.tab = "duplicates";
