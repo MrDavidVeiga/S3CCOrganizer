@@ -420,29 +420,74 @@ fn script_category(package: &Package, name: &str, language: AppLanguage) -> &'st
 // mod. Conversely, actual gameplay mods may bundle CASP/OBJD resources. A
 // verified internal author or an explicitly scripted source tree is independent
 // evidence that the assembly is primary rather than embedded object behavior.
-fn explicit_script_source_folder(relative: &str) -> bool {
-    relative.split(['\\', '/']).take_while(|part| !part.to_ascii_lowercase().ends_with(".package"))
-        .any(|part| {
-            let normalized = part.trim().to_ascii_lowercase();
-            matches!(normalized.as_str(), "scripts" | "#8 scripts" | "gameplay")
-        })
+fn script_source_roles(relative: &str) -> (bool, bool, bool) {
+    let mut gameplay = false;
+    let mut scripts = false;
+    let mut catalog_root = false;
+    let mut first = true;
+    for part in relative.split(['\\', '/']) {
+        let normalized = part.trim().to_ascii_lowercase();
+        if normalized.ends_with(".package") {
+            break;
+        }
+        if first {
+            catalog_root = matches!(normalized.as_str(), "buy" | "build" | "cas" | "objects");
+            first = false;
+        }
+        if normalized == "gameplay" {
+            gameplay = true;
+        }
+        if matches!(normalized.as_str(), "scripts" | "#8 scripts") {
+            scripts = true;
+        }
+    }
+    (gameplay, scripts, catalog_root)
 }
 
+// Choose catalog classification for a functional object with an embedded S3SA,
+// but preserve independent gameplay mods even when they package supporting
+// CASP/OBJD records. Store sets are bundles, not individual gameplay mods.
 fn catalog_precedes_embedded_script(
     special: Option<&PackageFamilyClassification>,
     catalog_resource_count: usize,
     relative: &str,
+    catalog_destinations: usize,
+    catalog_ambiguous: bool,
 ) -> bool {
-    catalog_resource_count > 0
-        // Store collections regularly include S3SA, plus names like "Al Fresco"
-        // that are too short for author-prefix heuristics to be authoritative.
-        && !store_name_hint(relative)
-        && special.is_some_and(|classification| {
-            classification.detected_from.iter().any(|source| source == "S3SA")
-                && !classification.detected_from.iter().any(|source| source == "NRaasInternal")
-                && !classification.detected_from.iter().any(|source| source == "InternalCreator")
-                && !explicit_script_source_folder(relative)
-        })
+    if catalog_resource_count == 0 {
+        return false;
+    }
+    let Some(classification) = special else { return false };
+    if !classification.detected_from.iter().any(|source| source == "S3SA")
+        || classification.detected_from.iter().any(|source| source == "NRaasInternal")
+    {
+        return false;
+    }
+    if store_name_hint(relative) {
+        return true;
+    }
+
+    let (gameplay_folder, scripts_folder, catalog_root) = script_source_roles(relative);
+    if gameplay_folder && !catalog_root {
+        return false;
+    }
+    if catalog_root {
+        return true;
+    }
+    // A single unambiguous OBJD/CASP destination is authoritative even when
+    // an author name appears inside an object's script metadata.
+    if catalog_destinations == 1 && !catalog_ambiguous {
+        return true;
+    }
+    if scripts_folder {
+        return false;
+    }
+    if classification.detected_from.iter().any(|source| source == "InternalCreator")
+        && (catalog_destinations != 1 || catalog_ambiguous)
+    {
+        return false;
+    }
+    true
 }
 
 fn special_package_classification(
@@ -1300,7 +1345,6 @@ fn scan_one(
 
     let special_primary =
         special_package_classification(&package, &type_ids, &name, &relative, language, catalog_resource_count);
-    let catalog_first = catalog_precedes_embedded_script(special_primary.as_ref(), catalog_resource_count, &relative);
     if let Some(special) = &special_primary {
         for source in &special.detected_from {
             detected_from.insert(source.clone());
@@ -1331,6 +1375,9 @@ fn scan_one(
         }
     }
 
+    let catalog_first = catalog_precedes_embedded_script(
+        special_primary.as_ref(), catalog_resource_count, &relative, destinations.len(), has_ambiguous
+    );
     let active_special = if catalog_first { None } else { special_primary.as_ref() };
     let (mut status, primary, mut destination_parts, mut destination_path) = if let Some(special) = active_special {
         (
@@ -1688,50 +1735,55 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_store_object_with_s3sa_uses_its_catalog_not_its_script_keyword() {
-        let standalone_script = PackageFamilyClassification {
+    fn real_gameplay_mods_and_functional_objects_keep_distinct_destinations() {
+        let script = PackageFamilyClassification {
             main_category: "Gameplay".into(),
-            sub_category: Some("Careers".into()),
-            folder_parts: vec!["Gameplay".into(), "Careers".into()],
+            sub_category: Some("Scripts".into()),
+            folder_parts: vec!["Gameplay".into(), "Scripts".into()],
             detected_from: vec!["S3SA".into()],
-            technical_reason: "S3SA metadata".into(),
+            technical_reason: "S3SA evidence".into(),
         };
-        // Covers the basketball hoop, functional Store equipment, and
-        // custom objects carrying their own gameplay code.
-        assert!(catalog_precedes_embedded_script(Some(&standalone_script), 1, "Packages/Store/Hoop.package"));
-        assert!(catalog_precedes_embedded_script(Some(&standalone_script), 4, "Buy/Sports/Hoop.package"));
-        assert!(!catalog_precedes_embedded_script(Some(&standalone_script), 0, "Buy/Sports/Hoop.package"));
-        assert!(!catalog_precedes_embedded_script(None, 4, "Buy/Sports/Hoop.package"));
-
-        let nraas = PackageFamilyClassification {
-            main_category: "NRaas".into(),
-            sub_category: None,
-            folder_parts: vec!["NRaas".into()],
-            detected_from: vec!["NRaasInternal".into()],
-            technical_reason: "NRaas internal signature".into(),
+        let catalog = |relative: &str, destinations, ambiguous| {
+            catalog_precedes_embedded_script(Some(&script), 2, relative, destinations, ambiguous)
         };
-        assert!(!catalog_precedes_embedded_script(Some(&nraas), 1, "Scripts/NRaas.package"));
+        // Store bundles and premium content should never become Gameplay
+        // just because an XML/assembly contains keyword matches.
+        assert!(catalog("Packages/#9 Store/Store Content/[Items] Al Fresco.package", 4, false));
+        assert!(catalog("Packages/#9 Store/Store Content/[PC] Basketball Hoop.package", 1, false));
+        assert!(catalog("Buy/Entertainment/Sports/[PC] Basketball Hoop.package", 1, false));
+        assert!(catalog("Buy/Debug/Buzz_ShellSoundEmitter.package", 1, false));
+        assert!(catalog("Packages/ani_BistroStove.package", 1, false));
+        assert!(catalog("Packages/Scripts/cmomoney_TimeShifter.package", 1, false));
+        assert!(catalog("Packages/#8 Scripts/Objects/Fantuanss12_ProfessionalOven.package", 1, false));
+        // Gameplay mods may bundle multiple object types or unreadable OBJD.
+        assert!(!catalog("Packages/#8 Scripts/Gameplay/Services/HousekeeperService.package", 2, false));
+        assert!(!catalog("Packages/#8 Scripts/Gameplay/Global Online Banking Mod/Bank.package", 1, false));
+        assert!(!catalog("Packages/Scripts/Gamefreak130_KarmaPowers.package", 0, true));
+        assert!(!catalog_precedes_embedded_script(None, 2, "Buy/Sports/Hoop.package", 1, false));
+        assert!(!catalog_precedes_embedded_script(Some(&script), 0, "Buy/Sports/Hoop.package", 1, false));
 
-        for path in [
-            r"Packages\#8 Scripts\Gameplay\Interactions\twinsimming_Pasteurize Milk Mod.package",
-            "Packages/Scripts/Gamefreak130_KarmaPowers.package",
-            "Packages/#8 Scripts/Gameplay/Services/douglasveiga_Gardener.package",
-        ] {
-            assert!(explicit_script_source_folder(path));
-            assert!(!catalog_precedes_embedded_script(Some(&standalone_script), 1, path));
-        }
-        assert!(!explicit_script_source_folder(
-            r"Packages\#9 Store\Store Content\[PC] Rim Rockin Basketball Hoop.package"
-        ));
-        let verified_mod = PackageFamilyClassification {
+        let verified = PackageFamilyClassification {
             detected_from: vec!["S3SA".into(), "InternalCreator".into()],
-            ..standalone_script
+            ..script.clone()
         };
         assert!(!catalog_precedes_embedded_script(
-            Some(&verified_mod), 2, r"#+18\AnimatedWoohoo.package"
+            Some(&verified), 2, "#+18/AnimatedWoohoo.package", 2, false
         ));
         assert!(catalog_precedes_embedded_script(
-            Some(&verified_mod), 2, r"Packages\#9 Store\Store Content\[Items] Al Fresco Street Market.package"
+            Some(&verified), 2, "Packages/#9 Store/Store Content/[Items] Le Cinema.package", 2, false
+        ));
+        assert!(catalog_precedes_embedded_script(
+            Some(&verified), 2, "Packages/ani_BistroStove.package", 1, false
+        ));
+        assert!(catalog_precedes_embedded_script(
+            Some(&verified), 2, "Buy/Decor/Fantuanss12_GroceryDeliveryService.package", 2, true
+        ));
+        let nraas = PackageFamilyClassification {
+            detected_from: vec!["NRaasInternal".into()],
+            ..script
+        };
+        assert!(!catalog_precedes_embedded_script(
+            Some(&nraas), 2, "Packages/Scripts/NRaas.package", 1, false
         ));
     }
 
