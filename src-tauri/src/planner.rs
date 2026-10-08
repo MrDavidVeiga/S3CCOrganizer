@@ -510,6 +510,84 @@ fn index_exact_duplicates(
     by_hash
 }
 
+// A merged package can contain byte-identical morph resources from several
+// standalone sliders without having the same whole-file SHA-256. This is a
+// conservative *suspected* relation, not a deletion verdict: require full
+// inclusion of at least two non-localization resources, with a real slider
+// morph and a strictly larger package. Data comes from the valid DBPF cache;
+// missing or stale cache entries never trigger a move/block.
+fn index_suspected_merged_sliders(
+    root: &Path,
+    scan_items: &[ScanPackageItem],
+) -> HashMap<String, Vec<String>> {
+    type Indexed = (String, BTreeSet<String>, bool);
+    let cache = load_cache(root);
+    let mut indexed = Vec::<Indexed>::new();
+    for item in scan_items {
+        let Ok(path) = PathBuf::from(&item.path).canonicalize() else {
+            continue;
+        };
+        let Some(cached) = cache.entries.get(path.to_string_lossy().as_ref()) else {
+            continue;
+        };
+        let Ok(metadata) = fs::metadata(&path) else {
+            continue;
+        };
+        let Ok(modified_ns) = metadata.modified()
+            .and_then(|time| time.duration_since(std::time::UNIX_EPOCH)
+                .map_err(|error| std::io::Error::other(error.to_string())))
+            .map(|duration| duration.as_nanos())
+        else {
+            continue;
+        };
+        if cached.size != metadata.len() || cached.modified_ns != modified_ns
+            || cached.parse_error.is_some()
+        {
+            continue;
+        }
+        let substantive = cached.resources.iter()
+            .filter(|resource| !matches!(resource.type_id, 0x2205_57DA | 0x0166_038C))
+            .map(|resource| {
+                format!("{:08X}-{:08X}-{:016X}-{}",
+                    resource.type_id, resource.group, resource.instance, resource.payload_sha256)
+            })
+            .collect::<BTreeSet<_>>();
+        let direct_slider = item.sub_category.as_deref() == Some("Sliders")
+            && cached.resources.iter().any(|r| {
+                matches!(r.type_id, 0x0358_B08A | 0xB52F_5055 | 0x0355_E0A6 | 0x067C_AA11)
+            });
+        indexed.push((item.relative_path.clone(), substantive, direct_slider));
+    }
+    let mut anchored = HashMap::<String, Vec<usize>>::new();
+    for (index, (_, resources, slider)) in indexed.iter().enumerate() {
+        if *slider && resources.len() >= 2 {
+            if let Some(first) = resources.iter().next() {
+                anchored.entry(first.clone()).or_default().push(index);
+            }
+        }
+    }
+    let mut related = HashMap::<String, Vec<String>>::new();
+    for (merged_name, merged_resources, _) in &indexed {
+        let mut candidates = HashSet::<usize>::new();
+        for key in merged_resources {
+            if let Some(indices) = anchored.get(key) {
+                candidates.extend(indices);
+            }
+        }
+        for index in candidates {
+            let (loose_name, loose_resources, _) = &indexed[index];
+            if loose_name != merged_name
+                && loose_resources.len() < merged_resources.len()
+                && loose_resources.is_subset(merged_resources)
+            {
+                related.entry(merged_name.to_lowercase())
+                    .or_default().push(loose_name.clone());
+            }
+        }
+    }
+    related
+}
+
 fn mark_intra_plan_destination_collisions(items: &mut [PlanItem], stats: &mut PlanStats) {
     let mut destinations = HashMap::<String, Vec<usize>>::new();
 
@@ -710,6 +788,7 @@ pub fn build_organization_plan(
     }
 
     let duplicate_peers = index_exact_duplicates(&root, &scan.items, &selected_hashes);
+    let possible_merged_peers = index_suspected_merged_sliders(&root, &scan.items);
 
     let mut partial_group_hashes = HashSet::<String>::new();
 
@@ -795,6 +874,28 @@ pub fn build_organization_plan(
                     "Exact SHA-256 duplicate in the scanned library ({} matching files: {}). Kept in its current location. Review in Duplicates before any move or deletion.",
                     peers.len(),
                     peers.iter().take(4).cloned().collect::<Vec<_>>().join(" | ")
+                )],
+            });
+            continue;
+        }
+
+        if let Some(loose_files) = possible_merged_peers.get(&item.relative_path.to_lowercase()) {
+            stats.duplicate_skipped += 1;
+            items.push(PlanItem {
+                id: item.id.clone(),
+                name: item.name.clone(),
+                source_path: source.to_string_lossy().to_string(),
+                source_relative_path: item.relative_path.clone(),
+                destination_path: None,
+                destination_relative_path: None,
+                classification_status: item.status.clone(),
+                classification_reason: item.classification_reason.clone(),
+                plan_status: "duplicate_skipped".to_string(),
+                sha256: Some(source_hash),
+                size: item.file_size,
+                warnings: vec![format!(
+                    "Possible merged package: its non-localization resources contain the exact TGIs and payloads of standalone slider package(s): {}. This is a review candidate, not proof that the packages are interchangeable. Kept in place; inspect Duplicates before any change.",
+                    loose_files.iter().take(4).cloned().collect::<Vec<_>>().join(" | ")
                 )],
             });
             continue;
