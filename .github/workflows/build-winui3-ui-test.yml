@@ -7,6 +7,7 @@ on:
       - feature/winui3-full-fidelity
       - fix/resourcecfg-restore-build-20261008
       - fix/organize-progress-bulk-review-20261008
+      - fix/manager-speed-batch-ux-20261008
     paths:
       - ".github/workflows/build-winui3-ui-test.yml"
       - "src/**"
@@ -20,6 +21,7 @@ on:
       - "scripts/test-fluent-chrome.mjs"
       - "scripts/test-fluent-buttons.mjs"
       - "scripts/test-fluent-theme-audit.mjs"
+      - "scripts/test-manager-batch-ux.mjs"
   workflow_dispatch:
 
 concurrency:
@@ -94,6 +96,9 @@ jobs:
 
       - name: Build frontend
         run: npm run build
+
+      - name: Test Manager duplicate and conflict multi-selection
+        run: node scripts/test-manager-batch-ux.mjs
 
       - name: Run Rust regression tests
         run: cargo test --manifest-path src-tauri/Cargo.toml --lib

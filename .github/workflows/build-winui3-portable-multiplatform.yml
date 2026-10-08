@@ -7,11 +7,13 @@ on:
       - feature/winui3-full-fidelity
       - fix/resourcecfg-restore-build-20261008
       - fix/organize-progress-bulk-review-20261008
+      - fix/manager-speed-batch-ux-20261008
     paths:
       - ".github/workflows/build-winui3-portable-multiplatform.yml"
       - "src/**"
       - "src-tauri/**"
       - "index.html"
+      - "scripts/test-manager-batch-ux.mjs"
   workflow_dispatch:
 
 permissions:
@@ -84,6 +86,7 @@ jobs:
         run: |
           node scripts/verify-fluent-foundation.mjs
           node --check src/app.js
+          node scripts/test-manager-batch-ux.mjs
           npm run build
 
       - name: Recover original app icon
