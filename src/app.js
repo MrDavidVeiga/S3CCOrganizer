@@ -200,6 +200,9 @@ const I18N = {
     savedIntentionalOverride: "Saved Intentional Override",
     auditReport: "Audit Report",
     auditReportHint: "Export classifications, duplicate findings, conflicts and review decisions.",
+    auditReportHintOrganizer: "Export package classifications and planned destinations.",
+    auditReportHintDuplicates: "Export duplicate groups and related CC variants.",
+    auditReportHintConflicts: "Export shared resources, potential conflicts and review decisions.",
     exportAuditReport: "Export Report",
     exportingAuditReport: "Exporting report…",
     auditReportSaved: "Audit report saved",
@@ -674,6 +677,9 @@ const I18N = {
     savedIntentionalOverride: "Override Intencional Salvo",
     auditReport: "Relatório de Auditoria",
     auditReportHint: "Exporte classificações, duplicados, conflitos e decisões de revisão.",
+    auditReportHintOrganizer: "Exporte a categorização dos packages e seus destinos.",
+    auditReportHintDuplicates: "Exporte os grupos de duplicatas e variantes relacionadas.",
+    auditReportHintConflicts: "Exporte os recursos compartilhados, conflitos e decisões de revisão.",
     exportAuditReport: "Exportar Relatório",
     exportingAuditReport: "Exportando relatório…",
     auditReportSaved: "Relatório de auditoria salvo",
@@ -1147,6 +1153,9 @@ const I18N = {
     savedIntentionalOverride: "Override Intencional Guardado",
     auditReport: "Informe de Auditoría",
     auditReportHint: "Exporta clasificaciones, duplicados, conflictos y decisiones de revisión.",
+    auditReportHintOrganizer: "Exporta las clasificaciones de packages y sus destinos.",
+    auditReportHintDuplicates: "Exporta los grupos de duplicados y variantes relacionadas.",
+    auditReportHintConflicts: "Exporta recursos compartidos, conflictos y decisiones de revisión.",
     exportAuditReport: "Exportar Informe",
     exportingAuditReport: "Exportando informe…",
     auditReportSaved: "Informe de auditoría guardado",
@@ -7282,11 +7291,11 @@ el.openManifestFolderBtn.addEventListener("click", () => openDirectorySafe(state
 el.openCacheBtn.addEventListener("click", () => openDirectorySafe(state.cacheInfo?.path));
 el.clearCacheBtn.addEventListener("click", () => openConfirm("clear_cache"));
 for (const button of el.exportAuditButtons) {
-  button.addEventListener("click", exportAuditReport);
+  button.addEventListener("click", () => exportAuditReport(button.dataset.exportAudit));
 }
 for (const button of el.openReportFolderButtons) {
   button.addEventListener("click", () =>
-    openDirectorySafe(state.lastAuditReport?.directory)
+    openDirectorySafe(state.auditReports[button.dataset.openReportFolder]?.directory)
   );
 }
 el.duplicatesClearListBtn.addEventListener("click", clearDuplicateList);
