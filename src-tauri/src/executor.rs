@@ -834,10 +834,43 @@ mod tests {
         fs::create_dir_all(mods.join("Cabelos/Old")).unwrap();
         let (removed, _, warnings) = cleanup_empty_directories_after_organization(&mods, &[]);
         assert!(warnings.is_empty(), "{warnings:?}");
-        assert_eq!(removed, 4);
+        assert_eq!(removed, 5); // Packages/Old/Unused, Overrides/Old and Cabelos/Old
         assert!(mods.join("Packages").is_dir());
         assert!(mods.join("Overrides").is_dir());
         assert!(!mods.join("Cabelos").exists());
+        fs::remove_dir_all(base).unwrap();
+    }
+
+    #[test]
+    fn leftover_inventory_includes_unmoved_legacy_roots_and_blocked_packages() {
+        let base = std::env::temp_dir().join(format!(
+            "s3cc-pending-copy-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
+        ));
+        let mods = base.join("Mods - Copia");
+        fs::create_dir_all(mods.join("Packages/Old")).unwrap();
+        fs::create_dir_all(mods.join("Overrides")).unwrap();
+        fs::create_dir_all(mods.join("Cabelos")).unwrap();
+        fs::write(mods.join("Cabelos/extra.package"), b"pending").unwrap();
+        fs::write(mods.join("Cabelos/thumbnail.png"), b"preserve").unwrap();
+        let old = mods.join("Packages/Old/invalid.package");
+        fs::write(&old, b"invalid").unwrap();
+        let blocked = PlanItem {
+            id: old.to_string_lossy().to_string(),
+            name: "invalid.package".into(), source_path: old.to_string_lossy().to_string(),
+            source_relative_path: "Packages/Old/invalid.package".into(),
+            destination_path: None, destination_relative_path: None,
+            classification_status: "invalid".into(),
+            classification_reason: None,
+            plan_status: "keep_uncategorized".into(),
+            sha256: None, size: 7, warnings: vec![],
+        };
+        let (count, examples) = report_all_pending_sources(&mods, &[], &[blocked]);
+        assert_eq!(count, 3);
+        assert!(examples.iter().any(|name| name.contains("Cabelos/extra.package")));
+        assert!(examples.iter().any(|name| name.contains("thumbnail.png")));
+        assert!(examples.iter().any(|name| name.contains("keep_uncategorized")));
         fs::remove_dir_all(base).unwrap();
     }
 
