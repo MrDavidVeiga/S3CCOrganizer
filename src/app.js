@@ -1950,9 +1950,7 @@ async function clearAnalysisCache() {
   if (
     !state.folder ||
     state.cacheBusy ||
-    state.scanning ||
-    state.duplicatesBusy ||
-    state.conflictsBusy ||
+    analysisReadsBusy() ||
     state.structureBusy ||
     state.technicalDetailsLoading
   ) return;
@@ -2715,7 +2713,7 @@ async function buildQuarantinePreview() {
 }
 
 async function executeQuarantine() {
-  if (!state.folder || !state.quarantinePlan?.canExecute || !state.quarantineSelected.size || state.quarantineBusy) return;
+  if (!state.folder || !state.quarantinePlan?.canExecute || !state.quarantineSelected.size || state.quarantineBusy || analysisReadsBusy()) return;
   state.quarantineBusy = true;
   renderDuplicatesPreview();
   try {
@@ -3144,12 +3142,12 @@ function renderDuplicates() {
   if (!el.analyzeDuplicatesBtn) return;
   el.analyzeDuplicatesBtn.disabled =
     !state.folder ||
-    state.duplicatesBusy ||
-    state.scanning ||
-    state.conflictsBusy ||
-    state.structureBusy ||
-    state.toolsBusy;
+    analysisReadsBusy() || state.structureBusy || state.toolsBusy;
 
+  el.clearDuplicatesBtn.classList.toggle("hidden", !state.duplicatesAnalysis);
+  el.clearDuplicatesBtn.disabled = analysisReadsBusy() || state.auditBusy;
+  el.exportDuplicatesBtn.classList.toggle("hidden", !state.folder);
+  el.exportDuplicatesBtn.disabled = analysisReadsBusy() || state.auditBusy;
   const stats = state.duplicatesAnalysis?.stats || {};
   el.dupStatPackages.textContent = stats.packagesScanned ?? 0;
   el.dupStatExact.textContent = stats.exactGroups ?? 0;
@@ -3164,6 +3162,9 @@ function renderDuplicates() {
   } else if (state.duplicatesError) {
     el.duplicatesState.textContent = `${t("duplicatesFailed")}: ${state.duplicatesError}`;
     el.duplicatesState.className = "scan-state error";
+  } else if (state.analysisStatus.duplicates === "queued") {
+    el.duplicatesState.textContent = t("analysisQueued");
+    el.duplicatesState.className = "scan-state busy";
   } else if (state.duplicatesNotice) {
     el.duplicatesState.textContent = state.duplicatesNotice;
     el.duplicatesState.className = "scan-state";
@@ -3699,12 +3700,12 @@ function renderConflicts() {
   if (!el.analyzeConflictsBtn) return;
   el.analyzeConflictsBtn.disabled =
     !state.folder ||
-    state.conflictsBusy ||
-    state.scanning ||
-    state.duplicatesBusy ||
-    state.structureBusy ||
-    state.toolsBusy;
+    analysisReadsBusy() || state.structureBusy || state.toolsBusy;
 
+  el.clearConflictsBtn.classList.toggle("hidden", !state.conflictsAnalysis);
+  el.clearConflictsBtn.disabled = analysisReadsBusy() || state.auditBusy;
+  el.exportConflictsBtn.classList.toggle("hidden", !state.folder);
+  el.exportConflictsBtn.disabled = analysisReadsBusy() || state.auditBusy;
   const analysis = state.conflictsAnalysis;
   const stats = analysis?.stats || {};
   // Resource overlap is not an actionable override when neither (or only
@@ -3728,6 +3729,9 @@ function renderConflicts() {
   } else if (state.conflictsError) {
     el.conflictsState.textContent = `${t("conflictsFailed")}: ${state.conflictsError}`;
     el.conflictsState.className = "scan-state error";
+  } else if (state.analysisStatus.conflicts === "queued") {
+    el.conflictsState.textContent = t("analysisQueued");
+    el.conflictsState.className = "scan-state busy";
   } else if (state.conflictsNotice) {
     el.conflictsState.textContent = state.conflictsNotice;
     el.conflictsState.className = "scan-state";
@@ -5545,11 +5549,8 @@ function renderSelectionSummary() {
   const count = state.selectedForPlan.size;
   el.selectionSummary.textContent = `${count} ${t("selectedEligible")}`;
   el.planBtn.disabled =
-    count === 0 ||
-    state.scanning ||
-    state.planning ||
-    state.executing ||
-    state.structureBusy;
+    count === 0 || analysisReadsBusy() ||
+    state.planning || state.executing || state.structureBusy;
 }
 
 function appendMeta(container, label, value) {
@@ -6085,7 +6086,7 @@ function renderRestore() {
 
   el.executeRestoreBtn.classList.toggle("hidden", !canExecuteRestore);
   el.executeRestoreBtn.disabled =
-    state.restoreBusy || state.structureBusy || workspaceReadOnly();
+    state.restoreBusy || state.structureBusy || analysisReadsBusy() || workspaceReadOnly();
 
   if (plan) {
     el.restoreRootCheck.classList.remove("hidden", "match", "mismatch");
@@ -6270,12 +6271,8 @@ function render() {
     state.executing;
 
   el.chooseFolderBtn.disabled =
-    state.scanning ||
-    state.duplicatesBusy ||
-    state.conflictsBusy ||
-    state.structureBusy ||
-    state.planning ||
-    state.executing;
+    analysisReadsBusy() || state.auditBusy || state.restoreBusy ||
+    state.quarantineBusy || state.structureBusy || state.planning || state.executing;
 
   if (state.executing) {
     el.scanState.textContent = t("executing");
@@ -6328,20 +6325,7 @@ function clearLoadedLibrary() {
   state.organizationReview = null;
   state.organizationCollisionItems = [];
 
-  state.duplicatesAnalysis = null;
-  state.duplicatesError = "";
-  state.duplicatesNotice = "";
-  state.duplicatesSearch = "";
-  state.duplicatesFilter = "all";
-  state.duplicateSelectedId = "";
-
-  state.conflictsAnalysis = null;
-  state.conflictsError = "";
-  state.conflictsNotice = "";
-  state.conflictsSearch = "";
-  state.conflictsFilter = "attention";
-  state.conflictSelectedId = "";
-  state.conflictMarks = {};
+  state.analysisStatus.manager = "cleared";
 
   state.quarantineSelected.clear();
   state.quarantinePlan = null;
@@ -6352,10 +6336,8 @@ function clearLoadedLibrary() {
   state.technicalDetailsErrors = {};
   state.technicalDetailsOpen.clear();
 
-  state.operations = { scan: null, duplicates: null, conflicts: null };
+  state.operations.scan = null;
   closePlanModal();
-  closeDuplicateDetails();
-  closeConflictDetails();
   closeCollisionReview();
   persistPreferences();
   render();
@@ -6571,7 +6553,7 @@ async function buildPlan() {
   if (
     !state.folder ||
     !state.selectedForPlan.size ||
-    state.planning ||
+    state.planning || analysisReadsBusy() ||
     state.structureBusy
   ) return;
 
@@ -6603,7 +6585,7 @@ async function buildPlan() {
 }
 
 async function executeOrganization() {
-  if (!planCanExecute(state.plan) || state.executing || state.structureBusy) return;
+  if (!planCanExecute(state.plan) || state.executing || state.structureBusy || analysisReadsBusy()) return;
 
   const completedPlan = state.plan;
   const completedStats = completedPlan?.stats || {};
@@ -6701,7 +6683,7 @@ async function previewRestore() {
 }
 
 async function executeRestore() {
-  if (!state.restorePlan?.canExecute || state.restoreBusy || state.structureBusy) return;
+  if (!state.restorePlan?.canExecute || state.restoreBusy || state.structureBusy || analysisReadsBusy()) return;
 
   state.restoreBusy = true;
   state.restoreError = "";
