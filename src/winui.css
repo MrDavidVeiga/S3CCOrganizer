@@ -574,3 +574,31 @@ html[data-theme-choice="ea-app"] .winui-social-footer .social-icons-list a:hover
   color: #FFFFFF;
   background: #343647;
 }
+
+
+/* Theme-aware icon affordances: accents follow the active choice, including
+   the user's real Windows accent for System/WinUI Light/WinUI Dark. */
+:root {
+  --theme-icon-hover: var(--accent-light-1);
+}
+html[data-resolved-mode="light"] {
+  --theme-icon-hover: var(--accent-dark-2);
+}
+html[data-theme-choice] body.release-v1 .winui-social-footer .social-icons-list li a:hover,
+html[data-theme-choice] body.release-v1 .winui-social-footer .social-icons-list li a:focus-visible {
+  color: var(--theme-icon-hover);
+  background: var(--accent-low);
+  border-color: var(--accent-outline);
+}
+body.release-v1 .catalog-mini-icon:hover,
+body.release-v1 .catalog-mini-icon:focus-visible,
+body.release-v1 .catalog-row-button:hover,
+body.release-v1 .catalog-row-button:focus-visible {
+  color: var(--theme-icon-hover);
+  background: var(--accent-low);
+}
+body.release-v1 .package-preview-thumb-wrap:hover,
+body.release-v1 .package-preview-thumb-wrap:focus-visible {
+  border-color: var(--accent-outline);
+  background: var(--accent-low);
+}
