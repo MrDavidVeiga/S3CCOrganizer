@@ -602,3 +602,10 @@ body.release-v1 .package-preview-thumb-wrap:focus-visible {
   border-color: var(--accent-outline);
   background: var(--accent-low);
 }
+
+body.release-v1 .icon-btn:hover:not(:disabled),
+body.release-v1 .icon-btn:focus-visible:not(:disabled) {
+  color: var(--theme-icon-hover);
+  background: var(--accent-low);
+  border-color: var(--accent-outline);
+}
