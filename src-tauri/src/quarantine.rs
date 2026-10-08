@@ -900,7 +900,7 @@ mod tests {
         let quarantined = PathBuf::from(&result.quarantine_root)
             .join("CAS").join("exact.package");
         assert_eq!(fs::read(&quarantined).unwrap(), b"sample-one");
-        let restored = restore_quarantine(root_text, result.manifest_path.clone()).unwrap();
+        let restored = restore_quarantine(root_text, result.manifest_path.clone(), true).unwrap();
         assert_eq!(restored.status, "RESTORED");
         assert_eq!(fs::read(&source).unwrap(), b"sample-one");
         assert!(!quarantined.exists());
@@ -922,7 +922,7 @@ mod tests {
         fs::create_dir_all(qroot.join("CAS")).unwrap();
         fs::rename(&source, qroot.join("CAS/pending.package")).unwrap();
         let recovered = recover_quarantine(root_text,
-            manifest_path.to_string_lossy().into_owned()).unwrap();
+            manifest_path.to_string_lossy().into_owned(), true).unwrap();
         assert_eq!(recovered.status, "ROLLED_BACK");
         assert_eq!(fs::read(&source).unwrap(), b"recover-me");
         cleanup(&mods);
@@ -938,7 +938,7 @@ mod tests {
         let quarantined = PathBuf::from(&result.quarantine_root)
             .join("CAS").join("tamper.package");
         fs::write(&quarantined, b"tampered").unwrap();
-        assert!(restore_quarantine(root_text, result.manifest_path).is_err());
+        assert!(restore_quarantine(root_text, result.manifest_path, true).is_err());
         assert!(!source.exists());
         assert_eq!(fs::read(&quarantined).unwrap(), b"tampered");
         cleanup(&mods);
@@ -952,7 +952,7 @@ mod tests {
         let result = execute_quarantine(root_text.clone(),
             vec![source.to_string_lossy().into_owned()], None).unwrap();
         fs::write(&source, b"later-user-file").unwrap();
-        assert!(restore_quarantine(root_text, result.manifest_path).is_err());
+        assert!(restore_quarantine(root_text, result.manifest_path, true).is_err());
         assert_eq!(fs::read(&source).unwrap(), b"later-user-file");
         cleanup(&mods);
     }
