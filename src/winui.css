@@ -407,7 +407,7 @@ html[data-theme-choice="ea-app"] {
 }
 
 .ea-app-swatch {
-  background: linear-gradient(90deg,#181B2A 0 58%,#276AFC 58% 100%);
+  background: linear-gradient(90deg,#181B2A 0 58%,#FF4747 58% 100%);
 }
 
 html[data-theme-choice="ea-app"] body.release-v1 {
@@ -470,18 +470,18 @@ html[data-theme-choice="ea-app"] .release-v1 .mode-btn.active::after {
 }
 
 html[data-theme-choice="ea-app"] .release-v1 .primary-btn {
-  background: #276AFC;
-  border-color: #276AFC;
-  border-bottom-color: #1F56D0;
+  background: var(--accent);
+  border-color: var(--accent);
+  border-bottom-color: var(--accent-dark-1);
   color: #FFFFFF;
 }
 
 html[data-theme-choice="ea-app"] .release-v1 .primary-btn:hover:not(:disabled) {
-  background: #3978FC;
+  background: var(--accent-light-1);
 }
 
 html[data-theme-choice="ea-app"] .release-v1 .primary-btn:active:not(:disabled) {
-  background: #215BD8;
+  background: var(--accent-dark-1);
 }
 
 html[data-theme-choice="ea-app"] .release-v1 .lang-toggle-btn,
@@ -523,8 +523,8 @@ html[data-theme-choice="ea-app"] .release-v1 select.text-input:hover {
 html[data-theme-choice="ea-app"] .release-v1 .text-input:focus,
 html[data-theme-choice="ea-app"] .release-v1 select.text-input:focus {
   background: #FFFFFF;
-  border-color: #276AFC;
-  border-bottom-color: #276AFC;
+  border-color: var(--accent);
+  border-bottom-color: var(--accent);
 }
 
 html[data-theme-choice="ea-app"] .release-v1 select.text-input option,
@@ -563,7 +563,7 @@ html[data-theme-choice="ea-app"] .release-v1 .package-row.active {
 }
 
 html[data-theme-choice="ea-app"] .theme-check {
-  color: #276AFC;
+  color: var(--accent);
 }
 
 html[data-theme-choice="ea-app"] .winui-social-footer .social-icons-list a {
