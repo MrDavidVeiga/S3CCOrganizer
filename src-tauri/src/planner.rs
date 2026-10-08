@@ -68,21 +68,30 @@ fn is_mods_root(root: &Path) -> bool {
         .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("mods"))
 }
 
+fn is_packages_root(root: &Path) -> bool {
+    root.file_name()
+        .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("packages"))
+}
+
 // When the user selected Mods rather than Mods/Packages, the organizer's
 // destination folders must still stay inside Packages, even if the selected
 // package has no reliable Resource.cfg rule.
 fn ensure_packages_destination(root: &Path, parts: &[String]) -> Vec<String> {
-    if !is_mods_root(root)
-        || parts
-            .first()
-            .is_some_and(|part| part.eq_ignore_ascii_case("packages"))
-    {
-        return parts.to_vec();
+    let mut parts = parts.to_vec();
+    let has_packages_prefix = parts.first()
+        .is_some_and(|part| part.eq_ignore_ascii_case("Packages"));
+    // Explicit legacy rules may contain CAS or Packages/CAS. CAS must not
+    // consume a Resource.cfg nesting level. Never produce Packages/Packages.
+    let cas_index = usize::from(has_packages_prefix);
+    if parts.get(cas_index).is_some_and(|part| part.eq_ignore_ascii_case("CAS")) {
+        parts.remove(cas_index);
     }
-    let mut result = Vec::with_capacity(parts.len() + 1);
-    result.push("Packages".to_string());
-    result.extend_from_slice(parts);
-    result
+    if is_packages_root(root) && has_packages_prefix {
+        parts.remove(0);
+    } else if is_mods_root(root) && !has_packages_prefix {
+        parts.insert(0, "Packages".to_string());
+    }
+    parts
 }
 
 fn destination_path(root: &Path, parts: &[String], file_name: &std::ffi::OsStr) -> PathBuf {
@@ -177,7 +186,9 @@ fn fit_destination_to_resource_cfg(
 
     let original = proposed.clone();
     let mut compacted = proposed;
-    while compacted.len() > 1 {
+    // Never compact away the literal Packages root under Mods.
+    let minimum_depth = if is_mods_root(root) { 2 } else { 1 };
+    while compacted.len() > minimum_depth {
         let last = compacted.pop().unwrap();
         let previous = compacted.pop().unwrap();
         compacted.push(format!("{previous} - {last}"));
@@ -552,6 +563,12 @@ pub fn build_organization_plan(
     if !root.is_dir() {
         return Err(format!("Root is not a directory: {}", root.display()));
     }
+    if !is_mods_root(&root) && !is_packages_root(&root) {
+        return Err(
+            "Select Mods or Mods/Packages for organization. All category folders must be directly inside Packages."
+                .to_string(),
+        );
+    }
 
     // A Mods root may also contain Overrides, DCCache and other directories.
     // Never organize those as Packages or create category folders beside Packages.
@@ -806,6 +823,11 @@ pub fn build_organization_plan(
         destination_relative.push(file_name);
 
         let destination = root.join(&destination_relative);
+        if packages_root.is_some() && !destination.starts_with(root.join("Packages")) {
+            stats.blocked += 1;
+            items.push(make_blocked(item, "Destination is outside Mods/Packages.".to_string()));
+            continue;
+        }
         let destination_relative_text = relative_key(&destination_relative);
 
         if relative_key(Path::new(&item.relative_path)).eq_ignore_ascii_case(&destination_relative_text) {
@@ -969,11 +991,11 @@ mod tests {
         let categories = vec!["CAS".into(), "Clothing".into(), "Female".into()];
         assert_eq!(
             ensure_packages_destination(mods, &categories),
-            vec!["Packages", "CAS", "Clothing", "Female"]
+            vec!["Packages", "Clothing", "Female"]
         );
         assert_eq!(
             ensure_packages_destination(mods, &["Packages".into(), "CAS".into()]),
-            vec!["Packages", "CAS"]
+            vec!["Packages"]
         );
     }
 
@@ -982,7 +1004,11 @@ mod tests {
         let packages_base = Path::new("The Sims 3").join("Mods").join("Packages");
         let packages = packages_base.as_path();
         let categories = vec!["CAS".into(), "Hair".into()];
-        assert_eq!(ensure_packages_destination(packages, &categories), categories);
+        assert_eq!(ensure_packages_destination(packages, &categories), vec!["Hair"]);
+        assert_eq!(
+            ensure_packages_destination(packages, &["Packages".into(), "CAS".into(), "Hair".into()]),
+            vec!["Hair"]
+        );
     }
 
     #[test]
@@ -998,6 +1024,78 @@ mod tests {
             None,
         ).unwrap();
         assert_eq!(resolved, vec!["Packages", "Scripts", "Gameplay"]);
+    }
+
+    #[test]
+    fn resource_cfg_compaction_preserves_packages_directory() {
+        use crate::resource_cfg::ResourceCfgRule;
+
+        let root = Path::new("Temporary").join("Mods");
+        let context = ResourceCfgContext {
+            directory: root.clone(),
+            info: ResourceCfgInfo {
+                path: root.join("Resource.cfg").to_string_lossy().to_string(),
+                precedence_reliable: true,
+                warnings: vec![],
+                rules: vec![
+                    ResourceCfgRule {
+                        priority: 500,
+                        pattern: "Packages/*.package".into(),
+                        source_line: 1,
+                    },
+                    ResourceCfgRule {
+                        priority: 500,
+                        pattern: "Packages/*/*.package".into(),
+                        source_line: 2,
+                    },
+                ],
+            },
+        };
+        let parts = vec![
+            "Clothing".into(), "Female".into(), "YA-A".into(), "Top".into(),
+        ];
+        let (fitted, _) = fit_destination_to_resource_cfg(
+            &root, &root.join("Packages").join("source.package"),
+            std::ffi::OsStr::new("new.package"), &parts, Some(&context),
+        ).unwrap();
+        assert_eq!(fitted.len(), 2);
+        assert_eq!(fitted[0], "Packages");
+        assert!(fitted[1].starts_with("Clothing"));
+    }
+
+    #[test]
+    fn four_cas_folders_fit_inside_packages_with_matching_resource_cfg() {
+        use crate::resource_cfg::ResourceCfgRule;
+
+        let root = Path::new("Temporary").join("Mods");
+        let context = ResourceCfgContext {
+            directory: root.clone(),
+            info: ResourceCfgInfo {
+                path: root.join("Resource.cfg").to_string_lossy().to_string(),
+                precedence_reliable: true,
+                warnings: vec![],
+                rules: vec![
+                    ResourceCfgRule {
+                        priority: 500,
+                        pattern: "Packages/*.package".into(),
+                        source_line: 1,
+                    },
+                    ResourceCfgRule {
+                        priority: 500,
+                        pattern: "Packages/*/*/*/*/*.package".into(),
+                        source_line: 2,
+                    },
+                ],
+            },
+        };
+        let parts = vec![
+            "Clothing".into(), "Female".into(), "YA-A".into(), "Top".into(),
+        ];
+        let (fitted, _) = fit_destination_to_resource_cfg(
+            &root, &root.join("Packages").join("source.package"),
+            std::ffi::OsStr::new("new.package"), &parts, Some(&context),
+        ).unwrap();
+        assert_eq!(fitted, vec!["Packages", "Clothing", "Female", "YA-A", "Top"]);
     }
 
     #[test]
