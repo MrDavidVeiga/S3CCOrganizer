@@ -14,6 +14,13 @@ use std::{
 use walkdir::WalkDir;
 
 const TYPE_IMG: u32 = 0x00B2_D882;
+const TYPE_PNG: u32 = 0x2F7D_0004;
+const TYPE_FACE: u32 = 0x0358_B08A;
+const TYPE_CBLN: u32 = 0x051D_F2DD;
+const TYPE_BGEO: u32 = 0x067C_AA11;
+const TYPE_BOND: u32 = 0x0355_E0A6;
+const TYPE_BUNIT: u32 = 0xB52F_5055;
+const TYPE_BUFF: u32 = 0xDD32_23A7;
 const TYPE_GEOM: u32 = 0x015A_1849;
 const TYPE_NMAP: u32 = 0x0166_038C;
 const TYPE_LAYO: u32 = 0x025C_95B6;
@@ -128,6 +135,7 @@ pub struct ConflictStats {
     // Resource.cfg PackedFile rules are not live in-game conflicts.
     pub inactive_pairs: usize,
     pub visual_overrides: usize,
+    pub cas_morph_overlaps: usize,
     pub catalog_overrides: usize,
     pub gameplay_overrides: usize,
     pub script_conflicts: usize,
@@ -178,6 +186,13 @@ fn is_package_local_metadata(type_id: u32) -> bool {
 fn resource_label(type_id: u32) -> String {
     match type_id {
         TYPE_IMG => "_IMG".into(),
+        TYPE_PNG => "PNG".into(),
+        TYPE_FACE => "FACE".into(),
+        TYPE_CBLN => "CBLN".into(),
+        TYPE_BGEO => "BGEO".into(),
+        TYPE_BOND => "BOND".into(),
+        TYPE_BUNIT => "BUNIT".into(),
+        TYPE_BUFF => "BUFF".into(),
         TYPE_GEOM => "GEOM".into(),
         TYPE_NMAP => "NMAP".into(),
         TYPE_LAYO => "LAYO".into(),
@@ -202,7 +217,7 @@ fn resource_label(type_id: u32) -> String {
 fn is_visual(type_id: u32) -> bool {
     matches!(
         type_id,
-        TYPE_IMG | TYPE_GEOM | TYPE_MODL | TYPE_MLOD | TYPE_VPXY | TYPE_MATD | TYPE_TXTC | TYPE_TXTF | TYPE_OBJK | TYPE_LAYO
+        TYPE_IMG | TYPE_PNG | TYPE_GEOM | TYPE_MODL | TYPE_MLOD | TYPE_VPXY | TYPE_MATD | TYPE_TXTC | TYPE_TXTF | TYPE_OBJK | TYPE_LAYO
     )
 }
 
@@ -225,12 +240,18 @@ fn is_catalog(type_id: u32) -> bool {
 }
 
 fn is_gameplay(type_id: u32) -> bool {
-    matches!(type_id, TYPE_XML | TYPE_ITUN)
+    matches!(type_id, TYPE_XML | TYPE_ITUN | TYPE_BUFF)
+}
+
+fn is_cas_morph(type_id: u32) -> bool {
+    matches!(type_id, TYPE_FACE | TYPE_CBLN | TYPE_BGEO | TYPE_BOND | TYPE_BUNIT)
 }
 
 fn resource_class(type_id: u32) -> &'static str {
     if type_id == TYPE_S3SA {
         "script"
+    } else if is_cas_morph(type_id) {
+        "cas_morph"
     } else if is_gameplay(type_id) {
         "gameplay"
     } else if is_catalog(type_id) {
@@ -256,6 +277,7 @@ fn impact_for(type_id: u32, same_payload: bool) -> &'static str {
         "gameplay" => "gameplay_override",
         "catalog" => "catalog_override",
         "visual" => "visual_override",
+        "cas_morph" => "cas_morph_overlap",
         "text" => "text_override",
         // Metadata and unknown payload differences are not promoted to a
         // specific conflict class without deeper semantics.
@@ -269,6 +291,7 @@ fn impact_priority(kind: &str) -> u8 {
         "gameplay_override" => 60,
         "catalog_override" => 50,
         "visual_override" => 40,
+        "cas_morph_overlap" => 35,
         "text_override" => 30,
         "potential_conflict" => 20,
         "shared_identical" => 0,
@@ -304,6 +327,7 @@ fn severity_for(kind: &str) -> &'static str {
         "mixed_override" => "high",
         "catalog_override" => "warning",
         "visual_override" => "warning",
+        "cas_morph_overlap" => "review",
         "text_override" => "review",
         "potential_conflict" => "review",
         "shared_identical" => "info",
@@ -343,6 +367,7 @@ fn explanation_key(kind: &str) -> &'static str {
     match kind {
         "shared_identical" => "same_tgi_same_payload",
         "visual_override" => "same_tgi_different_visual_payload",
+        "cas_morph_overlap" => "same_tgi_different_cas_morph_payload",
         "catalog_override" => "same_tgi_different_catalog_payload",
         "gameplay_override" => "same_tgi_different_gameplay_payload",
         "script_conflict" => "same_tgi_different_script_payload",
@@ -691,8 +716,7 @@ pub fn analyze_conflicts_core(
                 }
                 accumulator.impact_kinds.insert(impact.clone());
 
-                if accumulator.evidence.len() < MAX_EVIDENCE_PER_FINDING {
-                    accumulator.evidence.push(ConflictEvidence {
+                let evidence = ConflictEvidence {
                         resource_type: left.type_id,
                         resource_type_hex: format!("0x{:08X}", left.type_id),
                         resource_label: resource_label(left.type_id),
@@ -707,9 +731,20 @@ pub fn analyze_conflicts_core(
                         left_payload_size: left.payload_size,
                         right_payload_size: right.payload_size,
                         impact_kind: impact,
-                    });
+                };
+                // Keep divergent evidence visible even when a heavily shared
+                // package pair exceeds the preview limit. The old first-64
+                // policy could show only identical resources despite a real
+                // differing-payload count.
+                if accumulator.evidence.len() < MAX_EVIDENCE_PER_FINDING {
+                    accumulator.evidence.push(evidence);
                 } else {
                     accumulator.evidence_truncated = true;
+                    if !evidence.same_payload {
+                        if let Some(index) = accumulator.evidence.iter().position(|item| item.same_payload) {
+                            accumulator.evidence[index] = evidence;
+                        }
+                    }
                 }
             }
         }
@@ -744,6 +779,7 @@ pub fn analyze_conflicts_core(
         match kind.as_str() {
             "shared_identical" => stats.shared_identical += 1,
             "visual_override" => stats.visual_overrides += 1,
+            "cas_morph_overlap" => stats.cas_morph_overlaps += 1,
             "catalog_override" => stats.catalog_overrides += 1,
             "gameplay_override" => stats.gameplay_overrides += 1,
             "script_conflict" => stats.script_conflicts += 1,
@@ -778,6 +814,9 @@ pub fn analyze_conflicts_core(
             stats.inactive_pairs += 1;
         }
 
+        let mut evidence = accumulator.evidence;
+        evidence.sort_by_key(|item| (item.same_payload, item.resource_type, item.group, item.instance));
+
         findings.push(ConflictFinding {
             id: pair_id(left, right),
             decision_key: decision_key(left, right),
@@ -795,7 +834,7 @@ pub fn analyze_conflicts_core(
             shared_resource_count: accumulator.shared_resource_count,
             identical_payload_count: accumulator.identical_payload_count,
             different_payload_count: accumulator.different_payload_count,
-            evidence: accumulator.evidence,
+            evidence,
             evidence_truncated: accumulator.evidence_truncated,
             load_order_status,
             higher_priority_path,
@@ -940,6 +979,24 @@ mod tests {
             .into_iter()
             .collect::<BTreeSet<_>>();
         assert_eq!(primary_kind(&kinds, 2), "mixed_override");
+    }
+
+    #[test]
+    fn known_sims3_resource_families_are_not_generic_unknowns() {
+        assert_eq!(resource_label(TYPE_PNG), "PNG");
+        assert_eq!(impact_for(TYPE_PNG, false), "visual_override");
+        assert_eq!(resource_label(TYPE_BUFF), "BUFF");
+        assert_eq!(impact_for(TYPE_BUFF, false), "gameplay_override");
+        assert_eq!(resource_label(TYPE_CBLN), "CBLN");
+        assert_eq!(resource_label(TYPE_FACE), "FACE");
+        assert_eq!(resource_label(TYPE_BGEO), "BGEO");
+        assert_eq!(resource_label(TYPE_BOND), "BOND");
+        assert_eq!(resource_label(TYPE_BUNIT), "BUNIT");
+        for type_id in [TYPE_CBLN, TYPE_FACE, TYPE_BGEO, TYPE_BOND, TYPE_BUNIT] {
+            assert_eq!(impact_for(type_id, false), "cas_morph_overlap");
+            assert_eq!(impact_for(type_id, true), "shared_identical");
+        }
+        assert_eq!(severity_for("cas_morph_overlap"), "review");
     }
 
     #[test]
