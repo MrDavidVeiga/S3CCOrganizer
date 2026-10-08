@@ -50,5 +50,7 @@ jobs:
         run: node scripts/test-fluent-buttons.mjs
       - name: Audit seven themes hover, selection and contrast
         run: node scripts/test-fluent-theme-audit.mjs
+      - name: Validate current Manager JavaScript syntax
+        run: node --check src/app.js
       - name: Build Vite frontend
         run: npm run build

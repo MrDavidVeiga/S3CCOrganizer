@@ -87,6 +87,9 @@ jobs:
       - name: Generate Tauri icons
         run: npm run tauri icon src-tauri/icons/manager-icon.png
 
+      - name: Validate current Manager JavaScript syntax
+        run: node --check src/app.js
+
       - name: Build frontend
         run: npm run build
 
