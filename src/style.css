@@ -4586,3 +4586,7 @@ body.release-v1 .conflicts-results {
   .conflict-details-modal { padding: 14px; }
   .conflict-details-modal .conflict-pair { grid-template-columns: 1fr; }
 }
+
+/* Analysis actions reuse WinUI semantic button tokens. */
+.analysis-footer-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 12px 0; }
+.analysis-footer-actions > button { min-width: 125px; }
