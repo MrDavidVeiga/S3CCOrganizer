@@ -10,12 +10,22 @@ use crate::{
 };
 use chrono::{Local, SecondsFormat};
 use serde::Serialize;
+use tauri::Emitter;
 use std::{
     collections::{BTreeSet, HashMap},
     fs,
     path::{Path, PathBuf},
 };
 use walkdir::WalkDir;
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OrganizationProgress {
+    operation_id: String,
+    phase: String,
+    completed: usize,
+    total: usize,
+}
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -287,18 +297,47 @@ pub fn execute_organization(
     language: AppLanguage,
     selected_paths: Vec<String>,
 ) -> Result<ExecutionResult, String> {
-    execute_organization_with_cfg(folder, language, selected_paths, false, None, Vec::new())
+    execute_organization_core(folder, language, selected_paths, false, None, Vec::new(), |_,_,_| {})
 }
 
+// Run expensive DBPF hashing and file moves on a blocking worker; never hold
+// the WebView's event loop while organizing a large Mods folder.
 #[tauri::command]
-pub fn execute_organization_with_cfg(
+pub async fn execute_organization_with_cfg(
+    app: tauri::AppHandle,
     folder: String,
     language: AppLanguage,
     selected_paths: Vec<String>,
     update_resource_cfg: bool,
     expected_cfg_hash: Option<String>,
     expected_cfg_rules: Vec<String>,
+    operation_id: String,
 ) -> Result<ExecutionResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        execute_organization_core(
+            folder, language, selected_paths, update_resource_cfg,
+            expected_cfg_hash, expected_cfg_rules,
+            |phase, completed, total| {
+                let _ = app.emit("s3cc-organization-progress", OrganizationProgress {
+                    operation_id: operation_id.clone(),
+                    phase: phase.to_string(),
+                    completed, total,
+                });
+            },
+        )
+    }).await.map_err(|error| format!("Organization worker failed: {error}"))?
+}
+
+fn execute_organization_core(
+    folder: String,
+    language: AppLanguage,
+    selected_paths: Vec<String>,
+    update_resource_cfg: bool,
+    expected_cfg_hash: Option<String>,
+    expected_cfg_rules: Vec<String>,
+    mut progress: impl FnMut(&str, usize, usize),
+) -> Result<ExecutionResult, String> {
+    progress("planning", 0, 0);
     let plan = build_organization_plan_with_cfg(folder, language, selected_paths, update_resource_cfg)?;
 
     // Only explicitly ready items will be moved. Keep every blocked item,
@@ -323,6 +362,7 @@ pub fn execute_organization_with_cfg(
     }
 
     let manifest_path = make_manifest_path(&root)?;
+    progress("snapshot", 0, ready.len());
     let snapshot = snapshot_entries(&root, &ready)?;
     let mut manifest = manifest_from_snapshot(
         &root,
@@ -335,6 +375,7 @@ pub fn execute_organization_with_cfg(
 
     let mut applied_cfg = None;
     if update_resource_cfg {
+        progress("resource_cfg", 0, ready.len());
         let change = plan.resource_cfg_update.as_ref()
             .ok_or("Resource.cfg opt-in requires a valid Mods/Packages or Mods/Overrides root.")?;
         if expected_cfg_hash.as_deref() != Some(change.original_hash.as_str())
@@ -383,6 +424,8 @@ pub fn execute_organization_with_cfg(
     let mut moved_pairs: Vec<(PathBuf, PathBuf, String, u64)> = Vec::new();
     let mut errors = Vec::new();
 
+    let total = ready.len();
+    progress("moving", 0, total);
     for item in ready {
         let source = PathBuf::from(&item.source_path);
         let destination = item
@@ -427,12 +470,13 @@ pub fn execute_organization_with_cfg(
         })();
 
         match step_result {
-            Ok(()) => moved_pairs.push((
-                source,
-                destination,
-                expected_hash.clone(),
-                item.size,
-            )),
+            Ok(()) => {
+                moved_pairs.push((source, destination, expected_hash.clone(), item.size));
+                // Bound event traffic when organizing tens of thousands of CCs.
+                if moved_pairs.len() == total || moved_pairs.len() % 10 == 0 {
+                    progress("moving", moved_pairs.len(), total);
+                }
+            },
             Err(error) => {
                 errors.push(error);
                 break;
@@ -441,6 +485,7 @@ pub fn execute_organization_with_cfg(
     }
 
     if !errors.is_empty() {
+        progress("rollback", moved_pairs.len(), total);
         let mut rollback_errors = Vec::new();
         let mut rolled_back = 0usize;
 
@@ -529,11 +574,13 @@ pub fn execute_organization_with_cfg(
         });
     }
 
+    progress("cleanup", total, total);
     let (old_folders_removed, old_folders_retained, cleanup_warnings) =
         cleanup_empty_directories_after_organization(&root, &moved_pairs);
 
     manifest.status = "COMPLETE".to_string();
     replace_manifest_atomic(&manifest_path, &manifest)?;
+    progress("complete", total, total);
 
     Ok(ExecutionResult {
         status: "COMPLETE".to_string(),

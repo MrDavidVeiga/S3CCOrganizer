@@ -1562,6 +1562,29 @@ button:disabled {
   padding: 16px;
 }
 
+.conflict-review-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 53px;
+  height: 53px;
+  flex: 0 0 auto;
+}
+
+.conflict-review-row > .conflict-row {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.conflict-review-checkbox {
+  flex: 0 0 auto;
+  margin: 0 3px;
+}
+
+.conflict-review-row:focus-within > .conflict-row {
+  border-color: var(--winui-accent-default, var(--accent));
+}
+
 .conflict-row {
   width: 100%;
   height: 53px;
