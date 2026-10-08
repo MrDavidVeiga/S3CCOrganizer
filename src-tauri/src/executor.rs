@@ -192,19 +192,24 @@ fn cleanup_vacated_source_directories(
     root: &Path,
     moved_pairs: &[(PathBuf, PathBuf, String, u64)],
 ) -> (usize, usize) {
-    let boundary = if root.file_name()
-        .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("Mods"))
-    {
-        root.join("Packages")
-    } else {
-        root.to_path_buf()
-    };
+    let packages = root.join("Packages");
+    let mods_root = root.file_name()
+        .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("Mods"));
 
     let mut old_directories = BTreeSet::<PathBuf>::new();
     for (source, _, _, _) in moved_pairs {
+        // Files originally placed by old Manager versions under Mods/CAS or
+        // Mods/Sliders also need their vacated category directories removed.
+        // These roots are allowed only after the planner's strict legacy
+        // category check, so a successful transaction may clean them safely.
+        let boundary = if mods_root && source.starts_with(&packages) {
+            &packages
+        } else {
+            root
+        };
         let mut current = source.parent();
         while let Some(dir) = current {
-            if dir == boundary || !dir.starts_with(&boundary) {
+            if dir == boundary || !dir.starts_with(boundary) {
                 break;
             }
             old_directories.insert(dir.to_path_buf());
@@ -433,9 +438,11 @@ mod tests {
         let old = packages.join("CAS").join("Sliders");
         let unrelated = packages.join("Custom Empty Folder");
         let retained = packages.join("Legacy").join("Jonha");
+        let legacy = mods.join("CAS").join("Sliders");
         std::fs::create_dir_all(&old).unwrap();
         std::fs::create_dir_all(&unrelated).unwrap();
         std::fs::create_dir_all(&retained).unwrap();
+        std::fs::create_dir_all(&legacy).unwrap();
         std::fs::write(retained.join("Jonha_BASE.package"), b"pending Duplicates review").unwrap();
 
         let moved = vec![
@@ -451,9 +458,15 @@ mod tests {
                 String::new(),
                 0,
             ),
+            (
+                legacy.join("moved.package"),
+                packages.join("Sliders").join("migrated.package"),
+                String::new(),
+                0,
+            ),
         ];
         let (removed, preserved) = cleanup_vacated_source_directories(&mods, &moved);
-        assert_eq!(removed, 2); // CAS/Sliders and then CAS
+        assert_eq!(removed, 4); // Both CAS/Sliders and CAS legacy branches
         assert_eq!(preserved, 2); // Legacy/Jonha and its parent
         assert!(packages.is_dir());
         assert!(retained.join("Jonha_BASE.package").is_file());
