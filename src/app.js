@@ -408,6 +408,8 @@ const I18N = {
     allConflictTypes: "All findings",
     conflictNeedsReview: "Needs review",
     conflictOutsideLoad: "Outside loading rules",
+    conflictInactiveOverlap: "Inactive resource overlap",
+    conflictInactiveExplanation: "At least one package is outside the current Resource.cfg loading rules. This overlap is not an active in-game conflict with the current folder layout. Moving the files into a loaded folder could change that.",
     conflictInactiveCount: "Not loaded together",
     conflictDifferentResources: "Different resources",
     conflictIdenticalResources: "Identical resources",
@@ -866,6 +868,8 @@ const I18N = {
     allConflictTypes: "Todos os resultados",
     conflictNeedsReview: "Exige revisão",
     conflictOutsideLoad: "Fora das regras de carregamento",
+    conflictInactiveOverlap: "Sobreposição inativa de recursos",
+    conflictInactiveExplanation: "Pelo menos um package está fora das regras de carregamento do Resource.cfg atual. Esta sobreposição não é um conflito ativo no jogo com a organização atual. Mover os arquivos para pastas carregadas pode mudar isso.",
     conflictInactiveCount: "Não carregados juntos",
     conflictDifferentResources: "Recursos diferentes",
     conflictIdenticalResources: "Recursos idênticos",
@@ -1323,6 +1327,8 @@ const I18N = {
     allConflictTypes: "Todos los resultados",
     conflictNeedsReview: "Requiere revisión",
     conflictOutsideLoad: "Fuera de las reglas de carga",
+    conflictInactiveOverlap: "Superposición de recursos inactiva",
+    conflictInactiveExplanation: "Al menos un package está fuera de las reglas de carga del Resource.cfg actual. Esta superposición no es un conflicto activo en el juego con las carpetas actuales. Mover los archivos a carpetas cargadas podría cambiarlo.",
     conflictInactiveCount: "No cargados juntos",
     conflictDifferentResources: "Recursos diferentes",
     conflictIdenticalResources: "Recursos idénticos",
@@ -3151,6 +3157,11 @@ function renderConflictFilter() {
   }
 }
 
+function isInactiveConflictFinding(finding, analysis = state.conflictsAnalysis) {
+  return !!analysis?.resourceCfg?.precedenceReliable &&
+    ["unmatched", "partially_matched"].includes(finding?.loadOrderStatus);
+}
+
 function conflictKindLabel(kind) {
   return {
     shared_identical: t("sharedIdentical"),
@@ -3212,8 +3223,11 @@ function visibleConflictFindings() {
       if (mark !== "intentional") return false;
     } else {
       if (mark === "ignored") return false;
-      const outsideLoadRules = analysis?.resourceCfg?.precedenceReliable &&
-        ["unmatched", "partially_matched"].includes(item.loadOrderStatus);
+      const outsideLoadRules = isInactiveConflictFinding(item, analysis);
+      // A specific conflict category is an actionable view by default.
+      // Inactive overlaps remain accessible in All findings / Outside loading rules.
+      if (outsideLoadRules &&
+          !["all", "inactive"].includes(state.conflictsFilter)) return false;
       if (state.conflictsFilter === "attention" &&
           (item.severity === "info" || mark === "intentional" || item.differentPayloadCount === 0)) return false;
       if (state.conflictsFilter === "inactive" && !outsideLoadRules) return false;
@@ -3287,11 +3301,13 @@ function renderConflictsPreview() {
   }
 
   const sessionMark = effectiveConflictMark(finding);
+  const isInactive = isInactiveConflictFinding(finding);
   const header = document.createElement("div");
   header.className = "preview-header";
   const title = document.createElement("h3");
-  title.textContent =
-    sessionMark === "intentional" ? t("intentionalOverride") : conflictKindLabel(finding.kind);
+  title.textContent = isInactive
+    ? t("conflictInactiveOverlap")
+    : sessionMark === "intentional" ? t("intentionalOverride") : conflictKindLabel(finding.kind);
   const badge = document.createElement("span");
   badge.className = `conflict-kind conflict-kind-${finding.severity}`;
   badge.textContent = finding.severity?.toUpperCase() || "";
@@ -3302,8 +3318,16 @@ function renderConflictsPreview() {
   const reasonTitle = document.createElement("strong");
   reasonTitle.textContent = t("conflictReason");
   const reasonText = document.createElement("p");
-  reasonText.textContent = conflictExplanation(finding.kind);
+  reasonText.textContent = isInactive
+    ? t("conflictInactiveExplanation")
+    : conflictExplanation(finding.kind);
   reason.append(reasonTitle, reasonText);
+  // Keep the technical type visible, without suggesting it affects gameplay now.
+  if (isInactive) {
+    const technicalType = document.createElement("p");
+    technicalType.textContent = `${t("impact")}: ${conflictKindLabel(finding.kind)}`;
+    reason.appendChild(technicalType);
+  }
 
   if (sessionMark) {
     const markNotice = document.createElement("div");
@@ -3319,7 +3343,7 @@ function renderConflictsPreview() {
   intentionalButton.type = "button";
   intentionalButton.className = "secondary-btn";
   intentionalButton.textContent = t("markIntentional");
-  intentionalButton.disabled = sessionMark === "intentional" || state.reviewBusy;
+  intentionalButton.disabled = isInactive || sessionMark === "intentional" || state.reviewBusy;
   intentionalButton.addEventListener("click", () => setConflictMark(finding, "intentional"));
 
   const ignoreButton = document.createElement("button");
@@ -3514,6 +3538,7 @@ function createConflictFindingRow(finding) {
   button.title = t("conflictDetailsTitle");
   button.dataset.conflictId = finding.id;
   const sessionMark = effectiveConflictMark(finding);
+  const isInactive = isInactiveConflictFinding(finding);
   button.className =
     "conflict-row" +
     (finding.id === state.conflictSelectedId ? " active" : "") +
@@ -3523,11 +3548,13 @@ function createConflictFindingRow(finding) {
   const main = document.createElement("div");
   main.className = "conflict-row-main";
   const kind = document.createElement("strong");
-  kind.textContent = sessionMark === "intentional"
-    ? t("intentionalOverride")
-    : sessionMark === "ignored"
-      ? t("ignoredSession")
-      : conflictKindLabel(finding.kind);
+  kind.textContent = isInactive
+    ? t("conflictInactiveOverlap")
+    : sessionMark === "intentional"
+      ? t("intentionalOverride")
+      : sessionMark === "ignored"
+        ? t("ignoredSession")
+        : conflictKindLabel(finding.kind);
   const names = document.createElement("span");
   names.textContent = `${finding.left?.name || "—"} ↔ ${finding.right?.name || "—"}`;
   main.append(kind, names);
@@ -3539,7 +3566,7 @@ function createConflictFindingRow(finding) {
   const dot = document.createElement("span");
   dot.className = `conflict-severity conflict-severity-${finding.severity}`;
   count.title = t("differentPayloadCount");
-  dot.title = finding.severity || "";
+  dot.title = isInactive ? t("conflictInactiveExplanation") : (finding.severity || "");
   side.append(count, dot);
 
   button.append(main, side);
