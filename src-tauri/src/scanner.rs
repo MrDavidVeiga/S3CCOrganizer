@@ -904,7 +904,6 @@ fn slider_destination_from_internal_name(
 ) -> Option<Vec<String>> {
     let (region, part) = slider_region_keys(internal_name)?;
     let mut result = vec![
-        "CAS".to_string(),
         "Sliders".to_string(),
         slider_folder_label(language, region).to_string(),
     ];
@@ -1046,8 +1045,8 @@ fn apply_slider_companion_classification(
         item.status = "classified".to_string();
         item.category = Some("CAS".to_string());
         item.sub_category = Some("Sliders".to_string());
-        item.destination_parts = vec!["CAS".to_string(), "Sliders".to_string()];
-        item.destination_path = Some("CAS\\Sliders".to_string());
+        item.destination_parts = vec!["Sliders".to_string()];
+        item.destination_path = Some("Sliders".to_string());
         if !item
             .detected_from
             .iter()
@@ -1057,7 +1056,7 @@ fn apply_slider_companion_classification(
             item.detected_from.sort();
         }
         item.classification_reason = Some(format!(
-            "STBL entry key 0x{key:016X} matches a morph resource instance in another package from the selected set => CAS\\Sliders"
+            "STBL entry key 0x{key:016X} matches a morph resource instance in another package from the selected set => Sliders"
         ));
     }
 }
@@ -1189,7 +1188,10 @@ fn apply_manual_classifications(root: &Path, items: &mut [ScanPackageItem]) {
         let Some(manual) = workspace.manual_classifications.get(&hash) else {
             continue;
         };
-        let parts = split_destination(&manual.destination);
+        let mut parts = split_destination(&manual.destination);
+        if parts.first().is_some_and(|part| part.eq_ignore_ascii_case("CAS")) {
+            parts.remove(0);
+        }
         if parts.is_empty() {
             continue;
         }
@@ -1496,7 +1498,7 @@ fn scan_one(
                             ));
                         } else {
                             classification_reason = Some(format!(
-                                "{} | Internal slider name from {source} '{}' did not safely identify an anatomical region; kept at CAS\\Sliders.",
+                                "{} | Internal slider name from {source} '{}' did not safely identify an anatomical region; kept at Sliders.",
                                 classification_reason.unwrap_or_default(),
                                 internal_name
                             ));
@@ -1647,6 +1649,25 @@ fn scan_one(
     }
 }
 
+// The selected Mods root is one level above the only valid organization
+// directory (Packages). Keep scan previews consistent with planner paths.
+fn physical_destination_parts(root: &Path, parts: &[String]) -> Vec<String> {
+    let mut parts = parts.to_vec();
+    let has_packages_prefix = parts.first()
+        .is_some_and(|part| part.eq_ignore_ascii_case("Packages"));
+    if parts.get(usize::from(has_packages_prefix))
+        .is_some_and(|part| part.eq_ignore_ascii_case("CAS"))
+    {
+        parts.remove(usize::from(has_packages_prefix));
+    }
+    if root.file_name().is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("Mods"))
+        && !has_packages_prefix && !parts.is_empty()
+    {
+        parts.insert(0, "Packages".to_string());
+    }
+    parts
+}
+
 pub fn scan_packages_core(
     folder: String,
     language: AppLanguage,
@@ -1698,6 +1719,19 @@ pub fn scan_packages_core(
     apply_slider_companion_classification(&package_paths, &mut items, &slider_instances);
     apply_named_mod_companions(&mut items);
     apply_manual_classifications(&root, &mut items);
+
+    for item in &mut items {
+        item.destination_parts = physical_destination_parts(&root, &item.destination_parts);
+        if item.destination_path.is_some() {
+            item.destination_path = Some(item.destination_parts.join("\\"));
+        }
+        item.candidate_destinations = item.candidate_destinations
+            .iter()
+            .map(|value| {
+                physical_destination_parts(&root, &split_destination(value)).join("\\")
+            })
+            .collect();
+    }
 
     let mut stats = ScanStats::default();
     stats.packages = items.len();
@@ -1966,11 +2000,30 @@ mod tests {
     }
 
     #[test]
+    fn scan_previews_use_packages_without_cas_level() {
+        let mods = Path::new("The Sims 3").join("Mods");
+        let packages = mods.join("Packages");
+        let legacy = vec!["CAS".to_string(), "Clothing".to_string(),
+            "Male".to_string(), "YA-A".to_string(), "Top".to_string()];
+        assert_eq!(
+            physical_destination_parts(&mods, &legacy),
+            vec!["Packages", "Clothing", "Male", "YA-A", "Top"]
+        );
+        assert_eq!(
+            physical_destination_parts(&packages, &legacy),
+            vec!["Clothing", "Male", "YA-A", "Top"]
+        );
+        assert_eq!(
+            physical_destination_parts(&mods, &["Packages".into(), "CAS".into(), "Sliders".into()]),
+            vec!["Packages", "Sliders"]
+        );
+    }
+
+    #[test]
     fn slider_region_uses_internal_anatomy_not_cas_panel() {
         assert_eq!(
             slider_destination_from_internal_name("Bloom_ArmTwist_slider", AppLanguage::Pt),
             Some(vec![
-                "CAS".to_string(),
                 "Sliders".to_string(),
                 "Corpo".to_string(),
                 "Braços".to_string(),
@@ -1979,7 +2032,6 @@ mod tests {
         assert_eq!(
             slider_destination_from_internal_name("Bloom_LegLenght_slider", AppLanguage::Pt),
             Some(vec![
-                "CAS".to_string(),
                 "Sliders".to_string(),
                 "Corpo".to_string(),
                 "Pernas".to_string(),
@@ -1992,7 +2044,6 @@ mod tests {
         assert_eq!(
             slider_destination_from_internal_name("Nose Tip Height", AppLanguage::En),
             Some(vec![
-                "CAS".to_string(),
                 "Sliders".to_string(),
                 "Face".to_string(),
                 "Nose".to_string(),
@@ -2001,7 +2052,6 @@ mod tests {
         assert_eq!(
             slider_destination_from_internal_name("Shoulder Height", AppLanguage::En),
             Some(vec![
-                "CAS".to_string(),
                 "Sliders".to_string(),
                 "Body".to_string(),
                 "Shoulders".to_string(),
