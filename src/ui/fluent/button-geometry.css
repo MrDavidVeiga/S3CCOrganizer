@@ -1,0 +1,89 @@
+/*
+ * Stage 7 — coherent WinUI 3 Button geometry on all seven themes.
+ *
+ * Primary / Secondary / Danger are VISUAL variants, not different sizes.
+ * Keep palette/states in controls.css and the corresponding theme CSS.
+ * Loaded after the legacy styles to override inherited 12px/9px vertical
+ * padding which made Convert taller than Choose and Refresh taller than
+ * Remove Record. No changes to button actions, data attributes or IDs.
+ *
+ * Standard: Segoe UI Variable 14px/600, line-height 20px, 32px minimum,
+ * 5px block padding, 12px inline padding, 1px stroke, 4px radii.
+ * Buttons may grow when translated text genuinely needs extra lines.
+ */
+body.release-v1 :is(
+  .primary-btn,
+  .secondary-btn,
+  .danger-btn,
+  .compact-btn
+) {
+  box-sizing: border-box;
+  min-height: var(--fluent-control-height);
+  padding: 5px 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  vertical-align: middle;
+  text-align: center;
+  font-family: var(--fluent-body-font);
+  font-size: var(--fluent-control-font-size);
+  font-weight: 600;
+  line-height: 20px;
+  border-style: solid;
+  border-width: 1px;
+  border-radius: var(--fluent-radius-control);
+}
+body.release-v1 :is(.primary-btn,.secondary-btn,.danger-btn,.compact-btn) > :is(i,svg) {
+  flex: 0 0 auto;
+}
+/* Purposefully compact commands in the two-column utility sidebar. */
+body.release-v1 .sidebar-utility-actions .compact-btn {
+  font-size: 12px;
+  padding-inline: 8px;
+}
+/* The two prominent sidebar CTAs are an intentional LARGE variant.
+ * Do not apply this to ordinary Primary buttons elsewhere in the app. */
+body.release-v1 .sidebar > .primary-btn {
+  min-height: 52px;
+  padding: 12px 14px;
+  width: 100%;
+}
+
+/* A toolbar can contain any mixture of accent, neutral and destructive
+ * actions: all three retain identical metrics and centered labels/icons. */
+body.release-v1 :is(
+  .sims3pack-converter-actions,
+  .restore-history-actions,
+  .confirm-actions,
+  .analysis-list-footer-actions,
+  .catalog-toolbar,
+  .catalog-source-actions,
+  .catalog-bottom-actions,
+  .tool-actions,
+  .structure-toolbar,
+  .manager-list-footer-actions
+) > :is(.primary-btn,.secondary-btn,.danger-btn) {
+  min-height: var(--fluent-control-height);
+  align-self: center;
+}
+/* Preserve the natural stretch behavior where actions fill a grid row. */
+body.release-v1 :is(
+  .confirm-actions,
+  .manager-list-footer-actions
+) > :is(.primary-btn,.secondary-btn,.danger-btn) {
+  align-self: stretch;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.release-v1 :is(.primary-btn,.secondary-btn,.danger-btn,.compact-btn) {
+    transition: none;
+  }
+}
+@media (forced-colors: active) {
+  body.release-v1 :is(.primary-btn,.secondary-btn,.danger-btn,.compact-btn) {
+    border-color: ButtonText;
+    color: ButtonText;
+  }
+  body.release-v1 .primary-btn { background: Highlight; color: HighlightText; }
+}

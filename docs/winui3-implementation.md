@@ -101,3 +101,11 @@ Batch 5: native details are Fluent Expanders, accessible search inputs are Searc
 ### Mean Girls primary action parity
 
 Following the campaign's **Get Kit** CTA, primary action buttons in Mean Girls are near-black `#101010` with white `#FFFFFF` text (hover `#292929`, pressed `#050505`). Pink `#F92F60` remains the selection/progress/navigation accent. Standard EA App primary actions remain blue `#276AFC` with white text. This is a theme-specific CSS override, not a shared accent token, so all seven themes retain their other surfaces and semantic status colors.
+
+## Stage 7 — WinUI 3 Button geometry audit
+
+- The app-wide Primary, Secondary and Danger commands share a **32px minimum** control height, **14px Segoe UI Variable Semibold (600)**, **20px** line-height, **5px vertical / 12px horizontal** padding, **1px borders** and Fluent control radius (4px by default).
+- The inherited legacy CSS previously gave Primary 12px vertical padding while Secondary used 9px; Remove Record and Refresh had the same font family but inconsistent dimensions. The new last-loaded `button-geometry.css` unifies actual geometry and icon alignment without changing existing handlers, responsive widths or theme colors.
+- Exception: Choose Mods Folder / Scan CCs in the left sidebar intentionally remain **large, 52px minimum**, and utility commands may use a compact 12px font to avoid overflow.
+- Buttons are allowed to grow to accommodate wrapped translations; never clip accessible labels simply to force a fixed pixel height.
+- Primary styling retains Mean Girls black/white and EA App blue/white. Success, warning and error colors remain semantic and theme-independent. Focus/hover/pressed behaviors remain under their original control styles.
