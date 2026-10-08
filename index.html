@@ -22,7 +22,7 @@
       </header>
       <header class="topbar winui-navview">
         <div class="tabs input-mode-switch topbar-mode-switcher" role="tablist">
-          <button class="mode-btn active" data-tab="organizer" data-i18n="organizer" type="button" aria-selected="true">Manager</button>
+          <button class="mode-btn active" data-tab="organizer" data-i18n="organizer" type="button" aria-selected="true">Organizer</button>
           <button class="mode-btn" data-tab="duplicates" data-i18n="duplicates" type="button" aria-selected="false">Duplicates</button>
           <button class="mode-btn" data-tab="conflicts" data-i18n="conflicts" type="button" aria-selected="false">Conflicts</button>
           <button class="mode-btn hidden" data-tab="structure" data-i18n="structure" type="button">Structure</button>
@@ -191,7 +191,13 @@
                     </button>
                   </div>
                 </div>
-                <div class="manager-plan-footer-spacer" aria-hidden="true"></div>
+                <div class="analysis-list-footer organizer-report-footer" data-report-panel="organizer">
+                  <span class="analysis-audit-status" data-audit-status="organizer" aria-live="polite"></span>
+                  <div class="analysis-list-footer-actions">
+                    <button class="secondary-btn" type="button" data-export-audit="organizer" data-i18n="exportAuditReport">Export Report</button>
+                    <button class="secondary-btn hidden" type="button" data-open-report-folder="organizer" data-i18n="openReportFolder">Open Reports</button>
+                  </div>
+                </div>
               </div>
 
               <section id="organization-review-panel" class="organization-review-panel hidden" aria-live="polite">
@@ -253,11 +259,11 @@
             <div id="duplicates-results" class="duplicates-results hidden">
               <div id="duplicates-list" class="duplicates-list" aria-live="polite"></div>
             </div>
-            <div class="analysis-list-footer">
-              <span class="analysis-audit-status" data-audit-status aria-live="polite"></span>
+            <div class="analysis-list-footer" data-report-panel="duplicates">
+              <span class="analysis-audit-status" data-audit-status="duplicates" aria-live="polite"></span>
               <div class="analysis-list-footer-actions">
-                <button class="secondary-btn" type="button" data-export-audit data-i18n="exportAuditReport">Export Report</button>
-                <button class="secondary-btn hidden" type="button" data-open-report-folder data-i18n="openReportFolder">Open Reports</button>
+                <button class="secondary-btn" type="button" data-export-audit="duplicates" data-i18n="exportAuditReport">Export Report</button>
+                <button class="secondary-btn hidden" type="button" data-open-report-folder="duplicates" data-i18n="openReportFolder">Open Reports</button>
                 <button id="duplicates-clear-list-btn" class="danger-btn" type="button" data-i18n="clearList">Clear List</button>
               </div>
             </div>
@@ -309,11 +315,11 @@
             <div id="conflicts-results" class="conflicts-results hidden">
               <div id="conflicts-list" class="conflicts-list" aria-live="polite"></div>
             </div>
-            <div class="analysis-list-footer">
-              <span class="analysis-audit-status" data-audit-status aria-live="polite"></span>
+            <div class="analysis-list-footer" data-report-panel="conflicts">
+              <span class="analysis-audit-status" data-audit-status="conflicts" aria-live="polite"></span>
               <div class="analysis-list-footer-actions">
-                <button class="secondary-btn" type="button" data-export-audit data-i18n="exportAuditReport">Export Report</button>
-                <button class="secondary-btn hidden" type="button" data-open-report-folder data-i18n="openReportFolder">Open Reports</button>
+                <button class="secondary-btn" type="button" data-export-audit="conflicts" data-i18n="exportAuditReport">Export Report</button>
+                <button class="secondary-btn hidden" type="button" data-open-report-folder="conflicts" data-i18n="openReportFolder">Open Reports</button>
                 <button id="conflicts-clear-list-btn" class="danger-btn" type="button" data-i18n="clearList">Clear List</button>
               </div>
             </div>
