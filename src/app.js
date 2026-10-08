@@ -6782,8 +6782,10 @@ async function chooseFolder() {
 
 async function analyzeAutomaticallyAfterScan(root) {
   if (root !== state.folder) return;
-  const duplicatesReady = await analyzeDuplicates();
-  if (root !== state.folder || !duplicatesReady) return;
+  // Independent analyses: failure or cancellation in Duplicates must not
+  // prevent Conflicts from being refreshed for the same scanned root.
+  await analyzeDuplicates();
+  if (root !== state.folder) return;
   await analyzeConflicts();
 }
 
