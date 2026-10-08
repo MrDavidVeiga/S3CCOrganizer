@@ -6237,6 +6237,12 @@ function render() {
   } else if (state.scanning) {
     el.scanState.textContent = t("scanning");
     el.scanState.className = "scan-state busy";
+  } else if (state.duplicatesBusy) {
+    el.scanState.textContent = `${t("scanComplete")} · ${t("analyzingDuplicates")}`;
+    el.scanState.className = "scan-state busy";
+  } else if (state.conflictsBusy) {
+    el.scanState.textContent = `${t("scanComplete")} · ${t("analyzingConflicts")}`;
+    el.scanState.className = "scan-state busy";
   } else if (state.error) {
     el.scanState.textContent = `${t("scanFailed")}: ${state.error}`;
     el.scanState.className = "scan-state error";
@@ -6504,6 +6510,12 @@ async function scanFolder(preserveSelection = false, preserveNotice = false) {
       state.items = [];
       state.stats = null;
       state.selectedForPlan.clear();
+      state.duplicatesAnalysis = null;
+      state.conflictsAnalysis = null;
+      state.duplicateSelectedId = "";
+      state.conflictSelectedId = "";
+      state.quarantineSelected.clear();
+      state.quarantinePlan = null;
     }
   } finally {
     state.scanning = false;
