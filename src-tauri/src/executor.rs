@@ -6,6 +6,7 @@ use crate::{
     },
     planner::{build_organization_plan_with_cfg, PlanItem},
     operation,
+    mods_layout::{is_mods_root, validate_organization_destination},
     resource_cfg::{parse_resource_cfg, package_priority},
     resource_cfg_update::{apply_resource_cfg_update, rollback_resource_cfg_update},
 };
@@ -220,9 +221,7 @@ fn cleanup_empty_directories_after_organization(
     root: &Path,
     moved_pairs: &[(PathBuf, PathBuf, String, u64)],
 ) -> (usize, usize, Vec<String>) {
-    let mods_root = root.file_name().is_some_and(|name| {
-        name.to_string_lossy().eq_ignore_ascii_case("Mods")
-    });
+    let mods_root = is_mods_root(root);
     let mut candidates = Vec::<PathBuf>::new();
     let mut warnings = Vec::<String>::new();
 
@@ -491,6 +490,9 @@ fn execute_organization_core(
             .ok_or_else(|| format!("Planner item {} has no SHA-256.", item.name))?;
 
         let step_result = (|| -> Result<(), String> {
+            // Defense in depth: never move a Packages CC out of Packages,
+            // even if a future planner regression produces an invalid plan.
+            validate_organization_destination(&root, &source, &destination)?;
             if !source.is_file() {
                 return Err(format!("Source disappeared before move: {}", source.display()));
             }
