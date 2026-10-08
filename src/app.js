@@ -442,8 +442,8 @@ const I18N = {
     loadOrder: "Load order",
     higherPriorityWins: "Higher Resource.cfg priority takes precedence for this pair.",
     samePriorityUnknown: "Both packages have the same Resource.cfg priority. The winner is not inferred.",
-    partialPriorityUnknown: "Only one package matched a PackedFile rule. The winner is not inferred.",
-    unmatchedPriorityUnknown: "Neither package matched a PackedFile rule. The winner is not inferred.",
+    partialPriorityUnknown: "Only one package matches Resource.cfg. This pair cannot cause an in-game resource conflict under these loading rules.",
+    unmatchedPriorityUnknown: "Neither package matches Resource.cfg. These files may coexist in the scanned folder without being loaded by the game.",
     missingResourceCfg: "No Resource.cfg was found at the selected root or its parent.",
     advancedCfgUnknown: "This Resource.cfg uses advanced traversal or conditional directives. The Manager will not infer a winner from Priority alone.",
     likelyHigherPriority: "Higher priority",
@@ -888,8 +888,8 @@ const I18N = {
     loadOrder: "Ordem de carregamento",
     higherPriorityWins: "A prioridade mais alta do Resource.cfg tem precedência neste par.",
     samePriorityUnknown: "Os dois packages possuem a mesma prioridade no Resource.cfg. A ferramenta não infere qual vence.",
-    partialPriorityUnknown: "Apenas um package correspondeu a uma regra PackedFile. A ferramenta não infere qual vence.",
-    unmatchedPriorityUnknown: "Nenhum dos dois packages correspondeu a uma regra PackedFile. A ferramenta não infere qual vence.",
+    partialPriorityUnknown: "Apenas um package corresponde ao Resource.cfg. Esse par não provoca conflito de recursos no jogo sob essas regras de carregamento.",
+    unmatchedPriorityUnknown: "Nenhum dos packages corresponde ao Resource.cfg. Eles podem estar na pasta analisada sem serem carregados pelo jogo.",
     missingResourceCfg: "Nenhum Resource.cfg foi encontrado na pasta selecionada nem na pasta pai.",
     likelyHigherPriority: "Prioridade mais alta",
     conflictsNext: "A análise de conflitos por resource está implementada em modo somente leitura.",
@@ -1333,8 +1333,8 @@ const I18N = {
     loadOrder: "Orden de carga",
     higherPriorityWins: "La prioridad más alta de Resource.cfg tiene precedencia en este par.",
     samePriorityUnknown: "Ambos packages tienen la misma prioridad en Resource.cfg. La herramienta no infiere cuál gana.",
-    partialPriorityUnknown: "Solo un package coincidió con una regla PackedFile. La herramienta no infiere cuál gana.",
-    unmatchedPriorityUnknown: "Ninguno de los dos packages coincidió con una regla PackedFile. La herramienta no infiere cuál gana.",
+    partialPriorityUnknown: "Solo un package coincide con Resource.cfg. Este par no causa un conflicto de recursos en el juego bajo estas reglas de carga.",
+    unmatchedPriorityUnknown: "Ninguno de los packages coincide con Resource.cfg. Pueden estar en la carpeta analizada sin que el juego los cargue.",
     missingResourceCfg: "No se encontró Resource.cfg en la carpeta seleccionada ni en su carpeta superior.",
     advancedCfgUnknown: "Este Resource.cfg usa directivas avanzadas de recorrido o condición. El Manager no inferirá un ganador solo por Priority.",
     likelyHigherPriority: "Prioridad más alta",
@@ -3482,13 +3482,11 @@ function renderConflicts() {
 
   const analysis = state.conflictsAnalysis;
   const stats = analysis?.stats || {};
-  const realOverrides =
-    (stats.visualOverrides ?? 0) +
-    (stats.catalogOverrides ?? 0) +
-    (stats.gameplayOverrides ?? 0) +
-    (stats.scriptConflicts ?? 0) +
-    (stats.textOverrides ?? 0) +
-    (stats.mixedOverrides ?? 0);
+  // Resource overlap is not an actionable override when neither (or only
+  // one) of the files is loaded under the current Resource.cfg rules.
+  const realOverrides = (analysis?.findings || []).filter(
+    (finding) => finding.kind !== "shared_identical" && finding.severity !== "info"
+  ).length;
 
   el.confStatPairs.textContent = stats.packagePairs ?? 0;
   el.confStatReal.textContent = realOverrides;
