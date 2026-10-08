@@ -71,6 +71,10 @@ function resolvedTheme(choice) {
 function applyAccent(ramp) {
   const root=document.documentElement;
   root.style.setProperty("--accent",ramp.base);
+  // RGB channel tokens preserve the original opacity of each UI affordance
+  // while following the chosen theme (including the Windows system accent).
+  root.style.setProperty("--accent-rgb",(parseRgb(ramp.base) || [127,173,45]).join(", "));
+  root.style.setProperty("--accent-dark-rgb",(parseRgb(ramp.dark3) || [67,92,23]).join(", "));
   root.style.setProperty("--accent-light-1",ramp.light1);
   root.style.setProperty("--accent-light-2",ramp.light2);
   root.style.setProperty("--accent-light-3",ramp.light3);
