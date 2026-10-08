@@ -109,3 +109,6 @@ Following the campaign's **Get Kit** CTA, primary action buttons in Mean Girls a
 - Exception: Choose Mods Folder / Scan CCs in the left sidebar intentionally remain **large, 52px minimum**, and utility commands may use a compact 12px font to avoid overflow.
 - Buttons are allowed to grow to accommodate wrapped translations; never clip accessible labels simply to force a fixed pixel height.
 - Primary styling retains Mean Girls black/white and EA App blue/white. Success, warning and error colors remain semantic and theme-independent. Focus/hover/pressed behaviors remain under their original control styles.
+
+### Manager selection toolbar — Portuguese and Spanish wrapping
+The Manager's **Select All / Select None** pair is kept on one line in translations such as **Selecionar Tudo / Selecionar Nenhum** without reducing the standard 14px Fluent label. Compact 7px horizontal padding inside this preview-column toolbar is deliberate. Below 1180px the two controls occupy a separate right-aligned row rather than shrinking the search field; at 520px or smaller the pair may fill the available full row. All selection handlers and original i18n keys stay unchanged.

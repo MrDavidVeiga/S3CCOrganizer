@@ -22,6 +22,15 @@ const markup = `<!doctype html><html data-theme-choice="winui-dark">
     <button class="secondary-btn">Cancel</button>
     <button class="primary-btn">Confirm</button>
   </div>
+  <div id="page-organizer">
+    <div class="results-actions">
+      <div class="results-query-controls"><input id="search-input"></div>
+      <div class="results-selection-controls">
+        <button id="select-all-btn" class="secondary-btn">Selecionar Tudo</button>
+        <button id="select-none-btn" class="secondary-btn">Selecionar Nenhum</button>
+      </div>
+    </div>
+  </div>
   <div class="sidebar-utility-actions">
     <button id="compact" class="compact-btn">Utility</button>
   </div>
@@ -64,6 +73,18 @@ assert.equal(first.borderBottom,"1px");
 assert.equal(first.weight,"600");
 assert.equal(first.lineHeight,"20px");
 assert.equal(first.display,"inline-flex");
+// Language expansion must never make the right-toolbar pair two lines.
+for(const id of ["select-all-btn","select-none-btn"]){
+  const selected=get(id);
+  assert.equal(selected.whiteSpace,"nowrap",id+" stays on one line in PT");
+  assert.equal(selected.paddingLeft,"7px");
+  assert.equal(selected.paddingRight,"7px");
+  assert.equal(selected.paddingTop,"5px");
+  assert.equal(selected.fontSize,"14px");
+}
+assert.match(geometry, /#page-organizer \.results-selection-controls \{/);
+assert.match(geometry, /grid-column: 1 \/ -1/);
+assert.match(geometry, /grid-template-columns: repeat\(2, max-content\)/);
 assert.equal(get("choose-folder-btn").paddingTop,"12px","sidebar large button stays large");
 assert.equal(get("choose-folder-btn").paddingLeft,"14px");
 assert.equal(get("compact").fontSize,"12px","compact sidebar actions are intentional");
