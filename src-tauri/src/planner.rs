@@ -591,7 +591,7 @@ fn detect_merged_resource_supersets(
         }
     }
     let mut related = HashMap::<String, Vec<String>>::new();
-    for (merged_name, merged_resources, _) in &indexed {
+    for (merged_name, merged_resources, _) in indexed {
         let mut candidates = HashSet::<usize>::new();
         for key in merged_resources {
             if let Some(indices) = anchored.get(key) {
