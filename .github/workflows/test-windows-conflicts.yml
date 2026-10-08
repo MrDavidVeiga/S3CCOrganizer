@@ -1,0 +1,92 @@
+name: Beta 2 Conflicts Diagnostic (Windows x64)
+
+# An isolated portable diagnostic build. Never publishes/updates a release.
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/test-windows-conflicts.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  windows-diagnostic:
+    name: Windows x64 portable diagnostic
+    runs-on: windows-2022
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust compilation
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri -> target"
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Restore icon source
+        shell: pwsh
+        run: |
+          $raw = (Get-Content "src-tauri/icons/manager-icon.b64" -Raw).Trim()
+          [IO.File]::WriteAllBytes("src-tauri/icons/manager-icon.png", [Convert]::FromBase64String($raw))
+
+      - name: Generate icons
+        run: npm run tauri icon src-tauri/icons/manager-icon.png
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Run Rust regression tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib
+
+      - name: Build portable executable
+        run: npm run tauri build -- --no-bundle
+
+      - name: Package diagnostic executable
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path "src-tauri/target" -Filter "s3cc-organizer.exe" -Recurse -File |
+            Where-Object { $_.FullName -match '\\release\\' -and $_.FullName -notmatch '\\bundle\\' } |
+            Select-Object -First 1 -ExpandProperty FullName
+          if (!$exe) { throw "Diagnostic executable was not produced." }
+          $stage = Join-Path $PWD "diagnostic-stage"
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Copy-Item -LiteralPath $exe -Destination (Join-Path $stage "Veiga's S3CC Manager.exe")
+          Copy-Item README.md (Join-Path $stage "README.md")
+          @"
+          Veiga's S3CC Manager — Conflicts diagnostic build
+          Source commit: ${{ github.sha }}
+          Windows x64 only. This is not a release; no release tag is changed.
+          Scan the SAME original Mods folder used for your prior audit.
+          Export the new JSON audit and provide it alongside your old JSON.
+          Do not delete or move any packages while comparing reports.
+          "@ | Set-Content -Path (Join-Path $stage "DIAGNOSTIC-README.txt") -Encoding UTF8
+          $zip = "VeigasS3CCManager_Beta2_Conflicts_Diagnostic_Windows_x64.zip"
+          Compress-Archive -Path "$stage/*" -DestinationPath $zip -Force -CompressionLevel Optimal
+          $sha = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash
+          "$sha  $zip" | Set-Content "DIAGNOSTIC_SHA256.txt" -Encoding ascii
+
+      - name: Upload temporary diagnostic artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: S3CC-Manager-Conflicts-Diagnostic-Windows-x64
+          path: |
+            VeigasS3CCManager_Beta2_Conflicts_Diagnostic_Windows_x64.zip
+            DIAGNOSTIC_SHA256.txt
+          if-no-files-found: error
+          retention-days: 14
