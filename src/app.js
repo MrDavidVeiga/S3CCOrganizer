@@ -3972,7 +3972,7 @@ async function removeSelectedRestoreHistory() {
     state.pendingRemoveManifest = "";
     el.confirmModal.classList.add("hidden");
     el.confirmModal.setAttribute("aria-hidden", "true");
-    await loadRestoreHistory();
+    await Promise.all([loadRestoreHistory(), refreshOperationHistory()]);
     render();
   }
 }
