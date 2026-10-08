@@ -9,15 +9,25 @@ const index = read("index.html");
 const tokens = read("src/ui/fluent/tokens.css");
 const controls = read("src/ui/fluent/controls.css");
 const theme = read("src/theme.js");
+const comboJs = read("src/ui/fluent/combobox.js");
+const comboCss = read("src/ui/fluent/combobox.css");
 
 const imports = [
   "src/style.css", "src/winui.css",
-  "src/ui/fluent/tokens.css", "src/ui/fluent/controls.css",
+  "src/ui/fluent/tokens.css", "src/ui/fluent/controls.css", "src/ui/fluent/combobox.css",
 ];
 const positions = imports.map(p=>index.indexOf(`href="./${p}"`));
 assert(positions.every(p => p >= 0), "all style sheets must be imported");
 assert(positions.every((p,i) => i === 0 || p > positions[i-1]), "Fluent foundation must load after existing styles");
 assert.match(index, /body class="[^"]*release-v1/);
+assert(index.includes("src=\"./src/ui/fluent/combobox.js\""));
+assert.match(comboJs, /MutationObserver/);
+assert.match(comboJs, /role","combobox"/);
+assert.match(comboJs, /role","option"/);
+assert.match(comboJs, /ITEM_HEIGHT/);
+assert.match(comboJs, /dispatchEvent\(new Event\("change"/);
+assert.match(comboJs, /closeFluentComboBox/);
+assert.match(comboCss, /fluent-combobox-flyout/);
 assert.match(tokens, /--fluent-radius-control: var\(--winui-control-radius, 4px\)/);
 assert.match(tokens, /--fluent-radius-overlay: var\(--winui-overlay-radius, 8px\)/);
 assert.match(controls, /:focus-visible/);

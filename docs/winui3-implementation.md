@@ -41,3 +41,9 @@ covering normal/hover/pressed/focus/disabled/checked/indeterminate modes and all
 4. Only merge into `main` after runtime verification.
 
 Source: https://learn.microsoft.com/en-us/windows/apps/design/signature-experiences/geometry
+
+## Batch 2A — ComboBox migration
+
+The thirteen static `<select>` controls are enhanced by `src/ui/fluent/combobox.js` with a custom WinUI-styled button and a shared, virtualized listbox. The original select remains the source of truth and still emits normal `input`/`change` events; existing Manager, Duplicates, Conflicts, Tools, Restore and Catalog logic is not rewritten. Supports mouse, arrows, Home/End, Enter/Space, Escape, Tab, and incremental keyboard typeahead. Dynamic options refresh via MutationObserver. Popup uses a fixed overlay outside scroll containers and short visible row windows for large folders.
+
+**Limitations pending runtime verification:** active option markup and popup positioning should be tested inside the real Tauri WebView, especially when options are repopulated and with screen readers.
