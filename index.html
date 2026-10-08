@@ -15,6 +15,8 @@
     <link rel="stylesheet" href="./src/ui/fluent/feedback.css" />
     <link rel="stylesheet" href="./src/ui/fluent/expanders.css" />
     <link rel="stylesheet" href="./src/ui/fluent/fields.css" />
+    <link rel="stylesheet" href="./src/ui/fluent/chrome.css" />
+    <link rel="stylesheet" href="./src/ui/fluent/tooltips.css" />
   </head>
   <body class="release-v1">
     <div class="app-shell">
@@ -24,9 +26,12 @@
           <span class="winui-window-title" data-tauri-drag-region>Veiga's S3CC Manager | v1.0.0 Beta 2</span>
         </div>
         <div class="winui-caption-buttons" aria-label="Window controls">
-          <button id="titlebar-minimize" type="button" aria-label="Minimize" title="Minimize"><span aria-hidden="true">─</span></button>
-          <button id="titlebar-maximize" type="button" aria-label="Maximize" title="Maximize"><span aria-hidden="true">□</span></button>
-          <button id="titlebar-close" class="winui-caption-close" type="button" aria-label="Close" title="Close"><span aria-hidden="true">×</span></button>
+          <button id="titlebar-minimize" type="button" aria-label="Minimize" title="Minimize"><svg class="winui-caption-icon" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 9.5H9.5"/></svg></button>
+          <button id="titlebar-maximize" type="button" aria-label="Maximize" title="Maximize">
+            <svg class="winui-caption-icon winui-maximize-glyph" viewBox="0 0 12 12" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7"/></svg>
+            <svg class="winui-caption-icon winui-restore-glyph" viewBox="0 0 12 12" aria-hidden="true" hidden><path d="M4.5 2H10V8M2 4H8V10H2V4Z"/></svg>
+          </button>
+          <button id="titlebar-close" class="winui-caption-close" type="button" aria-label="Close" title="Close"><svg class="winui-caption-icon" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 2.5 9.5 9.5M9.5 2.5 2.5 9.5"/></svg></button>
         </div>
       </header>
       <header class="topbar winui-navview">
@@ -948,5 +953,7 @@
     <script type="module" src="./src/ui/fluent/listview.js"></script>
     <script type="module" src="./src/ui/fluent/feedback.js"></script>
     <script type="module" src="./src/ui/fluent/fields.js"></script>
+    <script type="module" src="./src/ui/fluent/chrome.js"></script>
+    <script type="module" src="./src/ui/fluent/tooltips.js"></script>
   </body>
 </html>

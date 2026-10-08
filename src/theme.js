@@ -138,10 +138,27 @@ document.addEventListener("keydown",event=>{ if (event.key==="Escape") closeThem
 osDark.addEventListener?.("change",()=>{ if ((document.documentElement.dataset.themeChoice || "system")==="system") applyTheme("system",{persist:false}); });
 
 const appWindow=getCurrentWindow();
+const maximizeButton=document.getElementById("titlebar-maximize");
+async function updateCaptionMaximize() {
+  if(!maximizeButton) return;
+  try {
+    const isMaximized=await appWindow.isMaximized();
+    maximizeButton.querySelector(".winui-maximize-glyph")?.toggleAttribute("hidden",isMaximized);
+    maximizeButton.querySelector(".winui-restore-glyph")?.toggleAttribute("hidden",!isMaximized);
+    const label=isMaximized ? "Restore Down" : "Maximize";
+    maximizeButton.setAttribute("aria-label",label);
+    maximizeButton.title=label;
+  } catch { /* Web fallback: static maximize glyph remains available. */ }
+}
 document.getElementById("titlebar-minimize")?.addEventListener("click",()=>appWindow.minimize());
-document.getElementById("titlebar-maximize")?.addEventListener("click",()=>appWindow.toggleMaximize());
+maximizeButton?.addEventListener("click",async ()=>{
+  await appWindow.toggleMaximize();
+  await updateCaptionMaximize();
+});
 document.getElementById("titlebar-close")?.addEventListener("click",()=>appWindow.close());
-appWindow.onFocusChanged(({payload})=>{ if (payload) refreshNativeAppearance(); }).catch(()=>{});
+appWindow.onResized(()=>{void updateCaptionMaximize();}).catch(()=>{});
+appWindow.onFocusChanged(({payload})=>{ if(payload){ refreshNativeAppearance(); void updateCaptionMaximize(); } }).catch(()=>{});
+void updateCaptionMaximize();
 
 applyTheme(currentChoice(),{persist:false});
 refreshNativeAppearance();
