@@ -179,13 +179,35 @@ pub fn parse_resource_cfg(path: &Path) -> Result<ResourceCfgInfo, String> {
     })
 }
 
+// Scanner cache paths can be ordinary Windows paths (C:\\...), while
+// canonicalized roots can use the verbatim form (\\\\?\\C:\\...).
+// Compare filesystem identities, not textual prefixes, before deriving
+// a Resource.cfg-relative path. In particular, never turn a path outside
+// the selected root into a valid match.
+pub fn relative_package_path(root: &Path, package_path: &Path) -> Option<PathBuf> {
+    if let Ok(relative) = package_path.strip_prefix(root) {
+        return Some(relative.to_path_buf());
+    }
+
+    let canonical_package = package_path.canonicalize().ok()?;
+    if let Ok(relative) = canonical_package.strip_prefix(root) {
+        return Some(relative.to_path_buf());
+    }
+
+    let canonical_root = root.canonicalize().ok()?;
+    canonical_package
+        .strip_prefix(&canonical_root)
+        .ok()
+        .map(Path::to_path_buf)
+}
+
 pub fn package_priority(
     cfg: &ResourceCfgInfo,
     cfg_directory: &Path,
     package_path: &Path,
 ) -> Option<PackagePriority> {
-    let relative = package_path.strip_prefix(cfg_directory).ok()?;
-    let relative = normalized_path_text(relative);
+    let relative = relative_package_path(cfg_directory, package_path)?;
+    let relative = normalized_path_text(&relative);
 
     cfg.rules
         .iter()
@@ -200,6 +222,47 @@ pub fn package_priority(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cached_package_paths_still_match_resource_cfg_after_root_canonicalization() {
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "s3cc-resource-cfg-test-{}-{unique}",
+            std::process::id()
+        ));
+        let package_dir = root.join("Packages").join("Creators");
+        std::fs::create_dir_all(&package_dir).unwrap();
+        let package = package_dir.join("example.package");
+        std::fs::write(&package, b"test").unwrap();
+
+        let canonical_root = root.canonicalize().unwrap();
+        let relative = relative_package_path(&canonical_root, &package).unwrap();
+        assert_eq!(relative, PathBuf::from("Packages").join("Creators").join("example.package"));
+
+        let cfg = ResourceCfgInfo {
+            path: root.join("Resource.cfg").to_string_lossy().to_string(),
+            rules: vec![ResourceCfgRule {
+                priority: 500,
+                pattern: "Packages/*/*.package".to_string(),
+                source_line: 1,
+            }],
+            warnings: vec![],
+            precedence_reliable: true,
+        };
+        let priority = package_priority(&cfg, &canonical_root, &package).unwrap();
+        assert_eq!(priority.priority, 500);
+        assert_eq!(priority.rule, "Packages/*/*.package");
+
+        let outside = root.parent().unwrap().join("some-other-folder").join("example.package");
+        assert!(relative_package_path(&canonical_root, &outside).is_none());
+
+        std::fs::remove_dir_all(&root).unwrap();
+    }
 
     #[test]
     fn wildcard_matches_one_directory_level_per_star() {
