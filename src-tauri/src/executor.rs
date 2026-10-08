@@ -240,10 +240,14 @@ fn cleanup_empty_directories_after_organization(
                 // A nonempty directory is expected and must be kept intact.
                 // Surface only failures concerning an actually empty folder.
                 match fs::read_dir(&folder) {
-                    Ok(mut contents) if contents.next().is_none() => warnings.push(format!(
-                        "Could not remove empty folder {}: {error}",
-                        folder.display()
-                    )),
+                    Ok(mut contents) => {
+                        if contents.next().is_none() {
+                            warnings.push(format!(
+                                "Could not remove empty folder {}: {error}",
+                                folder.display()
+                            ));
+                        }
+                    },
                     Err(read_error) => warnings.push(format!(
                         "Could not inspect folder {} after failed cleanup: {read_error}",
                         folder.display()
