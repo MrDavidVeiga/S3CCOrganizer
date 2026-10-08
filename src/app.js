@@ -3892,7 +3892,7 @@ function renderRestoreHistory() {
       "restore-history-item" +
       (item.path === state.restoreManifest ? " active" : "") +
       (!item.valid || !item.matchesSelectedRoot ? " unavailable" : "");
-    button.disabled = !item.valid || !item.matchesSelectedRoot;
+    button.disabled = state.restoreBusy || state.executing;
 
     const main = document.createElement("div");
     const name = document.createElement("strong");
@@ -3908,13 +3908,14 @@ function renderRestoreHistory() {
     badge.textContent = item.matchesSelectedRoot ? item.status : t("differentRoot");
 
     button.append(main, badge);
-    button.addEventListener("click", async () => {
+    button.addEventListener("click", () => {
+      if (state.restoreBusy || state.executing) return;
+      // Selection is never a file operation. Preview and execution are separate.
       state.restoreManifest = item.path;
       state.restorePlan = null;
       state.restoreError = "";
       state.restoreNotice = "";
       render();
-      await previewRestore();
     });
     el.restoreHistoryList.appendChild(button);
   }
@@ -6054,14 +6055,22 @@ function renderRestore() {
   el.restoreManifestPath.title = state.restoreManifest;
 
   el.previewRestoreBtn.classList.toggle("hidden", !hasManifest);
-  el.previewRestoreBtn.disabled = state.restoreBusy || state.structureBusy;
+  el.previewRestoreBtn.disabled = state.restoreBusy || state.structureBusy || state.executing;
 
   el.openManifestFolderBtn.classList.toggle("hidden", !hasManifest);
   el.openManifestFolderBtn.disabled = state.restoreBusy;
 
+  const selectedHistory = state.restoreHistory.find(
+    (entry) => entry.path === state.restoreManifest
+  );
+  el.removeRestoreHistoryBtn.disabled =
+    !selectedHistory || (selectedHistory.valid && !selectedHistory.matchesSelectedRoot) ||
+    state.restoreBusy || state.executing || state.structureBusy || workspaceReadOnly();
+
   el.executeRestoreBtn.classList.toggle("hidden", !canExecuteRestore);
   el.executeRestoreBtn.disabled =
-    state.restoreBusy || state.structureBusy || workspaceReadOnly();
+    state.restoreBusy || state.structureBusy || workspaceReadOnly() ||
+    state.restorePlan?.manifestPath !== state.restoreManifest;
 
   if (plan) {
     el.restoreRootCheck.classList.remove("hidden", "match", "mismatch");
@@ -6097,6 +6106,9 @@ function renderRestore() {
   } else if (plan) {
     el.restoreState.textContent = t("restoreReady");
     el.restoreState.className = "scan-state success";
+  } else if (hasManifest) {
+    el.restoreState.textContent = t("restoreSelectedHint");
+    el.restoreState.className = "scan-state";
   } else {
     el.restoreState.textContent = "";
     el.restoreState.className = "scan-state";
@@ -6672,11 +6684,16 @@ async function previewRestore() {
   render();
 
   try {
-    state.restorePlan = await invoke("preview_restore", {
-      manifestPath: state.restoreManifest,
+    const selectedManifest = state.restoreManifest;
+    const selectedFolder = state.folder;
+    const plan = await invoke("preview_restore", {
+      manifestPath: selectedManifest,
       currentLanguage: state.language,
-      expectedRoot: state.folder || null,
+      expectedRoot: selectedFolder || null,
     });
+    if (state.restoreManifest === selectedManifest && state.folder === selectedFolder) {
+      state.restorePlan = plan;
+    }
   } catch (error) {
     state.restoreError = String(error);
   } finally {
