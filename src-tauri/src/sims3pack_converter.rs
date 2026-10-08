@@ -2,6 +2,7 @@ use crate::{catalog::TYPE_CASP, dbpf::Package, i18n::AppLanguage};
 use byteorder::{LittleEndian, WriteBytesExt};
 use quick_xml::{events::Event, Reader};
 use serde::Serialize;
+use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, HashSet},
     fs::{self, File, OpenOptions},
@@ -1008,7 +1009,9 @@ fn restore_cached_thumbnails(target: &Path) -> Result<usize, String> {
 }
 
 fn merge_packages_no_replace(target: &Path, packages: &[Package]) -> Result<usize, String> {
-    let mut seen = HashSet::<(u32, u32, u64)>::new();
+    // Same TGI is not always the same content. Identical definitions can be
+    // deduplicated, but different payloads must never be silently discarded.
+    let mut seen = BTreeMap::<(u32, u32, u64), [u8; 32]>::new();
     let mut resources = Vec::<OwnedRawResource>::new();
     let mut names = BTreeMap::<u64, String>::new();
 
@@ -1022,9 +1025,19 @@ fn merge_packages_no_replace(target: &Path, packages: &[Package]) -> Result<usiz
                 continue;
             }
             let key = (entry.type_id, entry.group, entry.instance);
-            if !seen.insert(key) {
+            let decoded = package.data(entry)
+                .map_err(|e| format!("Could not compare duplicate resource {}: {e}", entry.key_string()))?;
+            let fingerprint: [u8; 32] = Sha256::digest(&decoded).into();
+            if let Some(existing) = seen.get(&key) {
+                if existing != &fingerprint {
+                    return Err(format!(
+                        "Combined conversion stopped: TGI {:08X}:{:08X}:{:016X} has different payloads in the source packages. Convert separately to preserve both resources.",
+                        entry.type_id, entry.group, entry.instance
+                    ));
+                }
                 continue;
             }
+            seen.insert(key, fingerprint);
 
             let raw = package
                 .raw_data(entry)
