@@ -4462,3 +4462,74 @@ button:disabled {
 .conflict-row {
   contain: layout paint style;
 }
+
+/* Conflicts: Duplicates-inspired comparison without hiding technical evidence. */
+.conflict-member-visual {
+  width: 100%;
+  min-height: 92px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--winui-card-fill-alt, var(--surface));
+}
+.conflict-member-thumb {
+  display: block;
+  width: 100%;
+  height: 106px;
+  object-fit: contain;
+}
+.conflict-member-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  border: 1px dashed var(--winui-control-stroke, var(--panel-border));
+  color: var(--muted);
+  font-size: .72rem;
+  text-align: center;
+  line-height: 1.4;
+}
+.conflict-member-open {
+  width: 100%;
+  margin-top: 4px;
+}
+.conflict-evidence-heading {
+  display: block;
+  font-size: .78rem;
+  margin: 12px 0 9px;
+}
+.conflict-evidence-note {
+  color: var(--muted);
+  font-size: .72rem;
+  line-height: 1.5;
+}
+.conflict-identical-section {
+  margin-top: 10px;
+  border: 1px solid var(--winui-control-stroke, var(--panel-border));
+  border-radius: var(--winui-control-radius, 8px);
+  padding: 10px;
+}
+.conflict-identical-section > summary {
+  cursor: pointer;
+  color: var(--winui-text-secondary, var(--muted));
+  font-size: .75rem;
+  font-weight: 600;
+  margin-bottom: 0;
+}
+.conflict-identical-section[open] > summary {
+  margin-bottom: 10px;
+}
+@media (max-width: 980px) {
+  .conflicts-results {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 0.8fr) minmax(0, 1fr);
+  }
+  /* The old breakpoint hid every selected finding's evidence. */
+  .conflicts-preview {
+    display: block;
+    height: 100%;
+    overflow-y: auto;
+  }
+}
+@media (max-width: 580px) {
+  .conflict-pair { grid-template-columns: 1fr; }
+}
