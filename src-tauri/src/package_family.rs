@@ -166,10 +166,14 @@ pub fn classify_package_family(
         ));
     }
 
-    if has_any(
-        types,
-        &[TYPE_BONE_DELTA, TYPE_FACE, TYPE_BBLN, TYPE_BGEO, TYPE_FBLN],
-    ) {
+    // GEOM/VPXY meshes commonly contain BGEO/BBLN resources in replacements
+    // and custom meshes (feet, eyelashes, pregnancy clothing). Their presence
+    // alone does NOT make the package an actual CAS slider.
+    let has_geom_mesh = types.contains(&0x015A_1849);
+    let definitive_slider = has_any(types, &[TYPE_BONE_DELTA, TYPE_FACE, TYPE_FBLN]);
+    let legacy_morph_candidate = has_any(types, &[TYPE_BBLN, TYPE_BGEO]) && !has_geom_mesh;
+
+    if definitive_slider || legacy_morph_candidate {
         let mut detected = Vec::new();
         for (resource_type, label) in [
             (TYPE_BONE_DELTA, "BoneDelta"),
@@ -262,6 +266,24 @@ mod tests {
             panic!("expected classified");
         };
         assert_eq!(value.folder_parts, vec!["Genética", "Tons de Pele"]);
+    }
+
+    #[test]
+    fn geom_bgeo_foot_replacements_are_not_mistaken_for_sliders() {
+        let result = classify_package_family(
+            &set(&[0x015A_1849, TYPE_BGEO]),
+            AppLanguage::En,
+        );
+        assert!(matches!(result, PackageFamilyResult::None));
+    }
+
+    #[test]
+    fn eyelash_mesh_with_bbln_bgeo_is_not_a_slider() {
+        let result = classify_package_family(
+            &set(&[0x015A_1849, TYPE_BGEO, TYPE_BBLN, 0x7368_84F1]),
+            AppLanguage::En,
+        );
+        assert!(matches!(result, PackageFamilyResult::None));
     }
 
     #[test]
