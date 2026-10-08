@@ -193,6 +193,7 @@ fn cleanup_vacated_source_directories(
     moved_pairs: &[(PathBuf, PathBuf, String, u64)],
 ) -> (usize, usize) {
     let packages = root.join("Packages");
+    let overrides = root.join("Overrides");
     let mods_root = root.file_name()
         .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("Mods"));
 
@@ -204,6 +205,8 @@ fn cleanup_vacated_source_directories(
         // category check, so a successful transaction may clean them safely.
         let boundary = if mods_root && source.starts_with(&packages) {
             &packages
+        } else if mods_root && source.starts_with(&overrides) {
+            &overrides
         } else {
             root
         };
@@ -439,10 +442,12 @@ mod tests {
         let unrelated = packages.join("Custom Empty Folder");
         let retained = packages.join("Legacy").join("Jonha");
         let legacy = mods.join("CAS").join("Sliders");
+        let override_old = mods.join("Overrides").join("Old Tuning");
         std::fs::create_dir_all(&old).unwrap();
         std::fs::create_dir_all(&unrelated).unwrap();
         std::fs::create_dir_all(&retained).unwrap();
         std::fs::create_dir_all(&legacy).unwrap();
+        std::fs::create_dir_all(&override_old).unwrap();
         std::fs::write(retained.join("Jonha_BASE.package"), b"pending Duplicates review").unwrap();
 
         let moved = vec![
@@ -464,11 +469,18 @@ mod tests {
                 String::new(),
                 0,
             ),
+            (
+                override_old.join("patch.package"),
+                mods.join("Overrides").join("Tuning").join("patch.package"),
+                String::new(),
+                0,
+            ),
         ];
         let (removed, preserved) = cleanup_vacated_source_directories(&mods, &moved);
-        assert_eq!(removed, 4); // Both CAS/Sliders and CAS legacy branches
+        assert_eq!(removed, 5); // Legacy CAS branches and Old Tuning within Overrides
         assert_eq!(preserved, 2); // Legacy/Jonha and its parent
         assert!(packages.is_dir());
+        assert!(mods.join("Overrides").is_dir());
         assert!(retained.join("Jonha_BASE.package").is_file());
         assert!(unrelated.is_dir());
         std::fs::remove_dir_all(mods.parent().unwrap()).unwrap();
