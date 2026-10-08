@@ -582,6 +582,7 @@ fn verify_exact_survivors(
         .map(|item| PathBuf::from(&item.source_path))
         .collect::<HashSet<_>>();
     let mut retained_hashes = HashMap::<String, usize>::new();
+    let mut seen_retained = HashSet::<PathBuf>::new();
     for raw in retained_paths {
         let survivor = PathBuf::from(raw).canonicalize()
             .map_err(|error| format!("Exact-duplicate survivor is missing: {error}"))?;
@@ -589,6 +590,9 @@ fn verify_exact_survivors(
             !require_package(&survivor) || selected.contains(&survivor)
         {
             return Err("Exact-duplicate survivor is invalid or also selected for quarantine.".into());
+        }
+        if !seen_retained.insert(survivor.clone()) {
+            return Err("Duplicate survivor path supplied more than once.".into());
         }
         let (hash, _) = sha256_file(&survivor)
             .map_err(|error| format!("Could not verify retained duplicate: {error}"))?;
