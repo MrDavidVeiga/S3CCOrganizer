@@ -74,7 +74,7 @@ const I18N = {
     organizedPackages: "packages organized",
     duplicatesPending: "identical duplicates pending review",
     collisionsPending: "collisions pending review",
-    emptyOldFoldersRemoved: "obsolete empty folders removed",
+    emptyOldFoldersRemoved: "empty folders removed",
     oldFoldersStillOccupied: "source folders still contain files (preserved)",
     reviewDuplicates: "Review Duplicates",
     reviewCollisions: "Review Collisions",
@@ -589,7 +589,7 @@ const I18N = {
     organizedPackages: "packages organizados",
     duplicatesPending: "duplicados idênticos pendentes de revisão",
     collisionsPending: "colisões pendentes de revisão",
-    emptyOldFoldersRemoved: "pastas antigas vazias removidas",
+    emptyOldFoldersRemoved: "pastas vazias removidas",
     oldFoldersStillOccupied: "pastas de origem ainda contêm arquivos (preservadas)",
     reviewDuplicates: "Revisar Duplicados",
     reviewCollisions: "Revisar Colisões",
@@ -1103,7 +1103,7 @@ const I18N = {
     organizedPackages: "packages organizados",
     duplicatesPending: "duplicados idénticos pendientes de revisión",
     collisionsPending: "colisiones pendientes de revisión",
-    emptyOldFoldersRemoved: "carpetas antiguas vacías eliminadas",
+    emptyOldFoldersRemoved: "carpetas vacías eliminadas",
     oldFoldersStillOccupied: "carpetas de origen todavía contienen archivos (conservadas)",
     reviewDuplicates: "Revisar Duplicados",
     reviewCollisions: "Revisar Colisiones",
@@ -7617,6 +7617,11 @@ async function executeOrganization() {
       state.notice = result.status === "COMPLETE"
         ? `${t("executionComplete")}: ${result.moved}`
         : t("executionNoChanges");
+      // File moves have succeeded, but a permission problem may have kept an
+      // empty folder. Surface cleanup warnings instead of silently hiding it.
+      if (result.errors?.length) {
+        state.notice += `\n${result.errors.join("\n")}`;
+      }
     } else {
       state.planError = `${t("executionRolledBack")}: ${(result.errors || []).join(" ")}`;
     }

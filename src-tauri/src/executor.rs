@@ -187,57 +187,94 @@ fn remove_empty_created_directories(root: &Path, directories: &[String]) {
     }
 }
 
-// Remove only directories vacated by files actually moved in this
-// transaction. Never sweep unrelated, user-created, or nonempty folders.
-// Packages itself must always survive; retained files such as duplicates or
-// merged packages must never be removed to make a folder disappear.
-fn cleanup_vacated_source_directories(
+// After a successful organization, remove *every* genuinely empty
+// subdirectory within the selected tree, not just the parents of moved files.
+// This also covers folders left empty by prior organizations or user-created
+// empty category trees. Never delete the selected root, Mods/Packages or
+// Mods/Overrides themselves; never follow symlinks/junctions or delete files.
+//
+// The retained counter only describes directories on this transaction's old
+// source paths that still contain data (duplicates, companions, etc.). Other
+// nonempty folders are simply left untouched.
+fn cleanup_empty_directories_after_organization(
     root: &Path,
     moved_pairs: &[(PathBuf, PathBuf, String, u64)],
-) -> (usize, usize) {
-    let packages = root.join("Packages");
-    let overrides = root.join("Overrides");
-    let mods_root = root.file_name()
-        .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("Mods"));
+) -> (usize, usize, Vec<String>) {
+    let mods_root = root.file_name().is_some_and(|name| {
+        name.to_string_lossy().eq_ignore_ascii_case("Mods")
+    });
+    let mut candidates = Vec::<PathBuf>::new();
+    let mut warnings = Vec::<String>::new();
 
-    let mut old_directories = BTreeSet::<PathBuf>::new();
+    for entry in WalkDir::new(root).follow_links(false).min_depth(1).into_iter() {
+        match entry {
+            Ok(entry) if entry.file_type().is_dir() => {
+                let path = entry.path();
+                // These are the two loading branch roots. They must survive
+                // even if they contain zero packages after organization.
+                if mods_root && path.parent() == Some(root) && path.file_name()
+                    .is_some_and(|name| {
+                        name.to_string_lossy().eq_ignore_ascii_case("Packages")
+                            || name.to_string_lossy().eq_ignore_ascii_case("Overrides")
+                    })
+                {
+                    continue;
+                }
+                candidates.push(path.to_path_buf());
+            }
+            Ok(_) => {}
+            Err(error) => warnings.push(format!(
+                "Could not inspect a folder during empty-directory cleanup: {error}"
+            )),
+        }
+    }
+
+    // Remove children before their parents. As each descendant disappears,
+    // another formerly nonempty parent can become empty in the same pass.
+    candidates.sort_by_key(|path| std::cmp::Reverse(path.components().count()));
+    let mut removed = 0;
+    for folder in candidates {
+        match fs::remove_dir(&folder) {
+            Ok(()) => removed += 1,
+            Err(error) => {
+                // A nonempty directory is expected and must be kept intact.
+                // Surface only failures concerning an actually empty folder.
+                match fs::read_dir(&folder) {
+                    Ok(mut contents) if contents.next().is_none() => warnings.push(format!(
+                        "Could not remove empty folder {}: {error}",
+                        folder.display()
+                    )),
+                    Err(read_error) => warnings.push(format!(
+                        "Could not inspect folder {} after failed cleanup: {read_error}",
+                        folder.display()
+                    )),
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    let mut old_folders = BTreeSet::<PathBuf>::new();
     for (source, _, _, _) in moved_pairs {
-        // Files originally placed by old Manager versions under Mods/CAS or
-        // Mods/Sliders also need their vacated category directories removed.
-        // These roots are allowed only after the planner's strict legacy
-        // category check, so a successful transaction may clean them safely.
-        let boundary = if mods_root && source.starts_with(&packages) {
-            &packages
-        } else if mods_root && source.starts_with(&overrides) {
-            &overrides
-        } else {
-            root
-        };
         let mut current = source.parent();
-        while let Some(dir) = current {
-            if dir == boundary || !dir.starts_with(boundary) {
+        while let Some(folder) = current {
+            if folder == root || !folder.starts_with(root) {
                 break;
             }
-            old_directories.insert(dir.to_path_buf());
-            current = dir.parent();
+            // The branch roots are intentionally kept, not "occupied".
+            let protected = mods_root && folder.parent() == Some(root) &&
+                folder.file_name().is_some_and(|name| {
+                    name.to_string_lossy().eq_ignore_ascii_case("Packages")
+                        || name.to_string_lossy().eq_ignore_ascii_case("Overrides")
+                });
+            if !protected {
+                old_folders.insert(folder.to_path_buf());
+            }
+            current = folder.parent();
         }
     }
-
-    let mut directories = old_directories.into_iter().collect::<Vec<_>>();
-    directories.sort_by_key(|path| std::cmp::Reverse(path.components().count()));
-    let mut removed = 0;
-    let mut retained = 0;
-    for folder in directories {
-        // remove_dir succeeds ONLY for genuinely empty folders.
-        if fs::remove_dir(&folder).is_ok() {
-            removed += 1;
-        } else if folder.is_dir() {
-            // This folder may still contain an exact duplicate, a merged mod,
-            // an unclassified package or an unrelated companion file.
-            retained += 1;
-        }
-    }
-    (removed, retained)
+    let retained = old_folders.into_iter().filter(|path| path.is_dir()).count();
+    (removed, retained, warnings)
 }
 
 #[tauri::command]
@@ -488,8 +525,8 @@ pub fn execute_organization_with_cfg(
         });
     }
 
-    let (old_folders_removed, old_folders_retained) =
-        cleanup_vacated_source_directories(&root, &moved_pairs);
+    let (old_folders_removed, old_folders_retained, cleanup_warnings) =
+        cleanup_empty_directories_after_organization(&root, &moved_pairs);
 
     manifest.status = "COMPLETE".to_string();
     replace_manifest_atomic(&manifest_path, &manifest)?;
@@ -502,7 +539,7 @@ pub fn execute_organization_with_cfg(
         rolled_back: 0,
         old_folders_removed,
         old_folders_retained,
-        errors: Vec::new(),
+        errors: cleanup_warnings,
     })
 }
 
@@ -511,57 +548,87 @@ mod tests {
     use super::*;
 
     #[test]
-    fn removes_only_empty_old_folders_without_touching_held_duplicates() {
+    fn removes_every_empty_subfolder_after_organization_and_preserves_nonempty_ones() {
         use std::time::{SystemTime, UNIX_EPOCH};
         let nonce = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
-        let mods = std::env::temp_dir().join(format!("s3cc-old-folder-{}-{nonce}", std::process::id())).join("Mods");
+        let mods = std::env::temp_dir()
+            .join(format!("s3cc-empty-folders-{}-{nonce}", std::process::id()))
+            .join("Mods");
         let packages = mods.join("Packages");
+        let overrides = mods.join("Overrides");
         let old = packages.join("CAS").join("Sliders");
-        let unrelated = packages.join("Custom Empty Folder");
+        let orphan = packages.join("Custom Empty Folder").join("Unused");
         let retained = packages.join("Legacy").join("Jonha");
         let legacy = mods.join("CAS").join("Sliders");
-        let override_old = mods.join("Overrides").join("Old Tuning");
-        std::fs::create_dir_all(&old).unwrap();
-        std::fs::create_dir_all(&unrelated).unwrap();
-        std::fs::create_dir_all(&retained).unwrap();
-        std::fs::create_dir_all(&legacy).unwrap();
-        std::fs::create_dir_all(&override_old).unwrap();
-        std::fs::write(retained.join("Jonha_BASE.package"), b"pending Duplicates review").unwrap();
-
+        let override_old = overrides.join("Old Tuning");
+        for folder in [&old, &orphan, &retained, &legacy, &override_old] {
+            std::fs::create_dir_all(folder).unwrap();
+        }
+        std::fs::write(retained.join("Jonha_BASE.package"), b"pending review").unwrap();
+        // Files and any folder containing them must be retained, including
+        // non-package sidecars and scripts.
+        std::fs::write(packages.join("keep.txt"), b"never delete content").unwrap();
         let moved = vec![
-            (
-                old.join("moved.package"),
-                packages.join("Sliders").join("moved.package"),
-                String::new(),
-                0,
-            ),
-            (
-                retained.join("moved.package"),
-                packages.join("Sliders").join("other.package"),
-                String::new(),
-                0,
-            ),
-            (
-                legacy.join("moved.package"),
-                packages.join("Sliders").join("migrated.package"),
-                String::new(),
-                0,
-            ),
-            (
-                override_old.join("patch.package"),
-                mods.join("Overrides").join("Tuning").join("patch.package"),
-                String::new(),
-                0,
-            ),
+            (old.join("moved.package"), packages.join("Sliders/moved.package"), String::new(), 0),
+            (retained.join("moved.package"), packages.join("Sliders/other.package"), String::new(), 0),
+            (legacy.join("moved.package"), packages.join("Sliders/migrated.package"), String::new(), 0),
+            (override_old.join("patch.package"), overrides.join("Tuning/patch.package"), String::new(), 0),
         ];
-        let (removed, preserved) = cleanup_vacated_source_directories(&mods, &moved);
-        assert_eq!(removed, 5); // Legacy CAS branches and Old Tuning within Overrides
-        assert_eq!(preserved, 2); // Legacy/Jonha and its parent
-        assert!(packages.is_dir());
-        assert!(mods.join("Overrides").is_dir());
+
+        let (removed, preserved, warnings) =
+            cleanup_empty_directories_after_organization(&mods, &moved);
+        assert!(warnings.is_empty(), "{warnings:?}");
+        assert_eq!(removed, 7); // 5 old-source directories + 2 unrelated empty folders
+        assert_eq!(preserved, 2); // Legacy/Jonha and its parent still contain CC
+        assert!(mods.is_dir() && packages.is_dir() && overrides.is_dir());
         assert!(retained.join("Jonha_BASE.package").is_file());
-        assert!(unrelated.is_dir());
+        assert!(packages.join("keep.txt").is_file());
+        assert!(!old.exists() && !orphan.exists() && !legacy.exists());
+        assert!(!override_old.exists() && !packages.join("Custom Empty Folder").exists());
         std::fs::remove_dir_all(mods.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn selected_branch_root_survives_and_only_its_empty_descendants_are_removed() {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let nonce = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let mods = std::env::temp_dir()
+            .join(format!("s3cc-selected-root-{}-{nonce}", std::process::id()))
+            .join("Mods");
+        let packages = mods.join("Packages");
+        let overrides = mods.join("Overrides");
+        std::fs::create_dir_all(packages.join("Empty").join("Nested")).unwrap();
+        std::fs::create_dir_all(overrides.join("Unrelated Empty")).unwrap();
+        let (removed, retained, warnings) =
+            cleanup_empty_directories_after_organization(&packages, &[]);
+        assert_eq!((removed, retained), (2, 0));
+        assert!(warnings.is_empty(), "{warnings:?}");
+        assert!(packages.is_dir());
+        assert!(!packages.join("Empty").exists());
+        assert!(overrides.join("Unrelated Empty").is_dir());
+        std::fs::remove_dir_all(mods.parent().unwrap()).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn empty_folder_cleanup_never_follows_directory_symlinks() {
+        use std::os::unix::fs::symlink;
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let nonce = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let base = std::env::temp_dir()
+            .join(format!("s3cc-cleanup-symlink-{}-{nonce}", std::process::id()));
+        let mods = base.join("Mods");
+        let target = base.join("External").join("Preserve");
+        std::fs::create_dir_all(mods.join("Packages")).unwrap();
+        std::fs::create_dir_all(&target).unwrap();
+        symlink(base.join("External"), mods.join("Packages").join("External Link")).unwrap();
+        let (removed, _, warnings) =
+            cleanup_empty_directories_after_organization(&mods, &[]);
+        assert_eq!(removed, 0);
+        assert!(warnings.is_empty(), "{warnings:?}");
+        assert!(target.is_dir());
+        assert!(mods.join("Packages/External Link").exists());
+        std::fs::remove_dir_all(base).unwrap();
     }
 
     #[test]
