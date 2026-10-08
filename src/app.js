@@ -130,6 +130,8 @@ const I18N = {
     removingRestoreRecord: "Removing restore record…",
     restoreSelectedHint: "Manifest selected. Use Preview Restore to review changes. No files were moved.",
     confirmQuarantineRestoreTitle: "Restore files from Quarantine?",
+    confirmQuarantineRecoverTitle: "Recover interrupted Quarantine?",
+    confirmQuarantineRecoverMessage: "This will attempt to move verified files back to their original locations from an interrupted operation. No file will be overwritten. Confirm to continue.",
     confirmQuarantineRestoreMessage: "Files in this quarantine will be moved back to their original paths. Confirm to proceed; no files will be overwritten.",
     refreshHistory: "Refresh",
     noRestoreHistory: "No restore manifests were found for this Mods folder.",
@@ -607,6 +609,8 @@ const I18N = {
     removingRestoreRecord: "Removendo registro de restauração…",
     restoreSelectedHint: "Manifesto selecionado. Use Visualizar Restauração para revisar as alterações. Nenhum arquivo foi movido.",
     confirmQuarantineRestoreTitle: "Restaurar arquivos da Quarentena?",
+    confirmQuarantineRecoverTitle: "Recuperar Quarentena interrompida?",
+    confirmQuarantineRecoverMessage: "Isso tentará devolver os arquivos verificados aos locais originais após uma operação interrompida. Nenhum arquivo será sobrescrito. Confirme para continuar.",
     confirmQuarantineRestoreMessage: "Os arquivos dessa quarentena voltarão aos caminhos originais. Confirme para continuar; nenhum arquivo será sobrescrito.",
     refreshHistory: "Atualizar",
     noRestoreHistory: "Nenhum manifesto de restauração foi encontrado para esta pasta de Mods.",
@@ -1083,6 +1087,8 @@ const I18N = {
     removingRestoreRecord: "Eliminando registro de restauración…",
     restoreSelectedHint: "Manifiesto seleccionado. Usa Ver Restauración para revisar los cambios. No se ha movido ningún archivo.",
     confirmQuarantineRestoreTitle: "¿Restaurar archivos de Cuarentena?",
+    confirmQuarantineRecoverTitle: "¿Recuperar una Cuarentena interrumpida?",
+    confirmQuarantineRecoverMessage: "Se intentará devolver los archivos verificados a sus ubicaciones originales tras una operación interrumpida. No se sobrescribirá ningún archivo. Confirma para continuar.",
     confirmQuarantineRestoreMessage: "Los archivos de esta cuarentena volverán a sus rutas originales. Confirma para continuar; no se sobrescribirá ningún archivo.",
     refreshHistory: "Actualizar",
     noRestoreHistory: "No se encontraron manifiestos de restauración para esta carpeta de Mods.",
@@ -5247,7 +5253,10 @@ async function restoreQuarantineFromHistory(item) {
 }
 
 async function recoverQuarantineFromHistory(item) {
-  if (!state.folder || !item?.destination || workspaceReadOnly() || state.toolsBusy) return;
+  if (state.pendingAction !== "recover_quarantine" ||
+      state.pendingQuarantineRestore?.destination !== item?.destination ||
+      el.confirmModal.classList.contains("hidden") ||
+      !state.folder || !item?.destination || workspaceReadOnly() || state.toolsBusy) return;
   state.toolsBusy = true;
   state.toolsError = "";
   renderTools();
@@ -5255,6 +5264,7 @@ async function recoverQuarantineFromHistory(item) {
     const result = await invoke("recover_quarantine", {
       folder: state.folder,
       manifestPath: item.destination,
+      confirmed: true,
     });
     state.toolsNotice = `${t("quarantineRecovered")}: ${result.status} · ${result.moved}`;
     state.duplicatesAnalysis = null;
@@ -5267,6 +5277,11 @@ async function recoverQuarantineFromHistory(item) {
     state.toolsError = String(error);
   } finally {
     state.toolsBusy = false;
+    state.pendingAction = "";
+    state.pendingQuarantineRestore = null;
+    el.confirmModal.classList.add("hidden");
+    el.confirmModal.setAttribute("aria-hidden", "true");
+    el.confirmActionBtn.disabled = false;
     render();
   }
 }
@@ -5358,7 +5373,10 @@ function renderHistoryTools() {
         recover.className = "secondary-btn compact-btn";
         recover.textContent = t("recoverQuarantine");
         recover.disabled = workspaceReadOnly() || state.toolsBusy;
-        recover.addEventListener("click", () => recoverQuarantineFromHistory(item));
+        recover.addEventListener("click", () => {
+          state.pendingQuarantineRestore = item;
+          openConfirm("recover_quarantine");
+        });
         actions.appendChild(recover);
       }
 
@@ -6482,7 +6500,7 @@ function openConfirm(action) {
     if (!selected || (selected.valid && !selected.matchesSelectedRoot) ||
         state.restoreBusy || workspaceReadOnly()) return;
     state.pendingRemoveManifest = selected.path;
-  } else if (action === "restore_quarantine") {
+  } else if (action === "restore_quarantine" || action === "recover_quarantine") {
     if (!state.pendingQuarantineRestore || state.toolsBusy || workspaceReadOnly()) return;
   } else if (action === "remove_operation_history") {
     if (!historyRecordCanBeRemoved(state.pendingHistoryRemoval)) return;
@@ -6517,6 +6535,10 @@ function openConfirm(action) {
     el.confirmTitle.textContent = t("confirmQuarantineRestoreTitle");
     el.confirmMessage.textContent = `${t("confirmQuarantineRestoreMessage")}\n${state.pendingQuarantineRestore.destination}`;
     el.confirmActionBtn.textContent = t("restoreQuarantine");
+  } else if (action === "recover_quarantine") {
+    el.confirmTitle.textContent = t("confirmQuarantineRecoverTitle");
+    el.confirmMessage.textContent = `${t("confirmQuarantineRecoverMessage")}\n${state.pendingQuarantineRestore.destination}`;
+    el.confirmActionBtn.textContent = t("recoverQuarantine");
   } else if (action === "remove_operation_history") {
     const item = state.pendingHistoryRemoval;
     el.confirmTitle.textContent = item.kind === "quarantine"
@@ -6535,7 +6557,7 @@ function openConfirm(action) {
 
 function closeConfirm() {
   if (state.executing || state.restoreBusy || state.quarantineBusy ||
-      (state.toolsBusy && ["restore_quarantine", "remove_operation_history"].includes(state.pendingAction))) return;
+      (state.toolsBusy && ["restore_quarantine", "recover_quarantine", "remove_operation_history"].includes(state.pendingAction))) return;
   state.pendingAction = "";
   state.pendingRemoveManifest = "";
   state.pendingRestoreManifest = "";
@@ -7435,6 +7457,11 @@ el.confirmActionBtn.addEventListener("click", async () => {
   else if (state.pendingAction === "restore_quarantine") {
     if (state.pendingQuarantineRestore) {
       await restoreQuarantineFromHistory(state.pendingQuarantineRestore);
+    }
+  }
+  else if (state.pendingAction === "recover_quarantine") {
+    if (state.pendingQuarantineRestore) {
+      await recoverQuarantineFromHistory(state.pendingQuarantineRestore);
     }
   }
   else if (state.pendingAction === "remove_restore_history") await removeSelectedRestoreHistory();
