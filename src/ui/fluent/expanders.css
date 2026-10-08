@@ -1,0 +1,89 @@
+/*
+ * WinUI Expander styling on existing semantic <details> controls.
+ * The DOM/open attribute and app functionality remain native and unchanged.
+ */
+body.release-v1 :is(
+  .sidebar-diagnostics,
+  .catalog-source-panel,
+  .catalog-secondary-panel,
+  .manifest-preview,
+  .conflict-identical-section
+) {
+  border-radius: var(--fluent-radius-overlay);
+  border: 1px solid var(--fluent-control-stroke);
+  background: var(--winui-card-fill-alt, var(--surface));
+  color: var(--fluent-text-primary);
+}
+body.release-v1 :is(
+  .sidebar-diagnostics,
+  .catalog-source-panel,
+  .catalog-secondary-panel,
+  .manifest-preview,
+  .conflict-identical-section
+) > summary {
+  position: relative;
+  min-height: 32px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  padding-block: 7px;
+  padding-inline-start: 12px;
+  padding-inline-end: 34px;
+  list-style: none;
+  border-radius: var(--fluent-radius-control);
+  color: var(--fluent-text-primary);
+  cursor: pointer;
+  font-family: var(--fluent-body-font);
+  transition: background-color 100ms ease;
+}
+body.release-v1 :is(
+  .sidebar-diagnostics, .catalog-source-panel, .catalog-secondary-panel,
+  .manifest-preview, .conflict-identical-section
+) > summary::-webkit-details-marker { display: none; }
+body.release-v1 :is(
+  .sidebar-diagnostics, .catalog-source-panel, .catalog-secondary-panel,
+  .manifest-preview, .conflict-identical-section
+) > summary::after {
+  content: "";
+  position: absolute;
+  right: 13px;
+  top: calc(50% - 4px);
+  width: 7px;
+  height: 7px;
+  border-right: 1.75px solid currentColor;
+  border-bottom: 1.75px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform 130ms ease;
+  pointer-events: none;
+}
+body.release-v1 :is(
+  .sidebar-diagnostics, .catalog-source-panel, .catalog-secondary-panel,
+  .manifest-preview, .conflict-identical-section
+)[open] > summary::after { transform: translateY(3px) rotate(225deg); }
+body.release-v1 :is(
+  .sidebar-diagnostics, .catalog-source-panel, .catalog-secondary-panel,
+  .manifest-preview, .conflict-identical-section
+) > summary:hover { background: var(--fluent-control-hover); }
+body.release-v1 :is(
+  .sidebar-diagnostics, .catalog-source-panel, .catalog-secondary-panel,
+  .manifest-preview, .conflict-identical-section
+) > summary:active { background: var(--fluent-control-pressed); }
+body.release-v1 :is(
+  .sidebar-diagnostics, .catalog-source-panel, .catalog-secondary-panel,
+  .manifest-preview, .conflict-identical-section
+) > summary:focus-visible {
+  outline: 2px solid var(--fluent-focus-outer);
+  outline-offset: -2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  body.release-v1 :is(.sidebar-diagnostics, .catalog-source-panel, .catalog-secondary-panel, .manifest-preview, .conflict-identical-section) > summary,
+  body.release-v1 :is(.sidebar-diagnostics, .catalog-source-panel, .catalog-secondary-panel, .manifest-preview, .conflict-identical-section) > summary::after {
+    transition: none;
+  }
+}
+@media (forced-colors: active) {
+  body.release-v1 :is(.sidebar-diagnostics, .catalog-source-panel, .catalog-secondary-panel, .manifest-preview, .conflict-identical-section) {
+    border-color: CanvasText;
+    color: CanvasText;
+  }
+}

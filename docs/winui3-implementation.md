@@ -88,3 +88,7 @@ The visual thumb behavior requires checking in an actual Tauri build: OS and Web
 - Regression tests cover accessible percentages, unknown totals, cancellation, warning and error announcements, and the existing privacy restriction.
 
 WebView2 appearance still needs visual acceptance with the new Windows x64 diagnostic build.
+
+## Combined batches 5–6 (Oct 8)
+
+Batch 5: native details are Fluent Expanders, accessible search inputs are SearchBoxes with a clear button that dispatches existing input/change events, and native tooltips are progressively themed. Batch 6: caption glyphs are vector-normalized; NavigationView keyboard focus/selection and Fluent animations are refined. Respect theme choices and all existing backend operations.
