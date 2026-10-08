@@ -74,6 +74,42 @@ fn is_packages_root(root: &Path) -> bool {
         .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("packages"))
 }
 
+// Older versions created their category trees beside Packages inside Mods.
+// Migrate only those recognizable legacy category roots. Never treat
+// Overrides, DCCache or unrelated custom folders as organizer-owned.
+fn legacy_manager_source(root: &Path, source: &Path) -> bool {
+    if !is_mods_root(root) {
+        return false;
+    }
+    let Ok(relative) = source.strip_prefix(root) else {
+        return false;
+    };
+    if relative.components().count() < 2 {
+        return false;
+    }
+    let Some(name) = relative.components().next().and_then(|component| match component {
+        Component::Normal(name) => Some(name.to_string_lossy().to_lowercase()),
+        _ => None,
+    }) else {
+        return false;
+    };
+    [
+        "cas", "sliders", "clothing", "roupas", "ropa",
+        "hair", "cabelos", "cabello",
+        "accessories", "acessórios", "accesorios",
+        "makeup", "maquiagem", "maquillaje",
+        "genetics", "genética", "genetica",
+        "pets", "animais", "mascotas",
+        "patterns", "padrões", "patrones",
+        "buy", "compra", "build", "construção", "construcción",
+        "objects", "objetos",
+        "gameplay", "jogabilidade", "jugabilidad",
+        "scripts", "store", "nraas",
+        "localization", "localização", "localización",
+        "poses and animations", "poses e animações", "poses y animaciones",
+    ].contains(&name.as_str())
+}
+
 // When the user selected Mods rather than Mods/Packages, the organizer's
 // destination folders must still stay inside Packages, even if the selected
 // package has no reliable Resource.cfg rule.
@@ -116,62 +152,48 @@ fn fit_destination_to_resource_cfg(
         return Ok((packages_parts, None));
     };
 
-    // When a package is not covered by this Resource.cfg, still preserve the
-    // Packages root. Never redirect it into Mods directly.
-    let Some(source_priority) = package_priority(&context.info, &context.directory, source) else {
-        return Ok((packages_parts, None));
-    };
-
-    // Preserve the literal loading prefix from the matching PackedFile rule.
-    // For the common layout, selecting Mods (instead of Mods/Packages) must
-    // still produce Mods/Packages/... destinations.
-    let rule_prefix = source_priority
-        .rule
-        .replace('\\', "/")
-        .split('/')
-        .take_while(|component| !component.contains('*'))
-        .filter(|component| !component.is_empty())
-        .map(str::to_string)
-        .collect::<Vec<_>>();
-    let root_relative = root
-        .strip_prefix(&context.directory)
-        .ok()
-        .map(|value| {
-            value
-                .components()
-                .filter_map(|component| match component {
+    // Even when the original package sits in a legacy Mods/CAS directory
+    // that Resource.cfg never loaded, the NEW destination must match
+    // Resource.cfg or be compacted to a matching depth.
+    let source_priority = package_priority(&context.info, &context.directory, source);
+    let proposed = if let Some(source_priority) = source_priority {
+        // Preserve literal prefixes for covered packages, without
+        // accidentally repeating Mods/Packages.
+        let rule_prefix = source_priority
+            .rule
+            .replace('\\', "/")
+            .split('/')
+            .take_while(|part| !part.contains('*'))
+            .filter(|part| !part.is_empty())
+            .map(str::to_string)
+            .collect::<Vec<_>>();
+        let root_relative = root.strip_prefix(&context.directory).ok()
+            .map(|value| value.components()
+                .filter_map(|part| match part {
                     Component::Normal(value) => Some(value.to_string_lossy().to_string()),
                     _ => None,
                 })
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
-
-    let mut base_prefix = Vec::<String>::new();
-    if root_relative.len() < rule_prefix.len()
-        && rule_prefix
-            .iter()
-            .take(root_relative.len())
-            .zip(root_relative.iter())
-            .all(|(left, right)| left.eq_ignore_ascii_case(right))
-    {
-        base_prefix.extend(rule_prefix.iter().skip(root_relative.len()).cloned());
-    }
-
-    let mut proposed = base_prefix;
-    // A Mods-root destination already starts with Packages; do not prepend
-    // the rule's Packages prefix a second time.
-    let already_prefixed = packages_parts
-        .iter()
-        .take(proposed.len())
-        .zip(proposed.iter())
-        .all(|(part, prefix)| part.eq_ignore_ascii_case(prefix))
-        && packages_parts.len() >= proposed.len();
-    if already_prefixed {
-        proposed = packages_parts;
+                .collect::<Vec<_>>())
+            .unwrap_or_default();
+        let mut prefix = Vec::<String>::new();
+        if root_relative.len() < rule_prefix.len()
+            && rule_prefix.iter().take(root_relative.len()).zip(root_relative.iter())
+                .all(|(left, right)| left.eq_ignore_ascii_case(right))
+        {
+            prefix.extend(rule_prefix.iter().skip(root_relative.len()).cloned());
+        }
+        if packages_parts.len() >= prefix.len()
+            && prefix.iter().zip(packages_parts.iter())
+                .all(|(left, right)| left.eq_ignore_ascii_case(right))
+        {
+            packages_parts.clone()
+        } else {
+            prefix.extend(packages_parts.iter().cloned());
+            prefix
+        }
     } else {
-        proposed.extend(packages_parts);
-    }
+        packages_parts.clone()
+    };
 
     let direct = destination_path(root, &proposed, file_name);
     if package_priority(&context.info, &context.directory, &direct).is_some() {
@@ -744,6 +766,7 @@ pub fn build_organization_plan(
         if packages_root
             .as_ref()
             .is_some_and(|packages| !path_is_within_root(packages, &source_canonical))
+            && !legacy_manager_source(&root, &source_canonical)
         {
             stats.blocked += 1;
             items.push(make_blocked(
@@ -1061,6 +1084,21 @@ pub fn build_organization_plan(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn identifies_only_known_legacy_manager_folders_for_migration() {
+        let mods = Path::new("The Sims 3").join("Mods");
+        assert!(legacy_manager_source(
+            &mods, &mods.join("CAS").join("Sliders").join("a.package")));
+        assert!(legacy_manager_source(
+            &mods, &mods.join("Roupas").join("Masculino").join("x.package")));
+        assert!(!legacy_manager_source(
+            &mods, &mods.join("Overrides").join("ui.package")));
+        assert!(!legacy_manager_source(
+            &mods, &mods.join("DCCache").join("a.package")));
+        assert!(!legacy_manager_source(
+            &mods, &mods.join("Random Folder").join("x.package")));
+    }
 
     #[test]
     fn mods_root_always_routes_categories_into_packages() {
