@@ -281,17 +281,20 @@ pub fn execute_organization(
                 )
             })?;
 
+            // The move has happened: include it in rollback even if the
+            // following post-move identity check fails.
+            moved_pairs.push((
+                source.clone(),
+                destination.clone(),
+                expected_hash.clone(),
+                item.size,
+            ));
             verify_identity(&destination, expected_hash, item.size)?;
             Ok(())
         })();
 
         match step_result {
-            Ok(()) => moved_pairs.push((
-                source,
-                destination,
-                expected_hash.clone(),
-                item.size,
-            )),
+            Ok(()) => {},
             Err(error) => {
                 errors.push(error);
                 break;
