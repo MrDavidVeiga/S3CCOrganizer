@@ -179,7 +179,10 @@ fn checked_join(base: &Path, relative: &Path) -> Result<PathBuf, String> {
 }
 
 fn checked_workspace(root: &Path) -> Result<(), String> {
-    let parent = root.parent().unwrap_or(root);
+    // Reuse the same actual quarantine workspace root for security checks
+    // when a library is scanned from nested Packages/Overrides folders.
+    let workspace = workspace_base(root);
+    let parent = workspace.parent().unwrap_or(root);
     let rel = Path::new("S3CC Organizer");
     let _ = checked_join(parent, rel)?;
     for name in ["Quarantine", "Quarantine Manifests"] {
