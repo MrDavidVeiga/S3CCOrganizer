@@ -156,7 +156,7 @@ fn ensure_source_loading_branch(root: &Path, source: &Path, parts: &[String]) ->
 // Older versions created their category trees beside Packages inside Mods.
 // Migrate only those recognizable legacy category roots. Never treat
 // Overrides, DCCache or unrelated custom folders as organizer-owned.
-fn legacy_manager_source(root: &Path, source: &Path) -> bool {
+pub(crate) fn legacy_manager_source(root: &Path, source: &Path) -> bool {
     if !is_mods_root(root) {
         return false;
     }
