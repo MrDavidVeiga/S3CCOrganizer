@@ -870,7 +870,7 @@ pub fn build_organization_plan(
             items.push(PlanItem {
                 id: item.id.clone(),
                 name: item.name.clone(),
-                source_path: source.to_string_lossy().to_string(),
+                source_path: source_canonical.to_string_lossy().to_string(),
                 source_relative_path: item.relative_path.clone(),
                 destination_path: None,
                 destination_relative_path: None,
@@ -893,7 +893,7 @@ pub fn build_organization_plan(
             items.push(PlanItem {
                 id: item.id.clone(),
                 name: item.name.clone(),
-                source_path: source.to_string_lossy().to_string(),
+                source_path: source_canonical.to_string_lossy().to_string(),
                 source_relative_path: item.relative_path.clone(),
                 destination_path: None,
                 destination_relative_path: None,
@@ -930,7 +930,7 @@ pub fn build_organization_plan(
             items.push(PlanItem {
                 id: item.id.clone(),
                 name: item.name.clone(),
-                source_path: source.to_string_lossy().to_string(),
+                source_path: source_canonical.to_string_lossy().to_string(),
                 source_relative_path: item.relative_path.clone(),
                 destination_path: None,
                 destination_relative_path: None,
@@ -1046,7 +1046,7 @@ pub fn build_organization_plan(
             items.push(PlanItem {
                 id: item.id.clone(),
                 name: item.name.clone(),
-                source_path: source.to_string_lossy().to_string(),
+                source_path: source_canonical.to_string_lossy().to_string(),
                 source_relative_path: item.relative_path.clone(),
                 destination_path: Some(destination.to_string_lossy().to_string()),
                 destination_relative_path: Some(destination_relative_text),
@@ -1078,7 +1078,7 @@ pub fn build_organization_plan(
             items.push(PlanItem {
                 id: item.id.clone(),
                 name: item.name.clone(),
-                source_path: source.to_string_lossy().to_string(),
+                source_path: source_canonical.to_string_lossy().to_string(),
                 source_relative_path: item.relative_path.clone(),
                 destination_path: Some(destination.to_string_lossy().to_string()),
                 destination_relative_path: Some(destination_relative_text),
@@ -1105,7 +1105,7 @@ pub fn build_organization_plan(
         items.push(PlanItem {
             id: item.id.clone(),
             name: item.name.clone(),
-            source_path: source.to_string_lossy().to_string(),
+            source_path: source_canonical.to_string_lossy().to_string(),
             source_relative_path: item.relative_path.clone(),
             destination_path: Some(destination.to_string_lossy().to_string()),
             destination_relative_path: Some(destination_relative_text),
@@ -1194,6 +1194,21 @@ pub fn build_organization_plan(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn planned_sources_use_the_same_canonical_root_as_cleanup() {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let nonce = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let root = std::env::temp_dir().join(format!("s3cc-canonical-root-{}-{nonce}", std::process::id()));
+        let source = root.join("Packages").join("Legacy").join("a.package");
+        std::fs::create_dir_all(source.parent().unwrap()).unwrap();
+        std::fs::write(&source, b"DBPF source identity test").unwrap();
+        let canonical_root = root.canonicalize().unwrap();
+        let canonical_source = source.canonicalize().unwrap();
+        assert!(canonical_source.starts_with(&canonical_root));
+        assert!(canonical_source.parent().unwrap().starts_with(&canonical_root));
+        std::fs::remove_dir_all(&root).unwrap();
+    }
 
     #[test]
     fn identifies_only_known_legacy_manager_folders_for_migration() {
