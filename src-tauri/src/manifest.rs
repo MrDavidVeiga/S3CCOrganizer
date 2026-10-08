@@ -272,6 +272,17 @@ pub fn parse_manifest(text: &str) -> Result<RestoreManifest, String> {
 }
 
 pub fn read_manifest(path: &Path) -> Result<RestoreManifest, String> {
+    // On Windows, a crash between the two replacement renames can leave the
+    // original manifest in its backup. Restore the journal, never the CCs.
+    #[cfg(windows)]
+    if !path.exists() {
+        let backup = manifest_backup_path(path)?;
+        if backup.is_file() {
+            fs::rename(&backup, path)
+                .map_err(|error| format!("Could not recover manifest backup {}: {error}", backup.display()))?;
+        }
+    }
+
     let text = fs::read_to_string(path)
         .map_err(|error| format!("Could not read manifest {}: {error}", path.display()))?;
     parse_manifest(&text)
@@ -321,6 +332,45 @@ pub fn write_manifest_atomic(path: &Path, manifest: &RestoreManifest) -> Result<
         .map_err(|error| format!("Could not commit restore manifest {}: {error}", path.display()))
 }
 
+#[cfg(windows)]
+fn manifest_backup_path(path: &Path) -> Result<PathBuf, String> {
+    let name = path.file_name().and_then(|part| part.to_str())
+        .ok_or_else(|| format!("Invalid manifest filename: {}", path.display()))?;
+    Ok(path.with_file_name(format!(".{name}.replace.backup")))
+}
+
+/// Recover any interrupted Windows journal replacement in a managed folder.
+/// This only moves manifest metadata, never package data.
+#[cfg(windows)]
+pub fn recover_manifest_backups(directory: &Path) -> Result<(), String> {
+    if !directory.is_dir() {
+        return Ok(());
+    }
+    for entry in fs::read_dir(directory)
+        .map_err(|error| format!("Could not inspect manifest backups: {error}"))?
+    {
+        let entry = entry.map_err(|error| error.to_string())?;
+        if !entry.file_type().map_err(|error| error.to_string())?.is_file() {
+            continue;
+        }
+        let file_name = entry.file_name();
+        let file_name = file_name.to_string_lossy();
+        let Some(name) = file_name
+            .strip_prefix('.')
+            .and_then(|name| name.strip_suffix(".replace.backup"))
+        else { continue; };
+        if !name.ends_with(".txt") {
+            continue;
+        }
+        let original = directory.join(name);
+        if !original.exists() {
+            fs::rename(entry.path(), &original)
+                .map_err(|error| format!("Could not recover manifest {}: {error}", original.display()))?;
+        }
+    }
+    Ok(())
+}
+
 pub fn replace_manifest_atomic(path: &Path, manifest: &RestoreManifest) -> Result<(), String> {
     let parent = path
         .parent()
@@ -350,11 +400,36 @@ pub fn replace_manifest_atomic(path: &Path, manifest: &RestoreManifest) -> Resul
     }
 
     #[cfg(windows)]
-    if path.exists() {
-        fs::remove_file(path)
-            .map_err(|error| format!("Could not replace manifest {}: {error}", path.display()))?;
+    {
+        let backup = manifest_backup_path(path)?;
+        if backup.exists() {
+            let _ = fs::remove_file(&temp);
+            return Err(format!(
+                "An incomplete manifest replacement backup needs recovery before updating: {}",
+                backup.display()
+            ));
+        }
+        // Never remove the only copy of the old journal before the new one
+        // is installed. A crash leaves a recoverable .replace.backup instead.
+        if path.exists() {
+            fs::rename(path, &backup)
+                .map_err(|error| format!("Could not back up manifest {}: {error}", path.display()))?;
+        }
+        if let Err(error) = fs::rename(&temp, path) {
+            if backup.exists() {
+                let _ = fs::rename(&backup, path);
+            }
+            return Err(format!("Could not finalize manifest replacement {}: {error}", path.display()));
+        }
+        if backup.exists() {
+            // Retaining a redundant backup is safer than allowing a cleanup
+            // failure to turn a successful transaction into an error.
+            let _ = fs::remove_file(&backup);
+        }
+        return Ok(());
     }
 
+    #[cfg(not(windows))]
     fs::rename(&temp, path)
         .map_err(|error| format!("Could not finalize manifest replacement {}: {error}", path.display()))
 }
