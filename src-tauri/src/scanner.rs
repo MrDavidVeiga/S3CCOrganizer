@@ -277,11 +277,13 @@ fn creator_candidate_from_filename(name: &str) -> Option<String> {
     let stem = strip_leading_status_tags(&stem);
     // A standalone mod name (e.g. AnimatedWoohoo.package) is not its author.
     // Only a token delimited from a separate title can be an author prefix.
-    if !stem.chars().any(|ch| ch == '_' || ch == '-' || ch == '.' || ch.is_whitespace()) {
+    // Natural-language filenames ("Al Fresco Street Market", "Retro Workout")
+    // do not contain an author prefix just because their title has spaces.
+    if !stem.chars().any(|ch| ch == '_' || ch == '-' || ch == '.') {
         return None;
     }
     let candidate = stem
-        .split(|ch: char| ch == '_' || ch == '-' || ch == '.' || ch.is_whitespace())
+        .split(|ch: char| ch == '_' || ch == '-' || ch == '.')
         .next()?
         .trim();
     if !(2..=40).contains(&candidate.len())
@@ -292,7 +294,7 @@ fn creator_candidate_from_filename(name: &str) -> Option<String> {
     let lower = candidate.to_ascii_lowercase();
     if matches!(
         lower.as_str(),
-        "mod" | "mods" | "script" | "scripts" | "package" | "update" | "updated"
+        "al" | "mod" | "mods" | "script" | "scripts" | "package" | "update" | "updated"
             | "new" | "fix" | "override" | "ts3" | "sims3" | "the"
     ) {
         return None;
@@ -1757,6 +1759,11 @@ mod tests {
         assert_eq!(script_category("douglasveiga_HousekeeperService_v1.2.package", AppLanguage::En), "Services");
         assert_eq!(script_category("douglasveiga_HousekeeperService_v1.2.package", AppLanguage::Es), "Servicios");
         assert_eq!(creator_candidate_from_filename("AnimatedWoohoo.package"), None);
+        assert_eq!(creator_candidate_from_filename("[Items] Al Fresco Street Market.package"), None);
+        assert_eq!(creator_candidate_from_filename("Let's Take a Selfie by David Veiga.package"), None);
+        assert_eq!(creator_candidate_from_filename("Retro Workout.package"), None);
+        assert_eq!(creator_candidate_from_filename("ld_MonoPatcher.package"), Some("ld".to_string()));
+        assert_eq!(creator_candidate_from_filename("icarusallsorts.EatOutsideRestaurant.package"), Some("icarusallsorts".to_string()));
         assert_eq!(creator_candidate_from_filename("twinsimming_Pasteurize Milk Mod.package"), Some("twinsimming".to_string()));
         assert_eq!(mod_name_from_relative(r"#+18\\AnimatedWoohoo.package"), None);
     }
