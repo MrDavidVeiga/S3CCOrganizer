@@ -245,13 +245,10 @@ pub fn execute_organization(
 ) -> Result<ExecutionResult, String> {
     let plan = build_organization_plan(folder, language, selected_paths)?;
 
-    if plan.stats.blocked > 0 {
-        return Err(format!(
-            "Execution blocked by preflight: {} blocked item(s).",
-            plan.stats.blocked
-        ));
-    }
-
+    // Only explicitly ready items will be moved. Keep every blocked item,
+    // duplicate and conflicting destination in place for later manual review.
+    // The plan and file SHA-256 identities are rebuilt immediately before
+    // execution, and the rollback manifest records only ready movements.
     let root = PathBuf::from(&plan.root);
     ensure_writable(&root)?;
     let ready = ready_items(&plan.items);
