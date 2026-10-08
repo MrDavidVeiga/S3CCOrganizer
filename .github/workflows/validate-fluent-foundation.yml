@@ -8,6 +8,7 @@ on:
       - "src/**"
       - "index.html"
       - "scripts/verify-fluent-foundation.mjs"
+      - "scripts/test-fluent-interactions.mjs"
       - ".github/workflows/validate-fluent-foundation.yml"
       - "package.json"
   workflow_dispatch:
