@@ -305,8 +305,13 @@ fn read_manifest(root: &Path, input: &str) -> Result<(PathBuf, QuarantineManifes
 // Historical manifests used identical source/destination relative paths.
 // Exact-duplicate batches may instead be grouped by identical copy count.
 fn quarantine_path_matches_identity(source: &Path, target: &Path, hash: &str) -> bool {
+    // A manifest is serialized with Windows separators even when CI/tests run
+    // on macOS or Linux. Normalize both sides before matching suffix/depth;
+    // a backslash is otherwise a literal filename character on Unix.
+    let Ok(source) = validated_relative(&source.to_string_lossy()) else { return false };
+    let Ok(target) = validated_relative(&target.to_string_lossy()) else { return false };
     if source == target { return true; }
-    if hash.len() < 16 || !target.ends_with(source) { return false; }
+    if hash.len() < 16 || !target.ends_with(&source) { return false; }
     let components = target.components().filter_map(|part| match part {
         Component::Normal(text) => text.to_str(),
         _ => None,
