@@ -1,0 +1,43 @@
+/* Shared ContentDialog / MenuFlyout appearance and focus affordances.
+   Size and internal layout stay controlled by each existing task dialog. */
+body.release-v1 .modal-backdrop {
+  background: rgba(0,0,0,.40);
+  backdrop-filter: blur(2px);
+}
+body.release-v1 .modal-backdrop [role="dialog"] {
+  border-radius: var(--fluent-radius-overlay);
+  border: 1px solid var(--fluent-control-stroke);
+  background: var(--winui-popup);
+  color: var(--fluent-text-primary);
+  box-shadow: 0 20px 55px var(--winui-shadow);
+}
+body.release-v1 .modal-backdrop .planner-modal-header h2,
+body.release-v1 .modal-backdrop .confirm-modal h2 {
+  color: var(--fluent-text-primary);
+  font-family: var(--fluent-body-font);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 28px;
+}
+body.release-v1 .modal-backdrop :is(
+  .planner-modal-header p, .confirm-modal p
+) {color: var(--fluent-text-secondary);}
+body.release-v1 .modal-backdrop .confirm-actions {
+  gap: 8px;
+}
+body.release-v1 :is(.lang-menu-item,.content-filter-menu-item,.theme-option):focus-visible {
+  outline: 2px solid var(--fluent-focus-outer);
+  outline-offset: -2px;
+  background: var(--fluent-control-hover);
+}
+body.release-v1 .theme-option[aria-checked="true"],
+body.release-v1 .lang-menu-item[aria-selected="true"] {
+  color: var(--fluent-text-primary);
+}
+@media (forced-colors:active){
+  body.release-v1 .modal-backdrop [role="dialog"] {
+    border-color: WindowText;
+    background: Canvas;
+    color: CanvasText;
+  }
+}

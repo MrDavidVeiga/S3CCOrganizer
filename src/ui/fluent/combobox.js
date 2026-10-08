@@ -191,8 +191,10 @@ function openFlyout(item) {
   flyout.setAttribute("aria-label",item.trigger.getAttribute("aria-label") || "Options");
   item.wrapper.classList.add("open");
   item.trigger.setAttribute("aria-expanded","true");
-  flyout.scrollTop=Math.max(0,opened.active*ITEM_HEIGHT-ITEM_HEIGHT*2);
   positionFlyout();
+  renderFlyout();
+  // The list must have content before scrollTop can reach a selected item.
+  flyout.scrollTop=Math.max(0,opened.active*ITEM_HEIGHT-ITEM_HEIGHT*2);
   renderFlyout();
 }
 

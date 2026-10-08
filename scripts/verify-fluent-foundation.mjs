@@ -11,10 +11,13 @@ const controls = read("src/ui/fluent/controls.css");
 const theme = read("src/theme.js");
 const comboJs = read("src/ui/fluent/combobox.js");
 const comboCss = read("src/ui/fluent/combobox.css");
+const overlays = read("src/ui/fluent/overlays.js");
+const menus = read("src/ui/fluent/menus.js");
+const overlaysCss = read("src/ui/fluent/overlays.css");
 
 const imports = [
   "src/style.css", "src/winui.css",
-  "src/ui/fluent/tokens.css", "src/ui/fluent/controls.css", "src/ui/fluent/combobox.css",
+  "src/ui/fluent/tokens.css", "src/ui/fluent/controls.css", "src/ui/fluent/combobox.css", "src/ui/fluent/overlays.css",
 ];
 const positions = imports.map(p=>index.indexOf(`href="./${p}"`));
 assert(positions.every(p => p >= 0), "all style sheets must be imported");
@@ -28,6 +31,17 @@ assert.match(comboJs, /ITEM_HEIGHT/);
 assert.match(comboJs, /dispatchEvent\(new Event\("change"/);
 assert.match(comboJs, /closeFluentComboBox/);
 assert.match(comboCss, /fluent-combobox-flyout/);
+assert(index.includes("src=\"./src/ui/fluent/overlays.js\""));
+assert(index.includes("src=\"./src/ui/fluent/menus.js\""));
+assert.match(overlays, /focusFirst/);
+assert.match(overlays, /focusables/);
+assert.match(overlays, /\.inert=/);
+assert.match(overlays, /modalIds=/);
+assert.match(overlays, /closeFluentComboBox/);
+assert.match(menus, /aria-selected/);
+assert.match(menus, /ArrowDown/);
+assert.match(overlaysCss, /\[role="dialog"\]/);
+assert.match(index, /catalog-import-modal-title/);
 assert.match(tokens, /--fluent-radius-control: var\(--winui-control-radius, 4px\)/);
 assert.match(tokens, /--fluent-radius-overlay: var\(--winui-overlay-radius, 8px\)/);
 assert.match(controls, /:focus-visible/);
