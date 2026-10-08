@@ -435,7 +435,8 @@ const I18N = {
     duplicatesNext: "Duplicate analysis is read-only. Confirmed duplicates may be moved to reversible Quarantine; nothing is deleted automatically.",
     selectExactDuplicates: "Select ALL Exact Duplicates (Keep One Each)",
     selectCurrentDuplicateGroup: "Select Current Exact Group (Keep One)",
-    selectAllVisibleConflicts: "Select All Visible Conflicts",
+    selectAllVisibleConflicts: "Select Visible Conflicts",
+    selectAllDetectedConflicts: "Select All Detected Conflicts",
     clearReviewSelection: "Clear Review Selection",
     prioritizeSelectedConflicts: "Prioritize Selected Review",
     conflictReviewSelectedCount: "Conflicts selected for review",
@@ -962,7 +963,8 @@ const I18N = {
     duplicatesNext: "A análise de duplicados é somente leitura. Duplicados confirmados podem ser movidos para uma Quarentena reversível; nada é apagado automaticamente.",
     selectExactDuplicates: "Selecionar TODOS os duplicados exatos",
     selectCurrentDuplicateGroup: "Selecionar somente este grupo (manter um)",
-    selectAllVisibleConflicts: "Selecionar todos os conflitos visíveis",
+    selectAllVisibleConflicts: "Selecionar conflitos visíveis",
+    selectAllDetectedConflicts: "Selecionar TODOS os conflitos detectados",
     clearReviewSelection: "Limpar seleção de revisão",
     prioritizeSelectedConflicts: "Priorizar revisão dos selecionados",
     conflictReviewSelectedCount: "Conflitos selecionados para revisão",
@@ -1488,7 +1490,8 @@ const I18N = {
     duplicatesNext: "El análisis de duplicados es de solo lectura. Los duplicados confirmados pueden moverse a una Cuarentena reversible; nada se elimina automáticamente.",
     selectExactDuplicates: "Seleccionar TODOS los duplicados exactos",
     selectCurrentDuplicateGroup: "Seleccionar solo este grupo (conservar uno)",
-    selectAllVisibleConflicts: "Seleccionar todos los conflictos visibles",
+    selectAllVisibleConflicts: "Seleccionar conflictos visibles",
+    selectAllDetectedConflicts: "Seleccionar TODOS los conflictos detectados",
     clearReviewSelection: "Limpiar selección de revisión",
     prioritizeSelectedConflicts: "Priorizar revisión de los seleccionados",
     conflictReviewSelectedCount: "Conflictos seleccionados para revisión",
@@ -1988,6 +1991,7 @@ const el = {
   duplicatesBatchPreview: document.querySelector("#duplicates-batch-preview"),
   conflictsClearListBtn: document.querySelector("#conflicts-clear-list-btn"),
   conflictsSelectAllBtn: document.querySelector("#conflicts-select-all-btn"),
+  conflictsSelectDetectedBtn: document.querySelector("#conflicts-select-detected-btn"),
   conflictsClearReviewBtn: document.querySelector("#conflicts-clear-review-btn"),
   conflictsPrioritizeSelectedBtn: document.querySelector("#conflicts-prioritize-selected-btn"),
   conflictsReviewSelectionCount: document.querySelector("#conflicts-review-selection-count"),
@@ -3847,8 +3851,24 @@ function toggleConflictReviewSelection(id, selected, row) {
 }
 
 function selectAllVisibleConflicts() {
-  if (!state.conflictsAnalysis) return;
+  if (!state.conflictsAnalysis || state.reviewBusy || state.conflictsBusy) return;
+  // Filter is a view concern; selection is retained across filters.
   for (const finding of visibleConflictFindings()) state.conflictReviewSelected.add(finding.id);
+  conflictVisibleMemo.analysis = null;
+  renderConflicts();
+  renderConflictVirtualRows(visibleConflictFindings(), true);
+}
+
+function selectAllDetectedConflicts() {
+  if (!state.conflictsAnalysis || state.reviewBusy || state.conflictsBusy) return;
+  // Dashboard-inspired Select-by-category: select across the complete scan,
+  // not just current search/filter. Exclude identical/shared-only findings:
+  // these are not conflicts requiring action.
+  for (const finding of state.conflictsAnalysis.findings || []) {
+    if (finding.kind !== "shared_identical" && finding.differentPayloadCount > 0) {
+      state.conflictReviewSelected.add(finding.id);
+    }
+  }
   conflictVisibleMemo.analysis = null;
   renderConflicts();
   renderConflictVirtualRows(visibleConflictFindings(), true);
@@ -3867,6 +3887,13 @@ function prioritizeSelectedConflicts() {
   // Only filter and rank review findings: never automatically nominate
   // a conflicting package for quarantine or remove it.
   state.conflictsSelectedOnly = true;
+  // Prioritize all checked findings, including those selected under another
+  // filter. Do not silently omit hidden selections from the review list.
+  state.conflictsFilter = "all";
+  state.conflictsSearch = "";
+  el.conflictsFilter.value = "all";
+  el.conflictsSearch.value = "";
+  persistPreferences();
   conflictVisibleMemo.analysis = null;
   renderConflicts();
   renderConflictVirtualRows(visibleConflictFindings(), true);
@@ -4506,6 +4533,9 @@ function renderConflictBatchControls() {
   el.conflictsPrioritizeBtn.disabled = !state.conflictsAnalysis || busy;
   el.conflictsSelectAllBtn.disabled = !state.conflictsAnalysis || busy ||
     !visibleConflictFindings().length;
+  el.conflictsSelectDetectedBtn.disabled = !state.conflictsAnalysis || busy ||
+    !(state.conflictsAnalysis.findings || []).some(finding =>
+      finding.kind !== "shared_identical" && finding.differentPayloadCount > 0);
   el.conflictsClearReviewBtn.disabled = busy || !state.conflictReviewSelected.size;
   el.conflictsPrioritizeSelectedBtn.disabled = busy || !state.conflictReviewSelected.size;
   el.conflictsReviewSelectionCount.textContent = state.conflictsAnalysis
@@ -8208,6 +8238,7 @@ el.duplicatesClearSelectionBtn.addEventListener("click", () => {
 });
 el.conflictsClearListBtn.addEventListener("click", clearConflictList);
 el.conflictsSelectAllBtn.addEventListener("click", selectAllVisibleConflicts);
+el.conflictsSelectDetectedBtn.addEventListener("click", selectAllDetectedConflicts);
 el.conflictsClearReviewBtn.addEventListener("click", clearConflictReviewSelection);
 el.conflictsPrioritizeSelectedBtn.addEventListener("click", prioritizeSelectedConflicts);
 el.conflictsPrioritizeBtn.addEventListener("click", () => {
