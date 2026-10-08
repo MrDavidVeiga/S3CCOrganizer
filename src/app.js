@@ -5057,7 +5057,10 @@ function renderTechnicalTools() {
 }
 
 async function restoreQuarantineFromHistory(item) {
-  if (!state.folder || !item?.destination || workspaceReadOnly() || state.toolsBusy) return;
+  if (state.pendingAction !== "restore_quarantine" ||
+      state.pendingQuarantineRestore?.destination !== item?.destination ||
+      el.confirmModal.classList.contains("hidden") ||
+      !state.folder || !item?.destination || workspaceReadOnly() || state.toolsBusy) return;
   state.toolsBusy = true;
   state.toolsError = "";
   renderTools();
@@ -5065,6 +5068,7 @@ async function restoreQuarantineFromHistory(item) {
     const result = await invoke("restore_quarantine", {
       folder: state.folder,
       manifestPath: item.destination,
+      confirmed: true,
     });
     state.toolsNotice = `${t("quarantineRestored")}: ${result.moved}`;
     state.duplicatesAnalysis = null;
@@ -5077,6 +5081,11 @@ async function restoreQuarantineFromHistory(item) {
     state.toolsError = String(error);
   } finally {
     state.toolsBusy = false;
+    state.pendingAction = "";
+    state.pendingQuarantineRestore = null;
+    el.confirmModal.classList.add("hidden");
+    el.confirmModal.setAttribute("aria-hidden", "true");
+    el.confirmActionBtn.disabled = false;
     render();
   }
 }
@@ -5142,7 +5151,10 @@ function renderHistoryTools() {
         restore.className = "secondary-btn compact-btn";
         restore.textContent = t("restoreQuarantine");
         restore.disabled = workspaceReadOnly() || state.toolsBusy;
-        restore.addEventListener("click", () => restoreQuarantineFromHistory(item));
+        restore.addEventListener("click", () => {
+          state.pendingQuarantineRestore = item;
+          openConfirm("restore_quarantine");
+        });
         row.appendChild(restore);
       }
     }
@@ -7026,6 +7038,7 @@ el.scanCancelBtn.addEventListener("click", () => cancelAnalysis("scan"));
 el.duplicatesCancelBtn.addEventListener("click", () => cancelAnalysis("duplicates"));
 el.conflictsCancelBtn.addEventListener("click", () => cancelAnalysis("conflicts"));
 el.refreshRestoreHistoryBtn.addEventListener("click", loadRestoreHistory);
+el.removeRestoreHistoryBtn.addEventListener("click", () => openConfirm("remove_restore_history"));
 el.openManifestFolderBtn.addEventListener("click", () => openDirectorySafe(state.restoreManifest));
 el.openCacheBtn.addEventListener("click", () => openDirectorySafe(state.cacheInfo?.path));
 el.clearCacheBtn.addEventListener("click", () => openConfirm("clear_cache"));
@@ -7169,6 +7182,12 @@ el.confirmCancelBtn.addEventListener("click", closeConfirm);
 el.confirmActionBtn.addEventListener("click", async () => {
   if (state.pendingAction === "organize") await executeOrganization();
   else if (state.pendingAction === "restore") await executeRestore();
+  else if (state.pendingAction === "restore_quarantine") {
+    if (state.pendingQuarantineRestore) {
+      await restoreQuarantineFromHistory(state.pendingQuarantineRestore);
+    }
+  }
+  else if (state.pendingAction === "remove_restore_history") await removeSelectedRestoreHistory();
   else if (state.pendingAction === "quarantine") await executeQuarantine();
   else if (state.pendingAction === "clear_cache") {
     await clearAnalysisCache();
