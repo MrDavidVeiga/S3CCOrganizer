@@ -32,6 +32,7 @@ jobs:
       - name: Validate frontend
         run: |
           npm install
+          npm install --no-save --include=optional @rollup/rollup-win32-x64-msvc
           node --check src/app.js
           node scripts/verify-fluent-foundation.mjs
           npm run build
