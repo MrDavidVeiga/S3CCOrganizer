@@ -194,6 +194,16 @@ const I18N = {
     auditReportFailed: "Audit export failed",
     openReportFolder: "Open Reports",
     reportNotAnalyzed: "Not analyzed",
+    analysisQueued: "Waiting for the previous analysis…",
+    analysisStatusLabel: "Analysis status",
+    analysisStatus_not_run: "Not executed",
+    analysisStatus_running: "In progress",
+    analysisStatus_queued: "Queued",
+    analysisStatus_completed: "Completed",
+    analysisStatus_cancelled: "Cancelled",
+    analysisStatus_failed: "Failed",
+    analysisStatus_cleared: "Cleared from list",
+    analysisErrorLabel: "Analysis error",
     reportGeneratedAt: "Generated at",
     reportDecision: "Review decision",
     confirmRemoveEmptyTitle: "Remove empty folder?",
@@ -348,7 +358,7 @@ const I18N = {
     missing: "Missing",
     ambiguous: "Ambiguous",
     duplicatesIntro: "Find true duplicates and distinguish them from related CC variants without deleting anything.",
-    analyzeDuplicates: "Analyze Duplicates",
+    analyzeDuplicates: "Reanalyze Duplicates",
     analyzingDuplicates: "Analyzing package fingerprints…",
     duplicatesReady: "Duplicate analysis complete",
     duplicatesFailed: "Duplicate analysis failed",
@@ -400,7 +410,7 @@ const I18N = {
     noDuplicateFindings: "No findings match the current search and filter.",
     duplicatesNext: "Duplicate analysis is read-only. Confirmed duplicates may be moved to reversible Quarantine; nothing is deleted automatically.",
     conflictsIntro: "Compare shared TGIs by decompressed payload and classify the impact instead of treating every overlap as a conflict.",
-    analyzeConflicts: "Analyze Conflicts",
+    analyzeConflicts: "Reanalyze Conflicts",
     analyzingConflicts: "Analyzing shared resources…",
     conflictsReady: "Conflict analysis complete",
     conflictsFailed: "Conflict analysis failed",
@@ -654,6 +664,16 @@ const I18N = {
     auditReportFailed: "Falha ao exportar auditoria",
     openReportFolder: "Abrir Relatórios",
     reportNotAnalyzed: "Não analisado",
+    analysisQueued: "Aguardando a análise anterior…",
+    analysisStatusLabel: "Estado da análise",
+    analysisStatus_not_run: "Não executada",
+    analysisStatus_running: "Em andamento",
+    analysisStatus_queued: "Na fila",
+    analysisStatus_completed: "Concluída",
+    analysisStatus_cancelled: "Cancelada",
+    analysisStatus_failed: "Falhou",
+    analysisStatus_cleared: "Removida da lista",
+    analysisErrorLabel: "Erro da análise",
     reportGeneratedAt: "Gerado em",
     reportDecision: "Decisão de revisão",
     confirmRemoveEmptyTitle: "Remover pasta vazia?",
@@ -808,7 +828,7 @@ const I18N = {
     missing: "Ausente",
     ambiguous: "Ambíguo",
     duplicatesIntro: "Encontre duplicados reais e diferencie-os de variantes relacionadas de CC sem apagar nada.",
-    analyzeDuplicates: "Analisar Duplicados",
+    analyzeDuplicates: "Reanalisar Duplicados",
     analyzingDuplicates: "Analisando fingerprints dos packages…",
     duplicatesReady: "Análise de duplicados concluída",
     duplicatesFailed: "Falha na análise de duplicados",
@@ -860,7 +880,7 @@ const I18N = {
     noDuplicateFindings: "Nenhum resultado corresponde à pesquisa e ao filtro atuais.",
     duplicatesNext: "A análise de duplicados é somente leitura. Duplicados confirmados podem ser movidos para uma Quarentena reversível; nada é apagado automaticamente.",
     conflictsIntro: "Compare TGIs compartilhados pelo payload descomprimido e classifique o impacto em vez de tratar toda sobreposição como conflito.",
-    analyzeConflicts: "Analisar Conflitos",
+    analyzeConflicts: "Reanalisar Conflitos",
     analyzingConflicts: "Analisando resources compartilhados…",
     conflictsReady: "Análise de conflitos concluída",
     conflictsFailed: "Falha na análise de conflitos",
@@ -1113,6 +1133,16 @@ const I18N = {
     auditReportFailed: "Error al exportar auditoría",
     openReportFolder: "Abrir Informes",
     reportNotAnalyzed: "No analizado",
+    analysisQueued: "Esperando el análisis anterior…",
+    analysisStatusLabel: "Estado del análisis",
+    analysisStatus_not_run: "No ejecutado",
+    analysisStatus_running: "En curso",
+    analysisStatus_queued: "En espera",
+    analysisStatus_completed: "Completado",
+    analysisStatus_cancelled: "Cancelado",
+    analysisStatus_failed: "Fallido",
+    analysisStatus_cleared: "Borrado de la lista",
+    analysisErrorLabel: "Error del análisis",
     reportGeneratedAt: "Generado en",
     reportDecision: "Decisión de revisión",
     confirmRemoveEmptyTitle: "¿Eliminar carpeta vacía?",
@@ -1267,7 +1297,7 @@ const I18N = {
     missing: "Ausente",
     ambiguous: "Ambiguo",
     duplicatesIntro: "Encuentra duplicados reales y distínguelos de variantes relacionadas de CC sin eliminar nada.",
-    analyzeDuplicates: "Analizar Duplicados",
+    analyzeDuplicates: "Volver a analizar duplicados",
     analyzingDuplicates: "Analizando fingerprints de los packages…",
     duplicatesReady: "Análisis de duplicados completado",
     duplicatesFailed: "Error en el análisis de duplicados",
@@ -1319,7 +1349,7 @@ const I18N = {
     noDuplicateFindings: "Ningún resultado coincide con la búsqueda y el filtro actuales.",
     duplicatesNext: "El análisis de duplicados es de solo lectura. Los duplicados confirmados pueden moverse a una Cuarentena reversible; nada se elimina automáticamente.",
     conflictsIntro: "Compara TGIs compartidos por el payload descomprimido y clasifica el impacto en lugar de tratar cada coincidencia como conflicto.",
-    analyzeConflicts: "Analizar Conflictos",
+    analyzeConflicts: "Volver a analizar conflictos",
     analyzingConflicts: "Analizando resources compartidos…",
     conflictsReady: "Análisis de conflictos completado",
     conflictsFailed: "Error en el análisis de conflictos",
@@ -1437,6 +1467,9 @@ const state = {
   duplicateSelectedId: "",
   conflictsAnalysis: null,
   conflictsBusy: false,
+  analysisRunId: 0,
+  analysisPipelineBusy: false,
+  analysisStatus: { manager: "not_run", duplicates: "not_run", conflicts: "not_run" },
   conflictsError: "",
   conflictsNotice: "",
   conflictsSearch: typeof preferences.conflictsSearch === "string" ? preferences.conflictsSearch : "",
@@ -1685,6 +1718,8 @@ const el = {
   confirmCancelBtn: document.querySelector("#confirm-cancel-btn"),
   confirmActionBtn: document.querySelector("#confirm-action-btn"),
   analyzeDuplicatesBtn: document.querySelector("#analyze-duplicates-btn"),
+  clearDuplicatesBtn: document.querySelector("#clear-duplicates-btn"),
+  exportDuplicatesBtn: document.querySelector("#export-duplicates-btn"),
   duplicatesState: document.querySelector("#duplicates-state"),
   duplicatesSearch: document.querySelector("#duplicates-search"),
   duplicatesFilter: document.querySelector("#duplicates-filter"),
@@ -1701,6 +1736,8 @@ const el = {
   dupStatRetexture: document.querySelector("#dup-stat-retexture"),
   dupStatRelated: document.querySelector("#dup-stat-related"),
   analyzeConflictsBtn: document.querySelector("#analyze-conflicts-btn"),
+  clearConflictsBtn: document.querySelector("#clear-conflicts-btn"),
+  exportConflictsBtn: document.querySelector("#export-conflicts-btn"),
   conflictsState: document.querySelector("#conflicts-state"),
   conflictsSearch: document.querySelector("#conflicts-search"),
   conflictsFilter: document.querySelector("#conflicts-filter"),
@@ -2104,6 +2141,23 @@ function reportCell(value) {
     .replaceAll("\n", " ");
 }
 
+function analysisReadsBusy() {
+  return state.scanning || state.analysisPipelineBusy ||
+    state.duplicatesBusy || state.conflictsBusy;
+}
+
+function analysisSessionMatches(folder, runId) {
+  return state.folder === folder && state.analysisRunId === runId;
+}
+
+function analysisReportStatus(kind) {
+  return {
+    status: state.analysisStatus[kind],
+    error: kind === "manager" ? state.error :
+      kind === "duplicates" ? state.duplicatesError : state.conflictsError,
+  };
+}
+
 function buildAuditSnapshot() {
   const conflicts = state.conflictsAnalysis
     ? {
@@ -2120,7 +2174,12 @@ function buildAuditSnapshot() {
     : null;
 
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
+    analysisStatus: {
+      manager: analysisReportStatus("manager"),
+      duplicates: analysisReportStatus("duplicates"),
+      conflicts: analysisReportStatus("conflicts"),
+    },
     generatedAt: new Date().toISOString(),
     root: state.folder,
     language: state.language,
@@ -2182,6 +2241,10 @@ function buildAuditMarkdown(snapshot) {
     "",
   ];
 
+  lines.push(`- ${t("analysisStatusLabel")}: ${t("analysisStatus_" + snapshot.analysisStatus.manager.status)}`, "");
+  if (snapshot.analysisStatus.manager.error) {
+    lines.push(`- ${t("analysisErrorLabel")}: ${snapshot.analysisStatus.manager.error}`, "");
+  }
   if (!snapshot.organizer) {
     lines.push(t("reportNotAnalyzed"), "");
   } else {
@@ -2201,6 +2264,10 @@ function buildAuditMarkdown(snapshot) {
   }
 
   lines.push("## Duplicates", "");
+  lines.push(`- ${t("analysisStatusLabel")}: ${t("analysisStatus_" + snapshot.analysisStatus.duplicates.status)}`, "");
+  if (snapshot.analysisStatus.duplicates.error) {
+    lines.push(`- ${t("analysisErrorLabel")}: ${snapshot.analysisStatus.duplicates.error}`, "");
+  }
   if (!snapshot.duplicates) {
     lines.push(t("reportNotAnalyzed"), "");
   } else {
@@ -2230,6 +2297,10 @@ function buildAuditMarkdown(snapshot) {
   }
 
   lines.push("## Conflicts", "");
+  lines.push(`- ${t("analysisStatusLabel")}: ${t("analysisStatus_" + snapshot.analysisStatus.conflicts.status)}`, "");
+  if (snapshot.analysisStatus.conflicts.error) {
+    lines.push(`- ${t("analysisErrorLabel")}: ${snapshot.analysisStatus.conflicts.error}`, "");
+  }
   if (!snapshot.conflicts) {
     lines.push(t("reportNotAnalyzed"), "");
   } else {
@@ -2329,7 +2400,8 @@ function buildAuditMarkdown(snapshot) {
 }
 
 async function exportAuditReport() {
-  if (!state.folder || state.auditBusy || state.reviewBusy || state.structureBusy) return;
+  if (!state.folder || state.auditBusy || state.reviewBusy ||
+      state.structureBusy || analysisReadsBusy()) return;
   state.auditBusy = true;
   state.auditError = "";
   renderAuditPanel();
@@ -2372,7 +2444,7 @@ function renderAuditPanel() {
 
   el.exportAuditBtn.classList.toggle("hidden", !canExportReport);
   el.exportAuditBtn.disabled =
-    state.auditBusy || state.reviewBusy || state.structureBusy;
+    state.auditBusy || state.reviewBusy || state.structureBusy || analysisReadsBusy();
 
   el.openReportFolderBtn.classList.toggle("hidden", !hasReportFolder);
   el.openReportFolderBtn.disabled = state.auditBusy;
@@ -6289,14 +6361,43 @@ function clearLoadedLibrary() {
   render();
 }
 
+function clearDuplicatesList() {
+  if (analysisReadsBusy() || state.auditBusy) return;
+  state.duplicatesAnalysis = null;
+  state.duplicatesError = "";
+  state.duplicatesNotice = "";
+  state.duplicateSelectedId = "";
+  state.quarantineSelected.clear();
+  state.quarantinePlan = null;
+  state.operations.duplicates = null;
+  state.analysisStatus.duplicates = "cleared";
+  closeDuplicateDetails();
+  render();
+}
+function clearConflictsList() {
+  if (analysisReadsBusy() || state.auditBusy) return;
+  state.conflictsAnalysis = null;
+  state.conflictsError = "";
+  state.conflictsNotice = "";
+  state.conflictSelectedId = "";
+  state.operations.conflicts = null;
+  state.analysisStatus.conflicts = "cleared";
+  closeConflictDetails();
+  render();
+}
 async function chooseFolder() {
+  if (analysisReadsBusy() || state.auditBusy || state.restoreBusy ||
+      state.quarantineBusy || state.executing) return;
   const selected = await open({
     directory: true,
     multiple: false,
     title: t("chooseModsFolder"),
   });
-  if (!selected || Array.isArray(selected)) return;
-
+  if (!selected || Array.isArray(selected) || analysisReadsBusy() ||
+      state.auditBusy || state.restoreBusy || state.quarantineBusy ||
+      state.executing) return;
+  state.analysisRunId += 1;
+  state.analysisStatus = { manager: "not_run", duplicates: "not_run", conflicts: "not_run" };
   state.folder = selected;
   persistPreferences();
   window.dispatchEvent(new CustomEvent("s3cc-folder-changed", { detail: state.folder }));
@@ -6348,15 +6449,15 @@ async function chooseFolder() {
 }
 
 async function scanFolder(preserveSelection = false, preserveNotice = false) {
-  if (
-    !state.folder ||
-    state.scanning ||
-    state.planning ||
-    state.executing ||
-    state.structureBusy ||
-    state.toolsBusy
-  ) return;
+  if (!state.folder || analysisReadsBusy() || state.auditBusy ||
+      state.planning || state.executing || state.restoreBusy ||
+      state.quarantineBusy || state.structureBusy || state.toolsBusy) return;
 
+  const folder = state.folder;
+  const runId = ++state.analysisRunId;
+  const oldStatus = { ...state.analysisStatus };
+  const oldDuplicates = state.duplicatesAnalysis;
+  const oldConflicts = state.conflictsAnalysis;
   const previousSelection = new Set(state.selectedForPlan);
   const previousNotice = state.notice;
   const previousItems = state.items;
@@ -6364,6 +6465,7 @@ async function scanFolder(preserveSelection = false, preserveNotice = false) {
   const previousSelectedId = state.selectedId;
 
   state.scanning = true;
+  state.analysisStatus.manager = "running";
   state.operations.scan = null;
   void monitorOperation("scan");
   state.error = "";
@@ -6377,12 +6479,10 @@ async function scanFolder(preserveSelection = false, preserveNotice = false) {
   closePlanModal();
   render();
 
+  let scanSucceeded = false;
   try {
-    const result = await invoke("scan_packages", {
-      folder: state.folder,
-      language: state.language,
-    });
-
+    const result = await invoke("scan_packages", { folder, language: state.language });
+    if (!analysisSessionMatches(folder, runId)) return;
     state.items = result.items || [];
     state.stats = result.stats || null;
     virtualViews.manager.items = null;
@@ -6402,6 +6502,22 @@ async function scanFolder(preserveSelection = false, preserveNotice = false) {
 
     state.selectedId = visibleItems()[0]?.id || "";
     if (preserveNotice) state.notice = previousNotice;
+    state.analysisStatus.manager = "completed";
+    state.duplicatesAnalysis = null;
+    state.conflictsAnalysis = null;
+    state.duplicatesError = "";
+    state.conflictsError = "";
+    state.duplicatesNotice = "";
+    state.conflictsNotice = "";
+    state.duplicateSelectedId = "";
+    state.conflictSelectedId = "";
+    state.quarantineSelected.clear();
+    state.quarantinePlan = null;
+    closeDuplicateDetails();
+    closeConflictDetails();
+    state.analysisStatus.duplicates = "queued";
+    state.analysisStatus.conflicts = "queued";
+    scanSucceeded = true;
   } catch (error) {
     const message = String(error);
     if (message.includes("__S3CC_OPERATION_CANCELLED__")) {
@@ -6411,8 +6527,16 @@ async function scanFolder(preserveSelection = false, preserveNotice = false) {
       state.stats = previousStats;
       state.selectedId = previousSelectedId;
       state.selectedForPlan = new Set(previousSelection);
+      state.analysisStatus = oldStatus;
+      state.duplicatesAnalysis = oldDuplicates;
+      state.conflictsAnalysis = oldConflicts;
     } else {
       state.error = message;
+      state.analysisStatus.manager = "failed";
+      state.analysisStatus.duplicates = "not_run";
+      state.analysisStatus.conflicts = "not_run";
+      state.duplicatesAnalysis = null;
+      state.conflictsAnalysis = null;
       state.items = [];
       state.stats = null;
       state.selectedForPlan.clear();
@@ -6420,6 +6544,26 @@ async function scanFolder(preserveSelection = false, preserveNotice = false) {
   } finally {
     state.scanning = false;
     render();
+  }
+  if (scanSucceeded && analysisSessionMatches(folder, runId)) {
+    void runAutomaticAnalyses(folder, runId);
+  }
+}
+
+// Both analyses persist the same DBPF fingerprint cache. Never run them in parallel.
+async function runAutomaticAnalyses(folder, runId) {
+  if (!analysisSessionMatches(folder, runId) || state.analysisPipelineBusy) return;
+  state.analysisPipelineBusy = true;
+  try {
+    await analyzeDuplicates({ automated: true, folder, runId });
+    if (analysisSessionMatches(folder, runId)) {
+      await analyzeConflicts({ automated: true, folder, runId });
+    }
+  } finally {
+    if (analysisSessionMatches(folder, runId)) {
+      state.analysisPipelineBusy = false;
+      render();
+    }
   }
 }
 
@@ -6597,81 +6741,92 @@ async function executeRestore() {
   }
 }
 
-async function analyzeDuplicates() {
-  if (!state.folder || state.duplicatesBusy || state.structureBusy || state.toolsBusy) return;
-
+async function analyzeDuplicates({ automated = false, folder = state.folder, runId = state.analysisRunId } = {}) {
+  if (!folder || !analysisSessionMatches(folder, runId) ||
+      state.duplicatesBusy || state.conflictsBusy || state.scanning ||
+      (!automated && state.analysisPipelineBusy) ||
+      state.auditBusy || state.structureBusy || state.toolsBusy) return;
   const previousAnalysis = state.duplicatesAnalysis;
   const previousSelectedId = state.duplicateSelectedId;
-
   state.duplicatesBusy = true;
+  state.analysisStatus.duplicates = "running";
   state.duplicatesNotice = "";
-  state.operations.duplicates = null;
-  void monitorOperation("duplicates");
   state.duplicatesError = "";
   state.duplicatesAnalysis = null;
   state.duplicateSelectedId = "";
+  state.operations.duplicates = null;
+  void monitorOperation("duplicates");
   render();
-
   try {
-    state.duplicatesAnalysis = await invoke("analyze_duplicates", {
-      folder: state.folder,
-    });
+    const result = await invoke("analyze_duplicates", { folder });
+    if (!analysisSessionMatches(folder, runId)) return;
+    state.duplicatesAnalysis = result;
+    state.analysisStatus.duplicates = "completed";
     state.quarantineSelected.clear();
     state.quarantinePlan = null;
-    const first = flattenedDuplicateFindings()[0];
-    state.duplicateSelectedId = first?.id || "";
-  } catch (error) {
-    const message = String(error);
+    state.duplicateSelectedId = flattenedDuplicateFindings()[0]?.id || "";
+  } catch (e) {
+    if (!analysisSessionMatches(folder, runId)) return;
+    const message = String(e);
+    state.duplicatesAnalysis = previousAnalysis;
+    state.duplicateSelectedId = previousSelectedId;
     if (message.includes("__S3CC_OPERATION_CANCELLED__")) {
-      state.duplicatesError = "";
       state.duplicatesNotice = t("cancelled");
-      state.duplicatesAnalysis = previousAnalysis;
-      state.duplicateSelectedId = previousSelectedId;
+      state.analysisStatus.duplicates = "cancelled";
     } else {
       state.duplicatesError = message;
+      state.analysisStatus.duplicates = "failed";
     }
   } finally {
-    state.duplicatesBusy = false;
-    render();
-    await refreshCacheInfo();
+    if (analysisSessionMatches(folder, runId)) {
+      state.duplicatesBusy = false;
+      render();
+      await refreshCacheInfo();
+    }
   }
 }
 
-async function analyzeConflicts() {
-  if (!state.folder || state.conflictsBusy || state.structureBusy || state.toolsBusy) return;
-
+async function analyzeConflicts({ automated = false, folder = state.folder, runId = state.analysisRunId } = {}) {
+  if (!folder || !analysisSessionMatches(folder, runId) ||
+      state.conflictsBusy || state.duplicatesBusy || state.scanning ||
+      (!automated && state.analysisPipelineBusy) ||
+      state.auditBusy || state.structureBusy || state.toolsBusy) return;
   const previousAnalysis = state.conflictsAnalysis;
   const previousSelectedId = state.conflictSelectedId;
-
   state.conflictsBusy = true;
+  state.analysisStatus.conflicts = "running";
   state.conflictsNotice = "";
-  state.operations.conflicts = null;
-  void monitorOperation("conflicts");
   state.conflictsError = "";
   state.conflictsAnalysis = null;
   state.conflictSelectedId = "";
+  state.operations.conflicts = null;
+  void monitorOperation("conflicts");
   render();
-
   try {
-    state.conflictsAnalysis = await invoke("analyze_conflicts", {
-      folder: state.folder,
-    });
+    const result = await invoke("analyze_conflicts", { folder });
+    if (!analysisSessionMatches(folder, runId)) return;
+    state.conflictsAnalysis = result;
+    state.analysisStatus.conflicts = "completed";
     state.conflictMarks = {};
-    state.conflictSelectedId = state.conflictsAnalysis?.findings?.[0]?.id || "";
-  } catch (error) {
-    const message = String(error);
+    state.conflictSelectedId = result?.findings?.[0]?.id || "";
+  } catch (e) {
+    if (!analysisSessionMatches(folder, runId)) return;
+    const message = String(e);
+    state.conflictsAnalysis = previousAnalysis;
+    state.conflictSelectedId = previousSelectedId;
     if (message.includes("__S3CC_OPERATION_CANCELLED__")) {
-      state.conflictsError = "";
       state.conflictsNotice = t("cancelled");
-      state.conflictsAnalysis = previousAnalysis;
-      state.conflictSelectedId = previousSelectedId;
+      state.analysisStatus.conflicts = "cancelled";
     } else {
       state.conflictsError = message;
+      state.analysisStatus.conflicts = "failed";
     }
   } finally {
-    state.conflictsBusy = false;
-    render();
-    await refreshCacheInfo();
+    if (analysisSessionMatches(folder, runId)) {
+      state.conflictsBusy = false;
+      render();
+      await refreshCacheInfo();
+    }
   }
 }
 
@@ -6866,7 +7021,7 @@ el.reviewDuplicatesBtn.addEventListener("click", async () => {
   state.tab = "duplicates";
   persistPreferences();
   render();
-  if (state.folder) await analyzeDuplicates();
+  // The Manager pipeline has already populated this tab; navigation does not reanalyze.
 });
 el.reviewCollisionsBtn.addEventListener("click", openCollisionReview);
 el.duplicateDetailsCloseBtn.addEventListener("click", closeDuplicateDetails);
@@ -6889,8 +7044,12 @@ el.planModal.addEventListener("click", (event) => {
   if (event.target === el.planModal) closePlanModal();
 });
 
-el.analyzeDuplicatesBtn.addEventListener("click", analyzeDuplicates);
-el.analyzeConflictsBtn.addEventListener("click", analyzeConflicts);
+el.analyzeDuplicatesBtn.addEventListener("click", () => void analyzeDuplicates());
+el.analyzeConflictsBtn.addEventListener("click", () => void analyzeConflicts());
+el.clearDuplicatesBtn.addEventListener("click", clearDuplicatesList);
+el.clearConflictsBtn.addEventListener("click", clearConflictsList);
+el.exportDuplicatesBtn.addEventListener("click", exportAuditReport);
+el.exportConflictsBtn.addEventListener("click", exportAuditReport);
 const applyConflictSearch = debounce((value) => {
   state.conflictsSearch = value;
   persistPreferences();
