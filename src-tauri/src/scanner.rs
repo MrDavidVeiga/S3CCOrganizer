@@ -1607,26 +1607,7 @@ fn scan_one(
     } else {
         None
     };
-    let mut classification_confidence = classification_confidence(&status).to_string();
-    if status == "classified" && scripted && !catalog_first && !is_nraas {
-        if let Some(candidate) = mod_name.as_deref() {
-            let internally_verified = internal_signature(
-                &package,
-                &[TYPE_S3SA, TYPE_NMAP_LOCAL, TYPE_XML_LOCAL, TYPE_ITUN_LOCAL, TYPE_MANIFEST_LOCAL],
-                &[candidate],
-            ).is_some();
-            if !internally_verified {
-                // The S3SA identity is real; the proposed mod-name folder is
-                // inferred from an external filename/folder and needs approval.
-                classification_confidence = "medium".to_string();
-                warnings.push(match language {
-                    AppLanguage::En => "Mod name is inferred from a path or filename, not confirmed by internal resources. Review the suggested folder before organizing.",
-                    AppLanguage::Pt => "O nome do mod foi inferido pelo caminho ou arquivo, sem confirmação nos recursos internos. Revise a pasta sugerida antes de organizar.",
-                    AppLanguage::Es => "El nombre del mod se infirió de la ruta o el archivo y no está confirmado por recursos internos. Revisa la carpeta sugerida antes de organizar.",
-                }.to_string());
-            }
-        }
-    }
+    let classification_confidence = classification_confidence(&status).to_string();
 
     ScanPackageItem {
         id,
