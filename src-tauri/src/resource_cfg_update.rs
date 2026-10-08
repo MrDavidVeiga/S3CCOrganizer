@@ -1,5 +1,6 @@
 //! Opt-in, conservative Resource.cfg depth extension for actual Sims 3 Mods trees.
 //! Existing lines and priority groups are never rewritten.
+use crate::mods_layout::mods_ancestor;
 use crate::resource_cfg::{find_resource_cfg, package_priority, parse_resource_cfg, ResourceCfgInfo, ResourceCfgRule};
 use crate::manifest::ResourceCfgRestoreSnapshot;
 use walkdir::WalkDir;
@@ -36,10 +37,6 @@ impl AppliedResourceCfg {
 
 fn hash_text(text: &str) -> String {
     format!("{:x}", Sha256::digest(text.as_bytes()))
-}
-
-fn mods_ancestor(root: &Path) -> Option<&Path> {
-    root.ancestors().find(|p| p.file_name().is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("Mods")))
 }
 
 fn inspect_cfg(path: &Path) -> Result<(String, ResourceCfgInfo), String> {
