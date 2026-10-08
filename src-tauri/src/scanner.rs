@@ -112,6 +112,44 @@ pub fn cached_scan_for(root: &Path, language: AppLanguage) -> Option<ScanResult>
     (cached.language == language && cached.root == canonical).then(|| cached.result.clone())
 }
 
+/// Apply a successful, transactional rename to the in-memory DBPF
+/// classification cache. No package bytes are read: resource metadata is
+/// unchanged by a filesystem rename. Never accept partial/rolled-back moves.
+pub fn apply_confirmed_organization_moves(
+    root: &Path,
+    moves: &[(PathBuf, PathBuf)],
+) -> usize {
+    if moves.is_empty() { return 0; }
+    let Ok(canonical_root) = root.canonicalize() else { return 0 };
+    let Ok(mut slot) = latest_scan_slot().lock() else { return 0 };
+    let Some(cached) = slot.as_mut() else { return 0 };
+    if cached.root != canonical_root { return 0; }
+    let by_source: HashMap<PathBuf, PathBuf> = moves.iter()
+        .map(|(source, destination)| (source.clone(), destination.clone()))
+        .collect();
+    let mut changed = 0;
+    for item in &mut cached.result.items {
+        let source = PathBuf::from(&item.path);
+        let Some(destination) = by_source.get(&source) else { continue };
+        let Ok(relative) = destination.strip_prefix(&canonical_root) else { continue };
+        item.id = destination.to_string_lossy().to_string();
+        item.path = item.id.clone();
+        item.relative_path = relative.to_string_lossy().to_string();
+        item.name = destination.file_name()
+            .map(|name| name.to_string_lossy().to_string())
+            .unwrap_or_else(|| item.name.clone());
+        changed += 1;
+    }
+    // Fail closed: if the cache missed one of the executed moves, invalidate
+    // it rather than pretending to have a complete current picture.
+    if changed != moves.len() {
+        *slot = None;
+        return 0;
+    }
+    cached.result.items.sort_by_key(|item| item.relative_path.to_ascii_lowercase());
+    changed
+}
+
 pub fn cached_scan_paths(root: &Path) -> Option<Vec<PathBuf>> {
     let canonical = root.canonicalize().ok()?;
     let slot = latest_scan_slot().lock().ok()?;
