@@ -709,13 +709,8 @@ pub fn execute_restore(
                     .map_err(|error| format!("Could not create {}: {error}", parent.display()))?;
             }
 
-            fs::rename(&source, &destination).map_err(|error| {
-                format!(
-                    "Could not restore {} -> {}: {error}",
-                    source.display(),
-                    destination.display()
-                )
-            })?;
+            // No-overwrite also handles a destination appearing after preview.
+            crate::quarantine::transfer_no_replace(&source, &destination, &item.sha256, item.size)?;
 
             // Roll back this item as well if post-move verification fails.
             moved.push((
@@ -765,13 +760,7 @@ pub fn execute_restore(
                     })?;
                 }
 
-                fs::rename(destination, source).map_err(|error| {
-                    format!(
-                        "Could not rollback restore {} -> {}: {error}",
-                        destination.display(),
-                        source.display()
-                    )
-                })?;
+                crate::quarantine::transfer_no_replace(destination, source, hash, *size)?;
 
                 verify_identity(source, hash, *size)?;
                 Ok(())
