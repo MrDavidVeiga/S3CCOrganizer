@@ -87,4 +87,49 @@ reviewState.lastConflictReviewAnchor="second";
 vm.runInContext("selectConflictReviewRange('third', false)", reviewContext);
 assert.deepEqual([...reviewState.conflictReviewSelected], ["first"],
   "Range deselection must affect just the requested interval");
+for (const control of ["open-current-folder-btn", "open-organized-folder-btn"]) {
+  assert(html.includes(`id="${control}"`), `Missing working folder navigation: ${control}`);
+}
+assert(!get("async function executeOrganization() {", "async function chooseManifest() {")
+  .includes("await scanFolder(false, true)"),
+  "Organizing should not trigger another full DBPF scan");
+assert.match(backend, /apply_confirmed_organization_moves/);
+assert.match(backend, /moved_paths/);
+const folder = "C:\\Mods\\Packages";
+const sourcePath = folder + "\\Legacy\\old.package";
+const newPath = folder + "\\Scripts\\Jogabilidade\\Autor\\old.package";
+const original = {
+  id: sourcePath, path: sourcePath, relativePath: "Legacy\\old.package",
+  name: "old.package", status: "classified", category: "Scripts",
+};
+const localState = {
+  folder, items: [original], selectedForPlan: new Set([sourcePath]),
+  selectedId: sourcePath, plan:{}, analysisRunId:3,
+  duplicatesAnalysis: {old:true}, conflictsAnalysis:{old:true},
+  duplicatesError:"", conflictsError:"", duplicatesNotice:"",
+  conflictsNotice:"", analysisStatus:{duplicates:"completed",conflicts:"completed"},
+  conflictReviewSelected: new Set(), conflictsSelectedOnly:false,
+  quarantineSelected: new Set(), quarantinePlan:{}, conflictQuarantineSelected:new Set(),
+  conflictQuarantinePlan:{}, notice:"",
+};
+const view = vm.createContext({
+  state:localState, virtualViews:{manager:{items:[]}},
+  conflictVisibleMemo:{analysis:"old"},
+  t:x=>x, closeDuplicateDetails:()=>{}, closeConflictDetails:()=>{},
+});
+vm.runInContext(
+  get("function reflectCompletedOrganization(moves) {", "async function executeOrganization() {"),
+  view
+);
+vm.runInContext("reflectCompletedOrganization([{from:sourcePath,to:newPath}])",Object.assign(view,{sourcePath,newPath}));
+assert.equal(localState.items[0].path,newPath);
+assert.equal(localState.items[0].relativePath,"Scripts/Jogabilidade/Autor/old.package");
+assert(localState.selectedForPlan.has(newPath));
+assert.equal(localState.duplicatesAnalysis,null,"Stale duplicate paths cannot remain actionable");
+assert.equal(localState.conflictsAnalysis,null,"Stale conflict paths cannot remain actionable");
+assert.equal(localState.analysisStatus.duplicates,"not_run");
+assert.equal(localState.analysisStatus.conflicts,"not_run");
+assert.equal(localState.analysisRunId,4);
+console.log("Incremental organizer and folder navigation regressions: PASS");
+
 console.log("Manager batch selection and safe duplicate survivor regressions: PASS");
