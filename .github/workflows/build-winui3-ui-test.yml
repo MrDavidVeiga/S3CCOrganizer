@@ -13,6 +13,7 @@ on:
       - "package.json"
       - "scripts/verify-fluent-foundation.mjs"
       - "scripts/test-fluent-interactions.mjs"
+      - "scripts/test-fluent-listview.mjs"
   workflow_dispatch:
 
 permissions:
@@ -53,6 +54,9 @@ jobs:
 
       - name: Test Fluent ComboBox and dialog interactions
         run: node scripts/test-fluent-interactions.mjs
+
+      - name: Test Fluent virtual ListViews and scrollbars
+        run: node scripts/test-fluent-listview.mjs
 
       - name: Reconstruct application icon
         shell: pwsh

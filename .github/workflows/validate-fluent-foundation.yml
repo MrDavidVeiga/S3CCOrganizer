@@ -9,6 +9,7 @@ on:
       - "index.html"
       - "scripts/verify-fluent-foundation.mjs"
       - "scripts/test-fluent-interactions.mjs"
+      - "scripts/test-fluent-listview.mjs"
       - ".github/workflows/validate-fluent-foundation.yml"
       - "package.json"
   workflow_dispatch:
@@ -31,5 +32,7 @@ jobs:
         run: npm install --no-save jsdom@26
       - name: Test Fluent interactions
         run: node scripts/test-fluent-interactions.mjs
+      - name: Test Fluent virtual ListViews and scrollbars
+        run: node scripts/test-fluent-listview.mjs
       - name: Build Vite frontend
         run: npm run build
