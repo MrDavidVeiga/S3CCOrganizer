@@ -409,7 +409,7 @@ html[data-theme-choice="ea-app"] {
 }
 
 .ea-app-swatch {
-  background: linear-gradient(90deg,#181B2A 0 58%,#FF4747 58% 100%);
+  background: linear-gradient(90deg,#181B2A 0 58%,#276AFC 58% 100%);
 }
 
 html[data-theme-choice="ea-app"] body.release-v1 {

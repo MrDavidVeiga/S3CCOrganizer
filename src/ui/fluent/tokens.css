@@ -57,7 +57,7 @@ html[data-theme-choice="mean-girls"] {
 }
 
 html[data-theme-choice="ea-app"] {
-  --fluent-accent-foreground: #151827;
+  --fluent-accent-foreground: #ffffff;
 }
 
 /* Distinct focus states remain visible in High Contrast mode. */
