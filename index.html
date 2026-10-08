@@ -230,7 +230,7 @@
               <div class="analysis-query-controls">
                 <button id="analyze-duplicates-btn" class="primary-btn duplicates-primary" type="button" disabled>
                   <i class="fa-solid fa-clone" aria-hidden="true"></i>
-                  <span data-i18n="analyzeDuplicates">Analyze Duplicates</span>
+                  <span data-i18n="analyzeDuplicates">Reanalyze Duplicates</span>
                 </button>
                 <input id="duplicates-search" class="text-input analysis-search-input" type="search" autocomplete="off" spellcheck="false" />
                 <select id="duplicates-filter" class="text-input analysis-filter-input"></select>
@@ -252,6 +252,10 @@
 
             <div id="duplicates-results" class="duplicates-results hidden">
               <div id="duplicates-list" class="duplicates-list" aria-live="polite"></div>
+            </div>
+            <div class="analysis-footer-actions">
+              <button id="export-duplicates-btn" class="secondary-btn hidden" type="button" data-i18n="exportAuditReport">Export Audit</button>
+              <button id="clear-duplicates-btn" class="danger-btn hidden" type="button" data-i18n="clearList">Clear List</button>
             </div>
           </section>
 
@@ -278,7 +282,7 @@
               <div class="analysis-query-controls">
                 <button id="analyze-conflicts-btn" class="primary-btn conflicts-primary" type="button" disabled>
                   <i class="fa-solid fa-code-compare" aria-hidden="true"></i>
-                  <span data-i18n="analyzeConflicts">Analyze Conflicts</span>
+                  <span data-i18n="analyzeConflicts">Reanalyze Conflicts</span>
                 </button>
                 <input id="conflicts-search" class="text-input analysis-search-input" type="search" autocomplete="off" spellcheck="false" />
                 <select id="conflicts-filter" class="text-input analysis-filter-input"></select>
@@ -300,6 +304,10 @@
 
             <div id="conflicts-results" class="conflicts-results hidden">
               <div id="conflicts-list" class="conflicts-list" aria-live="polite"></div>
+            </div>
+            <div class="analysis-footer-actions">
+              <button id="export-conflicts-btn" class="secondary-btn hidden" type="button" data-i18n="exportAuditReport">Export Audit</button>
+              <button id="clear-conflicts-btn" class="danger-btn hidden" type="button" data-i18n="clearList">Clear List</button>
             </div>
           </section>
 
