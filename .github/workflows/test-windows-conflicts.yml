@@ -8,6 +8,15 @@ on:
       - main
     paths:
       - ".github/workflows/test-windows-conflicts.yml"
+      - "src-tauri/src/scanner.rs"
+      - "src-tauri/src/conflicts.rs"
+      - "src-tauri/src/resource_cfg.rs"
+      - "src-tauri/src/package_family.rs"
+      - "src/app.js"
+      - "src/style.css"
+      - "src/winui.css"
+      - "src/theme.js"
+      - "index.html"
 
 permissions:
   contents: read
