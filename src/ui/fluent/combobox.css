@@ -100,8 +100,17 @@ body.release-v1 .fluent-combobox.open .fluent-combobox-chevron {transform: rotat
   text-overflow: ellipsis;
   cursor: default;
   border-radius: 4px;
+  justify-content: flex-start;
+  align-items: center;
+  padding-block: 0;
 }
-.fluent-combobox-option.active {background: var(--fluent-control-hover);}
+.fluent-combobox-option.active,
+.fluent-combobox-option:hover:not(.disabled) {
+  background: var(--fluent-control-hover);
+}
+.fluent-combobox-option:active:not(.disabled) {
+  background: var(--fluent-control-pressed);
+}
 .fluent-combobox-option.disabled {opacity:.4;}
 .fluent-combobox-option-label {min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .fluent-combobox-check {width:14px; flex:0 0 14px;color:var(--fluent-accent-fill);font-weight:600;}

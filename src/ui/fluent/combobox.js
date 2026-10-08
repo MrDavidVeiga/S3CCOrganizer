@@ -99,6 +99,26 @@ function moveActive(direction) {
   }
 }
 
+// Closed ComboBoxes behave like native WinUI selection fields: arrows change
+// the value without expanding the list and preserve existing change listeners.
+function changeClosedSelection(item, direction) {
+  const select = item.select;
+  if (select.disabled) return;
+  const options = entryOptions(select);
+  const start = select.selectedIndex < 0
+    ? (direction > 0 ? -1 : options.length)
+    : select.selectedIndex;
+  for (let index = start + direction; index >= 0 && index < options.length; index += direction) {
+    if (options[index].disabled) continue;
+    if (index === select.selectedIndex) return;
+    select.selectedIndex = index;
+    select.dispatchEvent(new Event("input", {bubbles: true}));
+    select.dispatchEvent(new Event("change", {bubbles: true}));
+    updateButton(item);
+    return;
+  }
+}
+
 function pick(index) {
   const current = opened;
   if (!current) return;
@@ -150,7 +170,16 @@ function renderFlyout() {
     if(entry.group) text.title=entry.group;
     element.append(check,text);
     element.addEventListener("pointerdown",e=>{if(!entry.disabled)e.preventDefault();});
-    element.addEventListener("pointerenter",()=>{if(opened && !entry.disabled){opened.active=idx;item.trigger.setAttribute("aria-activedescendant",element.id);}});
+    element.addEventListener("pointerenter",()=>{
+      if (!opened || opened.item !== item || entry.disabled) return;
+      opened.active = idx;
+      // Preserve the hovered node; rebuilding it loses :hover in WebView2.
+      for (const sibling of flyout.querySelectorAll(".fluent-combobox-option.active")) {
+        sibling.classList.remove("active");
+      }
+      element.classList.add("active");
+      item.trigger.setAttribute("aria-activedescendant", element.id);
+    });
     element.addEventListener("click",()=>pick(idx));
     children.push(element);
   }
@@ -231,8 +260,11 @@ function handleKey(event,item) {
   }
   if(key==="ArrowDown" || key==="ArrowUp"){
     event.preventDefault();event.stopPropagation();
-    if(opened?.item!==item)openFlyout(item);
-    else moveActive(key==="ArrowDown" ? 1 : -1);
+    const direction = key==="ArrowDown" ? 1 : -1;
+    if(opened?.item!==item) {
+      if(event.altKey) openFlyout(item);
+      else changeClosedSelection(item,direction);
+    } else moveActive(direction);
     return;
   }
   if(key==="Home" || key==="End"){
