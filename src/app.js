@@ -4,7 +4,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 
 const I18N = {
   en: {
-    organizer: "Manager",
+    organizer: "Organizer",
     duplicates: "Duplicates",
     conflicts: "Conflicts",
     catalog: "Catalog",
@@ -478,7 +478,7 @@ const I18N = {
     conflictsNext: "Resource-level conflict analysis is implemented in read-only mode.",
   },
   pt: {
-    organizer: "Gerenciador",
+    organizer: "Organizador",
     duplicates: "Duplicados",
     conflicts: "Conflitos",
     catalog: "Catálogo",
@@ -951,7 +951,7 @@ const I18N = {
     conflictsNext: "A análise de conflitos por resource está implementada em modo somente leitura.",
   },
   es: {
-    organizer: "Gestor",
+    organizer: "Organizador",
     duplicates: "Duplicados",
     conflicts: "Conflictos",
     catalog: "Catálogo",
@@ -1512,8 +1512,9 @@ const state = {
   quarantinePlan: null,
   quarantineBusy: false,
   auditBusy: false,
-  auditError: "",
-  lastAuditReport: null,
+  auditBusyKind: null,
+  auditErrors: { organizer: "", duplicates: "", conflicts: "" },
+  auditReports: { organizer: null, duplicates: null, conflicts: null },
   structureListing: null,
   structureCurrent: "",
   structureSelectedPath: "",
@@ -4282,8 +4283,8 @@ function invalidateAnalysesAfterStructureChange() {
   state.restorePlan = null;
   state.quarantineSelected.clear();
   state.quarantinePlan = null;
-  state.lastAuditReport = null;
-  state.auditError = "";
+  state.auditReports = { organizer: null, duplicates: null, conflicts: null };
+  state.auditErrors = { organizer: "", duplicates: "", conflicts: "" };
 }
 
 async function loadStructure(relativePath = state.structureCurrent) {
@@ -4581,7 +4582,7 @@ async function executeStructureAction() {
     if (action === "create") {
       state.plan = null;
       state.planError = "";
-      state.lastAuditReport = null;
+      state.auditReports = { organizer: null, duplicates: null, conflicts: null };
     } else {
       invalidateAnalysesAfterStructureChange();
     }
@@ -6620,8 +6621,8 @@ async function chooseFolder() {
   state.technicalDetailsLoading = "";
   state.technicalDetailsErrors = {};
   state.restoreHistory = [];
-  state.auditError = "";
-  state.lastAuditReport = null;
+  state.auditErrors = { organizer: "", duplicates: "", conflicts: "" };
+  state.auditReports = { organizer: null, duplicates: null, conflicts: null };
   state.structureListing = null;
   state.structureCurrent = "";
   state.structureSelectedPath = "";
