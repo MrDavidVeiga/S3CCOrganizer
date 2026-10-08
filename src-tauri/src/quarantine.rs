@@ -547,6 +547,8 @@ fn verify_exact_survivors(
     if retained_paths.is_empty() || plan.items.is_empty() {
         return Err("Exact-duplicate quarantine must retain at least one package.".into());
     }
+    let canonical_root = root.canonicalize()
+        .map_err(|error| format!("Could not resolve exact-duplicate library root: {error}"))?;
     let selected = plan.items.iter()
         .map(|item| PathBuf::from(&item.source_path))
         .collect::<HashSet<_>>();
@@ -554,7 +556,7 @@ fn verify_exact_survivors(
     for raw in retained_paths {
         let survivor = PathBuf::from(raw).canonicalize()
             .map_err(|error| format!("Exact-duplicate survivor is missing: {error}"))?;
-        if !survivor.is_file() || !survivor.starts_with(root) ||
+        if !survivor.is_file() || !survivor.starts_with(&canonical_root) ||
             !require_package(&survivor) || selected.contains(&survivor)
         {
             return Err("Exact-duplicate survivor is invalid or also selected for quarantine.".into());
