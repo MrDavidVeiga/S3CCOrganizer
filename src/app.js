@@ -352,6 +352,7 @@ const I18N = {
     executionRolledBack: "Organization failed and was rolled back",
     confirmOrganizeTitle: "Organize selected packages?",
     confirmOrganizeMessage: "A restore manifest will be written before any move. Files will never overwrite existing destinations.",
+    organizePartialHint: "Only {ready} ready packages will be moved. {blocked} blocked packages remain untouched for review.",
     restoreIntro: "Choose a restore manifest to preview the exact rollback before changing files.",
     chooseManifest: "Choose Restore Manifest",
     noManifest: "No manifest selected.",
@@ -859,6 +860,7 @@ const I18N = {
     executionRolledBack: "A organização falhou e foi revertida",
     confirmOrganizeTitle: "Organizar os packages selecionados?",
     confirmOrganizeMessage: "Um manifesto de restauração será salvo antes de qualquer movimento. Nenhum arquivo sobrescreverá um destino existente.",
+    organizePartialHint: "Apenas {ready} packages prontos serão movidos. Os {blocked} bloqueados permanecerão no lugar para revisão.",
     restoreIntro: "Escolha um manifesto de restauração para visualizar exatamente o que será desfeito antes de alterar os arquivos.",
     chooseManifest: "Escolher Manifesto de Restauração",
     noManifest: "Nenhum manifesto selecionado.",
@@ -1365,6 +1367,7 @@ const I18N = {
     executionRolledBack: "La organización falló y fue revertida",
     confirmOrganizeTitle: "¿Organizar los packages seleccionados?",
     confirmOrganizeMessage: "Se guardará un manifiesto de restauración antes de cualquier movimiento. Ningún archivo sobrescribirá un destino existente.",
+    organizePartialHint: "Solo se moverán {ready} packages listos. Los {blocked} bloqueados permanecerán sin cambios para revisión.",
     restoreIntro: "Elige un manifiesto de restauración para ver exactamente lo que se deshará antes de modificar archivos.",
     chooseManifest: "Elegir Manifiesto de Restauración",
     noManifest: "Ningún manifiesto seleccionado.",
@@ -1800,6 +1803,7 @@ const el = {
   planCloseBtn: document.querySelector("#plan-close-btn"),
   planCloseFooterBtn: document.querySelector("#plan-close-footer-btn"),
   planExecuteBtn: document.querySelector("#plan-execute-btn"),
+  planPartialNotice: document.querySelector("#plan-partial-notice"),
   planItems: document.querySelector("#plan-items"),
   planDirectories: document.querySelector("#plan-directories"),
   planTree: document.querySelector("#plan-tree"),
@@ -2746,7 +2750,7 @@ function statusLabel(status) {
 
 function planCanExecute(plan) {
   const stats = plan?.stats || {};
-  return (stats.ready ?? 0) > 0 && (stats.blocked ?? 0) === 0 && !workspaceReadOnly();
+  return (stats.ready ?? 0) > 0 && !workspaceReadOnly();
 }
 
 function planStatusLabel(status) {
@@ -6719,6 +6723,14 @@ function renderPlan() {
   el.planStatBlocked.textContent = stats.blocked ?? 0;
   el.planStatFolders.textContent = stats.directoriesToCreate ?? 0;
   el.planExecuteBtn.disabled = !planCanExecute(plan) || state.executing;
+  if (el.planPartialNotice) {
+    const excluded = Number(stats.blocked || 0);
+    el.planPartialNotice.textContent = excluded && Number(stats.ready || 0)
+      ? t("organizePartialHint").replace("{ready}", String(stats.ready))
+          .replace("{blocked}", String(excluded))
+      : "";
+    el.planPartialNotice.classList.toggle("hidden", !excluded || !Number(stats.ready || 0));
+  }
 
   // Keep the rendered preview in memory while the plan object is unchanged.
   // Closing and reopening the modal must not rebuild thousands of DOM nodes.
@@ -6972,7 +6984,13 @@ function openConfirm(action) {
   state.pendingAction = action;
   if (action === "organize") {
     el.confirmTitle.textContent = t("confirmOrganizeTitle");
-    el.confirmMessage.textContent = t("confirmOrganizeMessage");
+    const readyCount = state.plan?.stats?.ready || 0;
+    const blockedCount = state.plan?.stats?.blocked || 0;
+    el.confirmMessage.textContent = blockedCount
+      ? `${t("confirmOrganizeMessage")}\n${t("organizePartialHint")
+          .replace("{ready}", String(readyCount))
+          .replace("{blocked}", String(blockedCount))}`
+      : t("confirmOrganizeMessage");
     el.confirmActionBtn.textContent = t("organizeSelected");
   } else if (action === "clear_cache") {
     el.confirmTitle.textContent = t("confirmClearCacheTitle");
