@@ -205,6 +205,8 @@ pub fn execute_organization(
     language: AppLanguage,
     selected_paths: Vec<String>,
 ) -> Result<ExecutionResult, String> {
+    // Serialize file-changing operations across Organizer, Restore, and Quarantine.
+    let _transaction = crate::quarantine::transaction_guard()?;
     let plan = build_organization_plan(folder, language, selected_paths)?;
 
     if plan.stats.blocked > 0 {
