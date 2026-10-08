@@ -5193,32 +5193,34 @@ async function removeOperationHistoryRecord() {
 
 function renderHistoryTools() {
   el.toolsOperationHistory.innerHTML = "";
-  for (const item of (state.operationHistory || []).filter((entry) => ["restore_manifest", "quarantine"].includes(entry.kind))) {
+  for (const item of (state.operationHistory || []).filter(
+    (entry) => ["restore_manifest", "quarantine"].includes(entry.kind)
+  )) {
     const row = toolListItem(
       `${item.kind}: ${item.title}`,
-      `${item.timestamp} · ${item.source || ""}${item.destination ? " → " + item.destination : ""} · ${item.status}`
+      `${item.timestamp} · ${item.source || ""}${item.destination ? " → " + item.destination : ""} · ${item.status}`,
+      "history-record-row"
     );
     if (item.destination) {
+      const actions = document.createElement("div");
+      actions.className = "history-record-actions";
+
       const openButton = document.createElement("button");
       openButton.type = "button";
       openButton.className = "secondary-btn compact-btn";
       openButton.textContent = t("openStructureLocation");
-      openButton.addEventListener("click", () => {
-        const destination = item.kind === "manual" && state.folder
-          ? `${state.folder.replace(/[\\/]+$/, "")}\\${String(item.destination).replace(/^[\\/]+/, "")}`
-          : item.destination;
-        revealSafe(destination);
-      });
-      row.appendChild(openButton);
+      openButton.addEventListener("click", () => revealSafe(item.destination));
+      actions.appendChild(openButton);
 
-      if (item.kind === "quarantine" && ["PENDING", "ROLLBACK_INCOMPLETE", "RESTORE_PENDING", "RESTORE_INCOMPLETE"].includes(item.status)) {
+      if (item.kind === "quarantine" &&
+          ["PENDING", "ROLLBACK_INCOMPLETE", "RESTORE_PENDING", "RESTORE_INCOMPLETE"].includes(item.status)) {
         const recover = document.createElement("button");
         recover.type = "button";
         recover.className = "secondary-btn compact-btn";
         recover.textContent = t("recoverQuarantine");
         recover.disabled = workspaceReadOnly() || state.toolsBusy;
         recover.addEventListener("click", () => recoverQuarantineFromHistory(item));
-        row.appendChild(recover);
+        actions.appendChild(recover);
       }
 
       if (item.kind === "quarantine" && item.status === "COMPLETE") {
@@ -5231,14 +5233,16 @@ function renderHistoryTools() {
           state.pendingQuarantineRestore = item;
           openConfirm("restore_quarantine");
         });
-        row.appendChild(restore);
+        actions.appendChild(restore);
       }
+
       const remove = document.createElement("button");
       remove.type = "button";
       remove.className = "danger-btn compact-btn";
       remove.textContent = t("removeRestoreManifest");
       remove.disabled = !historyRecordCanBeRemoved(item);
-      if (item.kind === "quarantine" && !["RESTORED", "ROLLED_BACK"].includes(item.status)) {
+      if (item.kind === "quarantine" &&
+          !["RESTORED", "ROLLED_BACK"].includes(item.status)) {
         remove.title = t("historyRemovalUnavailable");
       }
       remove.addEventListener("click", () => {
@@ -5246,7 +5250,8 @@ function renderHistoryTools() {
         state.pendingHistoryRemoval = item;
         openConfirm("remove_operation_history");
       });
-      row.appendChild(remove);
+      actions.appendChild(remove);
+      row.appendChild(actions);
     }
     el.toolsOperationHistory.appendChild(row);
   }
