@@ -1,6 +1,6 @@
 # Veiga's S3CC Manager
 
-A Windows desktop tool for **The Sims 3** to analyze, classify and organize custom content (`.package`) without deleting user files.
+A cross-platform desktop tool for **The Sims 3** to analyze, classify and organize custom content (`.package`) without deleting user files. Portable releases target Windows x64, Linux x64, macOS Intel and macOS Apple Silicon.
 
 ## Goals
 
