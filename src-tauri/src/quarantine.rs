@@ -700,7 +700,14 @@ pub fn restore_quarantine(
 /// Recover an interrupted quarantine or restore by returning every validated
 /// file to its ORIGINAL location. Refuse ambiguity, corruption or overwrite.
 #[tauri::command]
-pub fn recover_quarantine(folder: String, manifest_path: String) -> Result<QuarantineResult, String> {
+pub fn recover_quarantine(
+    folder: String,
+    manifest_path: String,
+    confirmed: bool,
+) -> Result<QuarantineResult, String> {
+    if !confirmed {
+        return Err("Quarantine recovery requires explicit confirmation.".to_string());
+    }
     let _guard = transaction_guard()?;
     let root = canonical_root(&folder)?;
     ensure_writable(&root)?;
