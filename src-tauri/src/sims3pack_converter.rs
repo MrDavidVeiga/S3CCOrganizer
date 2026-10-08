@@ -1185,7 +1185,12 @@ pub fn convert_sims3packs(
             }
 
             if !target.as_os_str().is_empty() {
-                let _ = restore_cached_thumbnails(&target);
+                if let Err(error) = restore_cached_thumbnails(&target) {
+                    result.errors.push(format!(
+                        "Thumbnail recovery warning for {} (converted package was kept): {error}",
+                        target.display()
+                    ));
+                }
                 result.converted += 1;
                 result.skipped += inspection.items.iter().filter(|item| !item.convertible).count();
                 result.items.push(Sims3PackConvertedItem {
@@ -1256,7 +1261,12 @@ pub fn convert_sims3packs(
                 continue;
             }
 
-            let _ = restore_cached_thumbnails(&target);
+            if let Err(error) = restore_cached_thumbnails(&target) {
+                result.errors.push(format!(
+                    "Thumbnail recovery warning for {} (converted package was kept): {error}",
+                    target.display()
+                ));
+            }
             result.converted += 1;
             result.items.push(Sims3PackConvertedItem {
                 source_path: source.to_string_lossy().to_string(),
