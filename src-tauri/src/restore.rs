@@ -650,6 +650,7 @@ pub fn execute_restore(
     if !confirmed {
         return Err("Restore requires explicit confirmation.".to_string());
     }
+    let _transaction = crate::quarantine::transaction_guard()?;
     let plan = preview_restore(manifest_path.clone(), current_language, expected_root)?;
 
     if !plan.can_execute {
