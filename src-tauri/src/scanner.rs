@@ -1664,6 +1664,11 @@ fn physical_destination_parts(root: &Path, parts: &[String]) -> Vec<String> {
         && !has_packages_prefix && !parts.is_empty()
     {
         parts.insert(0, "Packages".to_string());
+    } else if root.file_name()
+        .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("Packages"))
+        && has_packages_prefix
+    {
+        parts.remove(0);
     }
     parts
 }
@@ -2016,6 +2021,10 @@ mod tests {
         assert_eq!(
             physical_destination_parts(&mods, &["Packages".into(), "CAS".into(), "Sliders".into()]),
             vec!["Packages", "Sliders"]
+        );
+        assert_eq!(
+            physical_destination_parts(&packages, &["Packages".into(), "CAS".into(), "Sliders".into()]),
+            vec!["Sliders"]
         );
     }
 
