@@ -1,0 +1,192 @@
+/*
+ * Batch 4 — WinUI 3-inspired ProgressBar, ProgressRing and InfoBar.
+ * The app's existing labels, progress counters, cancellation and status text
+ * remain authoritative; no duplicate status model or files are introduced.
+ */
+body.release-v1 .operation-progress {
+  border-radius: var(--fluent-radius-overlay);
+  border: 1px solid var(--fluent-control-stroke);
+  background: var(--winui-card-fill-alt, var(--surface));
+  gap: 10px;
+}
+
+body.release-v1 .operation-progress-track {
+  position: relative;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--fluent-control-pressed);
+  overflow: hidden;
+  isolation: isolate;
+}
+
+body.release-v1 .operation-progress-track > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--fluent-accent-fill);
+  transition: width 150ms ease-out;
+}
+
+body.release-v1 .operation-progress[data-fluent-progress="indeterminate"]
+  .operation-progress-track > span {
+  width: 30% !important;
+  animation: fluent-progress-travel 2.1s cubic-bezier(.2,.65,.7,.85) infinite;
+  will-change: transform;
+}
+
+@keyframes fluent-progress-travel {
+  0% { transform: translateX(-130%); }
+  60% { transform: translateX(180%); }
+  100% { transform: translateX(440%); }
+}
+
+body.release-v1 .operation-progress-text {
+  color: var(--fluent-text-secondary);
+  font-family: var(--fluent-body-font);
+  font-weight: 500;
+}
+body.release-v1 .operation-progress-percent {
+  color: var(--fluent-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+body.release-v1 .operation-progress-count {
+  color: var(--fluent-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Existing scan-state elements become compact non-dismissable InfoBars.
+ * Messages are owned by each tool; dismissing an operational error would
+ * otherwise hide vital troubleshooting information. */
+body.release-v1 {
+  --fluent-state-info: #60a5fa;
+  --fluent-state-success: #68be7c;
+  --fluent-state-warning: #e2aa40;
+  --fluent-state-error: #ef8585;
+}
+html[data-resolved-mode="light"] body.release-v1 {
+  --fluent-state-info: #1465b5;
+  --fluent-state-success: #168545;
+  --fluent-state-warning: #986100;
+  --fluent-state-error: #c42b1c;
+}
+
+body.release-v1 .scan-state.fluent-infobar:not(:empty) {
+  --fluent-infobar-color: var(--fluent-state-info);
+  box-sizing: border-box;
+  max-width: min(48%, 560px);
+  min-width: 0;
+  display: inline-flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 9px;
+  padding: 9px 12px;
+  border: 1px solid var(--fluent-control-stroke);
+  border-left: 3px solid var(--fluent-infobar-color);
+  border-radius: var(--fluent-radius-overlay);
+  color: var(--fluent-text-primary);
+  background: var(--winui-card-fill, var(--surface));
+  box-shadow: 0 2px 6px var(--winui-shadow, rgba(0,0,0,.08));
+  text-align: left;
+  font-family: var(--fluent-body-font);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+
+body.release-v1 .scan-state.fluent-infobar:not(:empty)::before {
+  content: "i";
+  flex: 0 0 16px;
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border: 1.6px solid var(--fluent-infobar-color);
+  border-radius: 50%;
+  color: var(--fluent-infobar-color);
+  font-family: var(--fluent-body-font);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  margin-top: 1px;
+}
+
+body.release-v1 .scan-state.fluent-infobar[data-fluent-tone="success"] {
+  --fluent-infobar-color: var(--fluent-state-success);
+}
+body.release-v1 .scan-state.fluent-infobar[data-fluent-tone="success"]::before {
+  content: "✓";
+  font-size: 10px;
+}
+body.release-v1 .scan-state.fluent-infobar[data-fluent-tone="warning"] {
+  --fluent-infobar-color: var(--fluent-state-warning);
+}
+body.release-v1 .scan-state.fluent-infobar[data-fluent-tone="warning"]::before {
+  content: "!";
+}
+body.release-v1 .scan-state.fluent-infobar[data-fluent-tone="error"] {
+  --fluent-infobar-color: var(--fluent-state-error);
+}
+body.release-v1 .scan-state.fluent-infobar[data-fluent-tone="error"]::before {
+  content: "!";
+}
+
+/* Busy status uses the same InfoBar body but substitutes a Fluent ProgressRing. */
+body.release-v1 .scan-state.fluent-infobar[data-fluent-tone="busy"] {
+  --fluent-infobar-color: var(--fluent-accent-fill);
+}
+body.release-v1 .scan-state.fluent-infobar[data-fluent-tone="busy"]::before {
+  content: "";
+  width: 17px;
+  height: 17px;
+  flex-basis: 17px;
+  border: 2px solid var(--fluent-infobar-color);
+  border-bottom-color: transparent;
+  border-left-color: transparent;
+  background: transparent;
+  animation: fluent-ring-spin .85s linear infinite;
+}
+@keyframes fluent-ring-spin { to { transform: rotate(360deg); } }
+
+body.release-v1 .scan-state.fluent-infobar:empty {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  body.release-v1 .scan-state.fluent-infobar:not(:empty) {
+    max-width: 100%;
+    width: fit-content;
+    margin-top: 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.release-v1 .operation-progress-track > span { transition: none; }
+  body.release-v1 .operation-progress[data-fluent-progress="indeterminate"]
+    .operation-progress-track > span { animation: none; }
+  body.release-v1 .scan-state.fluent-infobar[data-fluent-tone="busy"]::before {
+    animation: none;
+    border-style: dotted;
+    border-color: var(--fluent-infobar-color);
+  }
+}
+
+@media (forced-colors: active) {
+  body.release-v1 .operation-progress-track {
+    border: 1px solid CanvasText;
+    background: Canvas;
+  }
+  body.release-v1 .operation-progress-track > span {
+    background: Highlight;
+  }
+  body.release-v1 .scan-state.fluent-infobar:not(:empty) {
+    border-color: CanvasText;
+    background: Canvas;
+    color: CanvasText;
+  }
+  body.release-v1 .scan-state.fluent-infobar:not(:empty)::before {
+    color: CanvasText;
+    border-color: CanvasText;
+  }
+}
