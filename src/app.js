@@ -1612,6 +1612,7 @@ const state = {
   reviewBusy: false,
   quarantineSelected: new Set(),
   quarantinePlan: null,
+  quarantineExactBatch: false,
   conflictQuarantineSelected: new Set(),
   conflictQuarantinePlan: null,
   quarantineBusy: false,
@@ -2959,6 +2960,17 @@ function exactSurvivorIsSafe(selection = state.quarantineSelected) {
   );
 }
 
+function retainedExactDuplicatePaths(selection = state.quarantineSelected) {
+  const retained = new Set();
+  for (const group of exactDuplicateGroups()) {
+    if (!(group.members || []).some((member) => selection.has(member.path))) continue;
+    for (const member of group.members || []) {
+      if (!selection.has(member.path)) retained.add(member.path);
+    }
+  }
+  return [...retained];
+}
+
 async function selectExactCopiesForQuarantine() {
   if (!state.folder || !state.duplicatesAnalysis || state.quarantineBusy ||
       state.scanning || state.analysisPipelineBusy || state.auditBusy ||
@@ -2975,7 +2987,12 @@ async function selectExactCopiesForQuarantine() {
     return;
   }
   state.quarantineSelected = selected;
+  state.quarantineExactBatch = true;
   state.quarantinePlan = null;
+  state.duplicatesError = "";
+  state.duplicatesFilter = "exact_duplicate";
+  el.duplicatesFilter.value = "exact_duplicate";
+  persistPreferences();
   state.duplicatesNotice = `${t("bulkExactSummary")} (${groups.length} / ${selected.size})`;
   state.duplicateSelectedId = groups[0].id;
   renderDuplicates();
@@ -3038,9 +3055,13 @@ async function buildQuarantinePreview() {
   state.quarantinePlan = null;
   renderDuplicatesPreview();
   try {
-    state.quarantinePlan = await invoke("build_quarantine_plan", {
+    const command = state.quarantineExactBatch
+      ? "build_exact_duplicate_quarantine_plan" : "build_quarantine_plan";
+    state.quarantinePlan = await invoke(command, {
       folder: state.folder,
       selectedPaths: [...state.quarantineSelected],
+      ...(state.quarantineExactBatch
+        ? { retainedPaths: retainedExactDuplicatePaths() } : {}),
     });
   } catch (error) {
     state.duplicatesError = String(error);
@@ -3057,10 +3078,14 @@ async function executeQuarantine() {
   state.quarantineBusy = true;
   renderDuplicatesPreview();
   try {
-    const result = await invoke("execute_quarantine", {
+    const command = state.quarantineExactBatch
+      ? "execute_exact_duplicate_quarantine" : "execute_quarantine";
+    const result = await invoke(command, {
       folder: state.folder,
       selectedPaths: [...state.quarantineSelected],
       plannedQuarantineRoot: state.quarantinePlan.quarantineRoot,
+      ...(state.quarantineExactBatch
+        ? { retainedPaths: retainedExactDuplicatePaths() } : {}),
     });
     state.duplicatesNotice = `${t("quarantineComplete")}: ${result.moved}`;
     state.quarantineSelected.clear();
@@ -3306,6 +3331,7 @@ function renderDuplicatesPreview() {
       clearButton.addEventListener("click", () => {
         state.quarantineSelected.clear();
         state.quarantinePlan = null;
+        state.quarantineExactBatch = false;
         renderDuplicatesPreview();
       });
       const summary = document.createElement("span");
@@ -4855,6 +4881,7 @@ function invalidateAnalysesAfterStructureChange() {
   state.restorePlan = null;
   state.quarantineSelected.clear();
   state.quarantinePlan = null;
+  state.quarantineExactBatch = false;
   state.conflictQuarantineSelected.clear();
   state.conflictQuarantinePlan = null;
   state.auditReports = { organizer: null, duplicates: null, conflicts: null };
@@ -7102,6 +7129,7 @@ function clearDuplicateList() {
   state.duplicateSelectedId = "";
   state.quarantineSelected.clear();
   state.quarantinePlan = null;
+  state.quarantineExactBatch = false;
   state.conflictQuarantineSelected.clear();
   state.conflictQuarantinePlan = null;
   state.operations.duplicates = null;
@@ -7174,6 +7202,7 @@ function clearLoadedLibrary() {
 
   state.quarantineSelected.clear();
   state.quarantinePlan = null;
+  state.quarantineExactBatch = false;
   state.conflictQuarantineSelected.clear();
   state.conflictQuarantinePlan = null;
   state.packagePreviews = {};
@@ -7225,6 +7254,7 @@ async function chooseFolder() {
   applyPersistentDecisionRecords([]);
   state.quarantineSelected.clear();
   state.quarantinePlan = null;
+  state.quarantineExactBatch = false;
   state.conflictQuarantineSelected.clear();
   state.conflictQuarantinePlan = null;
   state.technicalDetails = {};
