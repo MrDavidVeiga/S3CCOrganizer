@@ -2,6 +2,7 @@ use chrono::Local;
 use serde::Serialize;
 use std::{
     fs,
+    io::Write,
     path::{Path, PathBuf},
 };
 
@@ -50,11 +51,19 @@ fn unique_paths(directory: &Path, kind: &str) -> (PathBuf, PathBuf) {
 }
 
 fn write_new(path: &Path, content: &[u8]) -> Result<(), String> {
-    if path.exists() {
-        return Err(format!("Refusing to overwrite report: {}", path.display()));
+    // create_new prevents concurrent exports from overwriting an existing report.
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)
+        .map_err(|error| format!("Could not create a new report {}: {error}", path.display()))?;
+
+    if let Err(error) = file.write_all(content).and_then(|_| file.sync_all()) {
+        drop(file);
+        let _ = fs::remove_file(path);
+        return Err(format!("Could not write report {}: {error}", path.display()));
     }
-    fs::write(path, content)
-        .map_err(|error| format!("Could not write report {}: {error}", path.display()))
+    Ok(())
 }
 
 #[tauri::command]
