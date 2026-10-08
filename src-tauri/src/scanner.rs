@@ -1502,12 +1502,14 @@ fn scan_one(
     } else {
         None
     };
-    let mod_name = if scripted && !is_nraas {
+    // Embedded gameplay assemblies are still tracked by the 'scripted' flag,
+    // but must not supply an unrelated mod/category label to a catalog object.
+    let mod_name = if scripted && !is_nraas && !catalog_first {
         inferred_script_mod_name(&name, &relative)
     } else {
         None
     };
-    let gameplay_category = if scripted && !is_nraas {
+    let gameplay_category = if scripted && !is_nraas && !catalog_first {
         Some(script_category(&package, &name, language).to_string())
     } else {
         None
