@@ -349,6 +349,7 @@ const I18N = {
     ambiguous: "Ambiguous",
     duplicatesIntro: "Find true duplicates and distinguish them from related CC variants without deleting anything.",
     analyzeDuplicates: "Analyze Duplicates",
+    reanalyzeDuplicates: "Reanalyze Duplicates",
     analyzingDuplicates: "Analyzing package fingerprints…",
     duplicatesReady: "Duplicate analysis complete",
     duplicatesFailed: "Duplicate analysis failed",
@@ -363,7 +364,7 @@ const I18N = {
     contentGroups: "Content Groups",
     retextures: "Retextures",
     relatedVariants: "Related Variants",
-    analyzeDuplicatesToBegin: "Analyze the selected Mods folder to find duplicate relationships.",
+    analyzeDuplicatesToBegin: "Scan CCs in Manager to populate this list automatically, or analyze duplicates here.",
     selectDuplicateFinding: "Select a finding to see why it was detected.",
     duplicateDetailsTitle: "Duplicate Details",
     duplicateDetailsIntro: "Compare the detected files, previews and evidence before taking any action.",
@@ -401,6 +402,7 @@ const I18N = {
     duplicatesNext: "Duplicate analysis is read-only. Confirmed duplicates may be moved to reversible Quarantine; nothing is deleted automatically.",
     conflictsIntro: "Compare shared TGIs by decompressed payload and classify the impact instead of treating every overlap as a conflict.",
     analyzeConflicts: "Analyze Conflicts",
+    reanalyzeConflicts: "Reanalyze Conflicts",
     analyzingConflicts: "Analyzing shared resources…",
     conflictsReady: "Conflict analysis complete",
     conflictsFailed: "Conflict analysis failed",
@@ -429,7 +431,7 @@ const I18N = {
     realOverrides: "Needs review",
     scriptConflicts: "Script",
     potentialConflicts: "Potential",
-    analyzeConflictsToBegin: "Analyze the selected Mods folder to inspect shared resources.",
+    analyzeConflictsToBegin: "Scan CCs in Manager to populate this list automatically, or analyze conflicts here.",
     selectConflictFinding: "Select a finding to inspect its resource evidence.",
     conflictReason: "Why it was classified",
     conflictSamePayloadExplanation: "These packages share one or more TGIs with byte-identical decompressed payloads. This is shared content, not a conflict.",
@@ -809,6 +811,7 @@ const I18N = {
     ambiguous: "Ambíguo",
     duplicatesIntro: "Encontre duplicados reais e diferencie-os de variantes relacionadas de CC sem apagar nada.",
     analyzeDuplicates: "Analisar Duplicados",
+    reanalyzeDuplicates: "Reanalisar Duplicados",
     analyzingDuplicates: "Analisando fingerprints dos packages…",
     duplicatesReady: "Análise de duplicados concluída",
     duplicatesFailed: "Falha na análise de duplicados",
@@ -823,7 +826,7 @@ const I18N = {
     contentGroups: "Grupos por Conteúdo",
     retextures: "Retextures",
     relatedVariants: "Variantes Relacionadas",
-    analyzeDuplicatesToBegin: "Analise a pasta de Mods selecionada para encontrar relações de duplicidade.",
+    analyzeDuplicatesToBegin: "Use Analisar CCs no Manager para preencher esta lista automaticamente ou analise duplicados aqui.",
     selectDuplicateFinding: "Selecione um resultado para ver por que ele foi detectado.",
     duplicateDetailsTitle: "Detalhes dos Duplicados",
     duplicateDetailsIntro: "Compare os arquivos detectados, previews e evidências antes de realizar qualquer ação.",
@@ -861,6 +864,7 @@ const I18N = {
     duplicatesNext: "A análise de duplicados é somente leitura. Duplicados confirmados podem ser movidos para uma Quarentena reversível; nada é apagado automaticamente.",
     conflictsIntro: "Compare TGIs compartilhados pelo payload descomprimido e classifique o impacto em vez de tratar toda sobreposição como conflito.",
     analyzeConflicts: "Analisar Conflitos",
+    reanalyzeConflicts: "Reanalisar Conflitos",
     analyzingConflicts: "Analisando resources compartilhados…",
     conflictsReady: "Análise de conflitos concluída",
     conflictsFailed: "Falha na análise de conflitos",
@@ -889,7 +893,7 @@ const I18N = {
     realOverrides: "Exige revisão",
     scriptConflicts: "Script",
     potentialConflicts: "Potenciais",
-    analyzeConflictsToBegin: "Analise a pasta de Mods selecionada para inspecionar resources compartilhados.",
+    analyzeConflictsToBegin: "Use Analisar CCs no Manager para preencher esta lista automaticamente ou analise conflitos aqui.",
     selectConflictFinding: "Selecione um resultado para inspecionar as evidências por resource.",
     conflictReason: "Por que foi classificado",
     conflictSamePayloadExplanation: "Esses packages compartilham um ou mais TGIs com payload descomprimido idêntico. Isso é conteúdo compartilhado, não conflito.",
@@ -1268,6 +1272,7 @@ const I18N = {
     ambiguous: "Ambiguo",
     duplicatesIntro: "Encuentra duplicados reales y distínguelos de variantes relacionadas de CC sin eliminar nada.",
     analyzeDuplicates: "Analizar Duplicados",
+    reanalyzeDuplicates: "Reanalizar Duplicados",
     analyzingDuplicates: "Analizando fingerprints de los packages…",
     duplicatesReady: "Análisis de duplicados completado",
     duplicatesFailed: "Error en el análisis de duplicados",
@@ -1282,7 +1287,7 @@ const I18N = {
     contentGroups: "Grupos por Contenido",
     retextures: "Retextures",
     relatedVariants: "Variantes Relacionadas",
-    analyzeDuplicatesToBegin: "Analiza la carpeta de Mods seleccionada para encontrar relaciones de duplicidad.",
+    analyzeDuplicatesToBegin: "Usa Analizar CC en Manager para llenar esta lista automáticamente o analiza duplicados aquí.",
     selectDuplicateFinding: "Selecciona un resultado para ver por qué fue detectado.",
     duplicateDetailsTitle: "Detalles de Duplicados",
     duplicateDetailsIntro: "Compara los archivos detectados, vistas previas y evidencias antes de realizar cualquier acción.",
@@ -1320,6 +1325,7 @@ const I18N = {
     duplicatesNext: "El análisis de duplicados es de solo lectura. Los duplicados confirmados pueden moverse a una Cuarentena reversible; nada se elimina automáticamente.",
     conflictsIntro: "Compara TGIs compartidos por el payload descomprimido y clasifica el impacto en lugar de tratar cada coincidencia como conflicto.",
     analyzeConflicts: "Analizar Conflictos",
+    reanalyzeConflicts: "Reanalizar Conflictos",
     analyzingConflicts: "Analizando resources compartidos…",
     conflictsReady: "Análisis de conflictos completado",
     conflictsFailed: "Error en el análisis de conflictos",
@@ -1348,7 +1354,7 @@ const I18N = {
     realOverrides: "Requiere revisión",
     scriptConflicts: "Script",
     potentialConflicts: "Potenciales",
-    analyzeConflictsToBegin: "Analiza la carpeta de Mods seleccionada para inspeccionar resources compartidos.",
+    analyzeConflictsToBegin: "Usa Analizar CC en Manager para llenar esta lista automáticamente o analiza conflictos aquí.",
     selectConflictFinding: "Selecciona un resultado para inspeccionar sus evidencias por resource.",
     conflictReason: "Por qué fue clasificado",
     conflictSamePayloadExplanation: "Estos packages comparten uno o más TGIs con payload descomprimido idéntico. Es contenido compartido, no un conflicto.",
@@ -1749,10 +1755,11 @@ const el = {
   restoreManifestRoot: document.querySelector("#restore-manifest-root"),
   restoreSelectedRoot: document.querySelector("#restore-selected-root"),
   restoreRootStatus: document.querySelector("#restore-root-status"),
-  auditStatusDot: document.querySelector("#audit-status-dot"),
-  auditStatus: document.querySelector("#audit-status"),
-  exportAuditBtn: document.querySelector("#export-audit-btn"),
-  openReportFolderBtn: document.querySelector("#open-report-folder-btn"),
+  auditStatuses: [...document.querySelectorAll("[data-audit-status]")],
+  exportAuditButtons: [...document.querySelectorAll("[data-export-audit]")],
+  openReportFolderButtons: [...document.querySelectorAll("[data-open-report-folder]")],
+  duplicatesClearListBtn: document.querySelector("#duplicates-clear-list-btn"),
+  conflictsClearListBtn: document.querySelector("#conflicts-clear-list-btn"),
   structureState: document.querySelector("#structure-state"),
   structureUpBtn: document.querySelector("#structure-up-btn"),
   structureRefreshBtn: document.querySelector("#structure-refresh-btn"),
@@ -2354,28 +2361,38 @@ async function exportAuditReport() {
 }
 
 function renderAuditPanel() {
-  if (!el.auditStatus) return;
-  el.auditStatusDot.className =
-    "utility-dot " + (state.auditBusy ? "busy" : state.auditError ? "error" : state.lastAuditReport ? "ready" : "");
+  let message = t("auditReportHint");
   if (state.auditBusy) {
-    el.auditStatus.textContent = t("exportingAuditReport");
+    message = t("exportingAuditReport");
   } else if (state.auditError) {
-    el.auditStatus.textContent = `${t("auditReportFailed")}: ${state.auditError}`;
+    message = `${t("auditReportFailed")}: ${state.auditError}`;
   } else if (state.lastAuditReport) {
-    el.auditStatus.textContent =
-      `${t("auditReportSaved")}: ${state.lastAuditReport.markdownPath}`;
-  } else {
-    el.auditStatus.textContent = t("auditReportHint");
+    message = `${t("auditReportSaved")}: ${state.lastAuditReport.markdownPath}`;
   }
-  const canExportReport = !!state.folder;
-  const hasReportFolder = !!state.lastAuditReport?.directory;
 
-  el.exportAuditBtn.classList.toggle("hidden", !canExportReport);
-  el.exportAuditBtn.disabled =
-    state.auditBusy || state.reviewBusy || state.structureBusy;
+  for (const status of el.auditStatuses) {
+    status.textContent = message;
+    status.classList.toggle("error", !!state.auditError);
+  }
 
-  el.openReportFolderBtn.classList.toggle("hidden", !hasReportFolder);
-  el.openReportFolderBtn.disabled = state.auditBusy;
+  const canExport = !!state.folder &&
+    (state.items.length > 0 || !!state.duplicatesAnalysis || !!state.conflictsAnalysis) &&
+    !state.scanning && !state.duplicatesBusy && !state.conflictsBusy &&
+    !state.auditBusy && !state.reviewBusy && !state.structureBusy;
+
+  for (const button of el.exportAuditButtons) {
+    button.disabled = !canExport;
+  }
+  for (const button of el.openReportFolderButtons) {
+    button.classList.toggle("hidden", !state.lastAuditReport?.directory);
+    button.disabled = state.auditBusy;
+  }
+  el.duplicatesClearListBtn.disabled =
+    !state.duplicatesAnalysis || state.duplicatesBusy || state.conflictsBusy ||
+    state.scanning || state.quarantineBusy || state.auditBusy;
+  el.conflictsClearListBtn.disabled =
+    !state.conflictsAnalysis || state.conflictsBusy || state.duplicatesBusy ||
+    state.scanning || state.reviewBusy || state.auditBusy;
 }
 
 function t(key) {
@@ -3070,6 +3087,9 @@ function scheduleDuplicateVirtualRows() {
 
 function renderDuplicates() {
   if (!el.analyzeDuplicatesBtn) return;
+  el.analyzeDuplicatesBtn.querySelector("[data-i18n]")?.replaceChildren(
+    document.createTextNode(t(state.duplicatesAnalysis ? "reanalyzeDuplicates" : "analyzeDuplicates"))
+  );
   el.analyzeDuplicatesBtn.disabled =
     !state.folder ||
     state.duplicatesBusy ||
@@ -3625,6 +3645,9 @@ function scheduleConflictVirtualRows() {
 
 function renderConflicts() {
   if (!el.analyzeConflictsBtn) return;
+  el.analyzeConflictsBtn.querySelector("[data-i18n]")?.replaceChildren(
+    document.createTextNode(t(state.conflictsAnalysis ? "reanalyzeConflicts" : "analyzeConflicts"))
+  );
   el.analyzeConflictsBtn.disabled =
     !state.folder ||
     state.conflictsBusy ||
@@ -6232,6 +6255,43 @@ function render() {
   if (state.plan && !el.planModal.classList.contains("hidden")) renderPlan();
 }
 
+function clearDuplicateList() {
+  if (state.scanning || state.duplicatesBusy || state.conflictsBusy ||
+      state.quarantineBusy || state.auditBusy) return;
+  closeDuplicateDetails();
+  state.duplicatesAnalysis = null;
+  state.duplicatesError = "";
+  state.duplicatesNotice = "";
+  state.duplicatesSearch = "";
+  state.duplicatesFilter = "all";
+  state.duplicateSelectedId = "";
+  state.quarantineSelected.clear();
+  state.quarantinePlan = null;
+  state.operations.duplicates = null;
+  virtualViews.duplicates.items = null;
+  el.duplicatesSearch.value = "";
+  persistPreferences();
+  render();
+}
+
+function clearConflictList() {
+  if (state.scanning || state.duplicatesBusy || state.conflictsBusy ||
+      state.reviewBusy || state.auditBusy) return;
+  closeConflictDetails();
+  state.conflictsAnalysis = null;
+  state.conflictsError = "";
+  state.conflictsNotice = "";
+  state.conflictsSearch = "";
+  state.conflictsFilter = "attention";
+  state.conflictSelectedId = "";
+  state.conflictMarks = {};
+  state.operations.conflicts = null;
+  virtualViews.conflicts.items = null;
+  el.conflictsSearch.value = "";
+  persistPreferences();
+  render();
+}
+
 function clearLoadedLibrary() {
   if (
     state.scanning ||
@@ -6347,12 +6407,21 @@ async function chooseFolder() {
   ]);
 }
 
+async function analyzeAutomaticallyAfterScan(root) {
+  if (root !== state.folder) return;
+  const duplicatesReady = await analyzeDuplicates();
+  if (root !== state.folder || !duplicatesReady) return;
+  await analyzeConflicts();
+}
+
 async function scanFolder(preserveSelection = false, preserveNotice = false) {
   if (
     !state.folder ||
     state.scanning ||
     state.planning ||
     state.executing ||
+    state.duplicatesBusy ||
+    state.conflictsBusy ||
     state.structureBusy ||
     state.toolsBusy
   ) return;
@@ -6362,6 +6431,8 @@ async function scanFolder(preserveSelection = false, preserveNotice = false) {
   const previousItems = state.items;
   const previousStats = state.stats;
   const previousSelectedId = state.selectedId;
+  const scannedRoot = state.folder;
+  let scanSucceeded = false;
 
   state.scanning = true;
   state.operations.scan = null;
@@ -6386,6 +6457,22 @@ async function scanFolder(preserveSelection = false, preserveNotice = false) {
     state.items = result.items || [];
     state.stats = result.stats || null;
     virtualViews.manager.items = null;
+    // The newly scanned folder needs fresh Duplicates and Conflicts results.
+    closeDuplicateDetails();
+    closeConflictDetails();
+    state.duplicatesAnalysis = null;
+    state.conflictsAnalysis = null;
+    state.duplicatesError = "";
+    state.conflictsError = "";
+    state.duplicatesNotice = "";
+    state.conflictsNotice = "";
+    state.duplicateSelectedId = "";
+    state.conflictSelectedId = "";
+    state.conflictMarks = {};
+    state.quarantineSelected.clear();
+    state.quarantinePlan = null;
+    virtualViews.duplicates.items = null;
+    virtualViews.conflicts.items = null;
 
     const eligibleIds = new Set(
       state.items.filter(eligibleForPlan).map((item) => item.id)
@@ -6402,6 +6489,7 @@ async function scanFolder(preserveSelection = false, preserveNotice = false) {
 
     state.selectedId = visibleItems()[0]?.id || "";
     if (preserveNotice) state.notice = previousNotice;
+    scanSucceeded = true;
   } catch (error) {
     const message = String(error);
     if (message.includes("__S3CC_OPERATION_CANCELLED__")) {
@@ -6420,6 +6508,10 @@ async function scanFolder(preserveSelection = false, preserveNotice = false) {
   } finally {
     state.scanning = false;
     render();
+    // Analyze both tabs after the Manager scan, without delaying its results.
+    if (scanSucceeded && state.folder === scannedRoot) {
+      void analyzeAutomaticallyAfterScan(scannedRoot);
+    }
   }
 }
 
@@ -6598,7 +6690,8 @@ async function executeRestore() {
 }
 
 async function analyzeDuplicates() {
-  if (!state.folder || state.duplicatesBusy || state.structureBusy || state.toolsBusy) return;
+  if (!state.folder || state.scanning || state.duplicatesBusy ||
+      state.conflictsBusy || state.structureBusy || state.toolsBusy) return false;
 
   const previousAnalysis = state.duplicatesAnalysis;
   const previousSelectedId = state.duplicateSelectedId;
@@ -6635,10 +6728,12 @@ async function analyzeDuplicates() {
     render();
     await refreshCacheInfo();
   }
+  return !!state.duplicatesAnalysis;
 }
 
 async function analyzeConflicts() {
-  if (!state.folder || state.conflictsBusy || state.structureBusy || state.toolsBusy) return;
+  if (!state.folder || state.scanning || state.duplicatesBusy ||
+      state.conflictsBusy || state.structureBusy || state.toolsBusy) return false;
 
   const previousAnalysis = state.conflictsAnalysis;
   const previousSelectedId = state.conflictSelectedId;
@@ -6793,10 +6888,16 @@ el.refreshRestoreHistoryBtn.addEventListener("click", loadRestoreHistory);
 el.openManifestFolderBtn.addEventListener("click", () => openDirectorySafe(state.restoreManifest));
 el.openCacheBtn.addEventListener("click", () => openDirectorySafe(state.cacheInfo?.path));
 el.clearCacheBtn.addEventListener("click", () => openConfirm("clear_cache"));
-el.exportAuditBtn.addEventListener("click", exportAuditReport);
-el.openReportFolderBtn.addEventListener("click", () =>
-  openDirectorySafe(state.lastAuditReport?.directory)
-);
+for (const button of el.exportAuditButtons) {
+  button.addEventListener("click", exportAuditReport);
+}
+for (const button of el.openReportFolderButtons) {
+  button.addEventListener("click", () =>
+    openDirectorySafe(state.lastAuditReport?.directory)
+  );
+}
+el.duplicatesClearListBtn.addEventListener("click", clearDuplicateList);
+el.conflictsClearListBtn.addEventListener("click", clearConflictList);
 el.structureUpBtn.addEventListener("click", () => {
   const parent = state.structureListing?.parentRelativePath;
   if (parent != null) loadStructure(parent);
@@ -6866,7 +6967,8 @@ el.reviewDuplicatesBtn.addEventListener("click", async () => {
   state.tab = "duplicates";
   persistPreferences();
   render();
-  if (state.folder) await analyzeDuplicates();
+  if (state.folder && !state.duplicatesAnalysis &&
+      !state.duplicatesBusy && !state.conflictsBusy) await analyzeDuplicates();
 });
 el.reviewCollisionsBtn.addEventListener("click", openCollisionReview);
 el.duplicateDetailsCloseBtn.addEventListener("click", closeDuplicateDetails);
