@@ -7222,13 +7222,22 @@ function clearLoadedLibrary() {
 }
 
 async function chooseFolder() {
+  if (state.scanning || state.analysisPipelineBusy || state.duplicatesBusy ||
+      state.conflictsBusy || state.quarantineBusy || state.executing ||
+      state.planning || state.restoreBusy || state.structureBusy || state.auditBusy) return;
   const selected = await open({
     directory: true,
     multiple: false,
     title: t("chooseModsFolder"),
   });
-  if (!selected || Array.isArray(selected)) return;
-
+  // The chooser is asynchronous: a scan or quarantine may have started
+  // while its native window was open. Do not mix in-flight folder sessions.
+  if (!selected || Array.isArray(selected) ||
+      state.scanning || state.analysisPipelineBusy || state.duplicatesBusy ||
+      state.conflictsBusy || state.quarantineBusy || state.executing ||
+      state.planning || state.restoreBusy || state.structureBusy || state.auditBusy) return;
+  state.analysisRunId += 1;
+  state.analysisStatus = { manager: "not_run", duplicates: "not_run", conflicts: "not_run" };
   state.folder = selected;
   persistPreferences();
   window.dispatchEvent(new CustomEvent("s3cc-folder-changed", { detail: state.folder }));
