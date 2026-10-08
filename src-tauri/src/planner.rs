@@ -63,6 +63,28 @@ fn resource_cfg_context(root: &Path) -> Option<ResourceCfgContext> {
     Some(ResourceCfgContext { info, directory })
 }
 
+fn is_mods_root(root: &Path) -> bool {
+    root.file_name()
+        .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("mods"))
+}
+
+// When the user selected Mods rather than Mods/Packages, the organizer's
+// destination folders must still stay inside Packages, even if the selected
+// package has no reliable Resource.cfg rule.
+fn ensure_packages_destination(root: &Path, parts: &[String]) -> Vec<String> {
+    if !is_mods_root(root)
+        || parts
+            .first()
+            .is_some_and(|part| part.eq_ignore_ascii_case("packages"))
+    {
+        return parts.to_vec();
+    }
+    let mut result = Vec::with_capacity(parts.len() + 1);
+    result.push("Packages".to_string());
+    result.extend_from_slice(parts);
+    result
+}
+
 fn destination_path(root: &Path, parts: &[String], file_name: &std::ffi::OsStr) -> PathBuf {
     let mut path = root.to_path_buf();
     for part in parts {
@@ -79,15 +101,15 @@ fn fit_destination_to_resource_cfg(
     parts: &[String],
     context: Option<&ResourceCfgContext>,
 ) -> Result<(Vec<String>, Option<String>), String> {
+    let packages_parts = ensure_packages_destination(root, parts);
     let Some(context) = context else {
-        return Ok((parts.to_vec(), None));
+        return Ok((packages_parts, None));
     };
 
-    // Only enforce/compact when the current package is actually covered by
-    // this Resource.cfg. This avoids making assumptions for custom layouts
-    // whose traversal is outside the parser's reliable subset.
+    // When a package is not covered by this Resource.cfg, still preserve the
+    // Packages root. Never redirect it into Mods directly.
     let Some(source_priority) = package_priority(&context.info, &context.directory, source) else {
-        return Ok((parts.to_vec(), None));
+        return Ok((packages_parts, None));
     };
 
     // Preserve the literal loading prefix from the matching PackedFile rule.
@@ -127,7 +149,19 @@ fn fit_destination_to_resource_cfg(
     }
 
     let mut proposed = base_prefix;
-    proposed.extend(parts.iter().cloned());
+    // A Mods-root destination already starts with Packages; do not prepend
+    // the rule's Packages prefix a second time.
+    let already_prefixed = packages_parts
+        .iter()
+        .take(proposed.len())
+        .zip(proposed.iter())
+        .all(|(part, prefix)| part.eq_ignore_ascii_case(prefix))
+        && packages_parts.len() >= proposed.len();
+    if already_prefixed {
+        proposed = packages_parts;
+    } else {
+        proposed.extend(packages_parts);
+    }
 
     let direct = destination_path(root, &proposed, file_name);
     if package_priority(&context.info, &context.directory, &direct).is_some() {
@@ -298,8 +332,16 @@ fn fallback_relative_path(
         parent_parts.remove(0);
     }
 
+    if is_mods_root(root)
+        && parent_parts
+            .first()
+            .is_some_and(|part| part.eq_ignore_ascii_case("packages"))
+    {
+        parent_parts.remove(0);
+    }
     let mut destination_parts = vec![language.not_categorized_folder().to_string()];
     destination_parts.extend(parent_parts);
+    destination_parts = ensure_packages_destination(root, &destination_parts);
 
     let mut destination_relative = PathBuf::new();
     for part in &destination_parts {
@@ -512,6 +554,20 @@ pub fn build_organization_plan(
         return Err(format!("Root is not a directory: {}", root.display()));
     }
 
+    // A Mods root may also contain Overrides, DCCache and other directories.
+    // Never organize those as Packages or create category folders beside Packages.
+    let packages_root = if is_mods_root(&root) {
+        let path = root.join("Packages")
+            .canonicalize()
+            .map_err(|_| "The selected Mods folder must contain a Packages directory.".to_string())?;
+        if !path.is_dir() || !path_is_within_root(&root, &path) {
+            return Err("Mods/Packages is not a safe directory inside the selected Mods root.".to_string());
+        }
+        Some(path)
+    } else {
+        None
+    };
+
     let workspace = load_workspace_for_root(&root);
     let profile = active_profile(&workspace);
     let resource_cfg = resource_cfg_context(&root);
@@ -614,6 +670,18 @@ pub fn build_organization_plan(
             .get(&source_canonical)
             .cloned()
             .ok_or_else(|| format!("Missing selected package hash: {}", source.display()))?;
+
+        if packages_root
+            .as_ref()
+            .is_some_and(|packages| !path_is_within_root(packages, &source_canonical))
+        {
+            stats.blocked += 1;
+            items.push(make_blocked(
+                item,
+                "The package is outside Mods/Packages. It will not be moved into the organized Packages library.".to_string(),
+            ));
+            continue;
+        }
 
         if partial_group_hashes.contains(&source_hash) {
             stats.blocked += 1;
@@ -894,6 +962,41 @@ pub fn build_organization_plan(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn mods_root_always_routes_categories_into_packages() {
+        let mods = Path::new(r"C:\The Sims 3\Mods");
+        let categories = vec!["CAS".into(), "Clothing".into(), "Female".into()];
+        assert_eq!(
+            ensure_packages_destination(mods, &categories),
+            vec!["Packages", "CAS", "Clothing", "Female"]
+        );
+        assert_eq!(
+            ensure_packages_destination(mods, &["Packages".into(), "CAS".into()]),
+            vec!["Packages", "CAS"]
+        );
+    }
+
+    #[test]
+    fn already_selected_packages_root_does_not_duplicate_folder_name() {
+        let packages = Path::new(r"C:\The Sims 3\Mods\Packages");
+        let categories = vec!["CAS".into(), "Hair".into()];
+        assert_eq!(ensure_packages_destination(packages, &categories), categories);
+    }
+
+    #[test]
+    fn uncovered_resource_cfg_source_still_keeps_packages_prefix() {
+        let root = Path::new(r"C:\The Sims 3\Mods");
+        let parts = vec!["Scripts".to_string(), "Gameplay".to_string()];
+        let (resolved, _) = fit_destination_to_resource_cfg(
+            root,
+            &root.join("Packages/Unmatched.package"),
+            std::ffi::OsStr::new("Unmatched.package"),
+            &parts,
+            None,
+        ).unwrap();
+        assert_eq!(resolved, vec!["Packages", "Scripts", "Gameplay"]);
+    }
 
     #[test]
     fn destination_components_reject_path_escape_and_windows_invalid_names() {
