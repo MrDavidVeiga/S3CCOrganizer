@@ -416,18 +416,29 @@ fn script_category(package: &Package, name: &str, language: AppLanguage) -> &'st
     localized_special_folder(language, "scripts")
 }
 
-// A gameplay assembly inside a catalog object does not make the entire
-// package a standalone gameplay mod. Keep S3SA as metadata, but use CASP/OBJD
-// destinations (or request review if the catalog is ambiguous/unreadable).
-// Explicit NRaas signatures are handled before S3SA and retain priority.
+// A script assembly in an object does not by itself make a standalone gameplay
+// mod. Conversely, actual gameplay mods may bundle CASP/OBJD resources. A
+// verified internal author or an explicitly scripted source tree is independent
+// evidence that the assembly is primary rather than embedded object behavior.
+fn explicit_script_source_folder(relative: &str) -> bool {
+    relative.split(['\\', '/']).take_while(|part| !part.to_ascii_lowercase().ends_with(".package"))
+        .any(|part| {
+            let normalized = part.trim().to_ascii_lowercase();
+            matches!(normalized.as_str(), "scripts" | "#8 scripts" | "gameplay")
+        })
+}
+
 fn catalog_precedes_embedded_script(
     special: Option<&PackageFamilyClassification>,
     catalog_resource_count: usize,
+    relative: &str,
 ) -> bool {
     catalog_resource_count > 0
         && special.is_some_and(|classification| {
             classification.detected_from.iter().any(|source| source == "S3SA")
                 && !classification.detected_from.iter().any(|source| source == "NRaasInternal")
+                && !classification.detected_from.iter().any(|source| source == "InternalCreator")
+                && !explicit_script_source_folder(relative)
         })
 }
 
@@ -1286,7 +1297,7 @@ fn scan_one(
 
     let special_primary =
         special_package_classification(&package, &type_ids, &name, &relative, language, catalog_resource_count);
-    let catalog_first = catalog_precedes_embedded_script(special_primary.as_ref(), catalog_resource_count);
+    let catalog_first = catalog_precedes_embedded_script(special_primary.as_ref(), catalog_resource_count, &relative);
     if let Some(special) = &special_primary {
         for source in &special.detected_from {
             detected_from.insert(source.clone());
@@ -1684,10 +1695,10 @@ mod tests {
         };
         // Covers the basketball hoop, functional Store equipment, and
         // custom objects carrying their own gameplay code.
-        assert!(catalog_precedes_embedded_script(Some(&standalone_script), 1));
-        assert!(catalog_precedes_embedded_script(Some(&standalone_script), 4));
-        assert!(!catalog_precedes_embedded_script(Some(&standalone_script), 0));
-        assert!(!catalog_precedes_embedded_script(None, 4));
+        assert!(catalog_precedes_embedded_script(Some(&standalone_script), 1, "Packages/Store/Hoop.package"));
+        assert!(catalog_precedes_embedded_script(Some(&standalone_script), 4, "Buy/Sports/Hoop.package"));
+        assert!(!catalog_precedes_embedded_script(Some(&standalone_script), 0, "Buy/Sports/Hoop.package"));
+        assert!(!catalog_precedes_embedded_script(None, 4, "Buy/Sports/Hoop.package"));
 
         let nraas = PackageFamilyClassification {
             main_category: "NRaas".into(),
@@ -1696,7 +1707,26 @@ mod tests {
             detected_from: vec!["NRaasInternal".into()],
             technical_reason: "NRaas internal signature".into(),
         };
-        assert!(!catalog_precedes_embedded_script(Some(&nraas), 1));
+        assert!(!catalog_precedes_embedded_script(Some(&nraas), 1, "Scripts/NRaas.package"));
+
+        for path in [
+            r"Packages\#8 Scripts\Gameplay\Interactions\twinsimming_Pasteurize Milk Mod.package",
+            "Packages/Scripts/Gamefreak130_KarmaPowers.package",
+            "Packages/#8 Scripts/Gameplay/Services/douglasveiga_Gardener.package",
+        ] {
+            assert!(explicit_script_source_folder(path));
+            assert!(!catalog_precedes_embedded_script(Some(&standalone_script), 1, path));
+        }
+        assert!(!explicit_script_source_folder(
+            r"Packages\#9 Store\Store Content\[PC] Rim Rockin Basketball Hoop.package"
+        ));
+        let verified_mod = PackageFamilyClassification {
+            detected_from: vec!["S3SA".into(), "InternalCreator".into()],
+            ..standalone_script
+        };
+        assert!(!catalog_precedes_embedded_script(
+            Some(&verified_mod), 2, r"#+18\AnimatedWoohoo.package"
+        ));
     }
 
     #[test]
