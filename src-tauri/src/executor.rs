@@ -20,6 +20,13 @@ use walkdir::WalkDir;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct MovedPath {
+    pub from: String,
+    pub to: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ExecutionResult {
     pub status: String,
     pub manifest_path: Option<String>,
@@ -30,6 +37,8 @@ pub struct ExecutionResult {
     pub old_folders_retained: usize,
     pub remaining_legacy_files: usize,
     pub remaining_legacy_examples: Vec<String>,
+    pub organized_root: String,
+    pub moved_paths: Vec<MovedPath>,
     pub errors: Vec<String>,
 }
 
@@ -394,6 +403,8 @@ fn execute_organization_core(
             old_folders_retained: 0,
             remaining_legacy_files: 0,
             remaining_legacy_examples: Vec::new(),
+            organized_root: root.to_string_lossy().to_string(),
+            moved_paths: Vec::new(),
             errors: Vec::new(),
         });
     }
@@ -622,6 +633,8 @@ fn execute_organization_core(
             old_folders_retained: 0,
             remaining_legacy_files: 0,
             remaining_legacy_examples: Vec::new(),
+            organized_root: root.to_string_lossy().to_string(),
+            moved_paths: Vec::new(),
             errors,
         });
     }
@@ -638,6 +651,46 @@ fn execute_organization_core(
     replace_manifest_atomic(&manifest_path, &manifest)?;
     operation::update("organize", 1, None, "complete");
 
+    // Return authoritative source/destination pairs to update the displayed
+    // list immediately; do not run another full DBPF scan after each move.
+    let moved_paths = moved_pairs.iter().map(|(source, destination, _, _)| MovedPath {
+        from: source.to_string_lossy().to_string(),
+        to: destination.to_string_lossy().to_string(),
+    }).collect::<Vec<_>>();
+    crate::scanner::apply_confirmed_organization_moves(
+        &root,
+        &moved_pairs.iter().map(|(source, destination, _, _)|
+            (source.clone(), destination.clone())).collect::<Vec<_>>(),
+    );
+    // The selected Mods root may contain both branches. Open the actual
+    // loading branch when all moved packages share it; otherwise open Mods.
+    let mut organized_root = root.clone();
+    if root.file_name().is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("Mods")) {
+        let mut branch = None::<PathBuf>;
+        let mut one_branch = true;
+        for (_, destination, _, _) in &moved_pairs {
+            let candidate = destination.strip_prefix(&root).ok()
+                .and_then(|relative| relative.components().next())
+                .and_then(|part| match part {
+                    std::path::Component::Normal(name)
+                        if name.to_string_lossy().eq_ignore_ascii_case("Packages")
+                        || name.to_string_lossy().eq_ignore_ascii_case("Overrides") =>
+                        Some(PathBuf::from(name)),
+                    _ => None,
+                });
+            if candidate.is_none() || (branch.is_some() && branch != candidate) {
+                one_branch = false;
+                break;
+            }
+            branch = candidate;
+        }
+        if one_branch {
+            if let Some(branch) = branch {
+                organized_root = root.join(branch);
+            }
+        }
+    }
+
     Ok(ExecutionResult {
         status: "COMPLETE".to_string(),
         manifest_path: Some(manifest_path.to_string_lossy().to_string()),
@@ -648,6 +701,8 @@ fn execute_organization_core(
         old_folders_retained,
         remaining_legacy_files,
         remaining_legacy_examples,
+        organized_root: organized_root.to_string_lossy().to_string(),
+        moved_paths,
         errors: cleanup_warnings,
     })
 }
