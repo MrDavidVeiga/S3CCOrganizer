@@ -3006,6 +3006,8 @@ async function selectExactCopiesForQuarantine() {
   state.duplicatesError = "";
   state.duplicatesFilter = "exact_duplicate";
   el.duplicatesFilter.value = "exact_duplicate";
+  state.duplicatesSearch = "";
+  el.duplicatesSearch.value = "";
   persistPreferences();
   state.duplicatesNotice = `${t("bulkExactSummary")} (${groups.length} / ${selected.size})`;
   renderDuplicates();
@@ -3061,6 +3063,7 @@ async function buildQuarantinePreview() {
   if (!exactSurvivorIsSafe()) {
     state.duplicatesError = t("bulkExactUnsafe");
     renderDuplicatesPreview();
+    renderDuplicateBatchControls();
     return;
   }
   state.quarantineBusy = true;
@@ -3299,7 +3302,8 @@ function renderDuplicatesPreview() {
     const members = document.createElement("div");
     members.className = "duplicate-member-list";
     const quarantineEligible =
-      item.kind === "exact_duplicate" || item.kind === "content_duplicate";
+      item.kind === "exact_duplicate" ||
+      (item.kind === "content_duplicate" && !state.quarantineExactBatch);
     for (const member of item.members || []) {
       const card = document.createElement("article");
       card.className = "duplicate-member";
