@@ -11,6 +11,7 @@ pub mod executor;
 pub mod i18n;
 pub mod manifest;
 pub mod mesh_info;
+pub mod mods_layout;
 pub mod navigation;
 pub mod operation;
 pub mod package_family;
