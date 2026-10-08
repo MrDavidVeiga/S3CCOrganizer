@@ -101,9 +101,7 @@ pub fn find_resource_cfg(selected_root: &Path) -> Option<PathBuf> {
         if candidate.is_file() {
             return Some(candidate);
         }
-        if directory.file_name().is_some_and(|name| {
-            name.to_string_lossy().eq_ignore_ascii_case("Mods")
-        }) {
+        if crate::mods_layout::is_mods_root(directory) {
             break;
         }
     }
