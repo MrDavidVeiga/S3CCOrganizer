@@ -60,6 +60,7 @@ send(trigger,"Enter");
 assert.equal(select.value,"b","keyboard must update original select value");
 assert.equal(changes,1,"native change event must still fire");
 assert.equal(trigger.getAttribute("aria-expanded"),"false");
+console.log("After keyboard selection", JSON.stringify({selectValue:select.value,index:select.selectedIndex,selectedLabel:select.selectedOptions[0]?.label,caption:trigger.textContent,html:trigger.outerHTML.slice(0,500)}));
 assert(trigger.textContent.includes("Beta"));
 trigger.click();
 const gamma=[...popup.querySelectorAll('[role="option"]')].find(e=>e.textContent.includes("Gamma"));
