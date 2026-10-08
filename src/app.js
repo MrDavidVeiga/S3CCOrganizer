@@ -368,6 +368,9 @@ const I18N = {
     duplicateDetailsTitle: "Duplicate Details",
     duplicateDetailsIntro: "Compare the detected files, previews and evidence before taking any action.",
     duplicateDetailsSafety: "No file is changed while reviewing duplicate details.",
+    conflictDetailsTitle: "Conflict Details",
+    conflictDetailsIntro: "Compare both packages, previews and resource evidence before deciding how to handle an overlap.",
+    conflictDetailsSafety: "Reviewing a conflict does not change either package.",
     openLocation: "Open Location",
     contentType: "Content Type",
     contentSource: "Source",
@@ -823,6 +826,9 @@ const I18N = {
     duplicateDetailsTitle: "Detalhes dos Duplicados",
     duplicateDetailsIntro: "Compare os arquivos detectados, previews e evidências antes de realizar qualquer ação.",
     duplicateDetailsSafety: "Nenhum arquivo é alterado durante a revisão dos duplicados.",
+    conflictDetailsTitle: "Detalhes dos Conflitos",
+    conflictDetailsIntro: "Compare os dois packages, as prévias e as evidências dos recursos antes de decidir como tratar uma sobreposição.",
+    conflictDetailsSafety: "Revisar um conflito não altera nenhum package.",
     openLocation: "Abrir Local",
     contentType: "Tipo de Conteúdo",
     contentSource: "Origem",
@@ -1277,6 +1283,9 @@ const I18N = {
     duplicateDetailsTitle: "Detalles de Duplicados",
     duplicateDetailsIntro: "Compara los archivos detectados, vistas previas y evidencias antes de realizar cualquier acción.",
     duplicateDetailsSafety: "Ningún archivo se modifica durante la revisión de duplicados.",
+    conflictDetailsTitle: "Detalles de Conflictos",
+    conflictDetailsIntro: "Compara ambos packages, vistas previas y evidencias de recursos antes de decidir cómo tratar una superposición.",
+    conflictDetailsSafety: "Revisar un conflicto no modifica ningún package.",
     openLocation: "Abrir Ubicación",
     contentType: "Tipo de Contenido",
     contentSource: "Origen",
@@ -1693,6 +1702,9 @@ const el = {
   conflictsResults: document.querySelector("#conflicts-results"),
   conflictsList: document.querySelector("#conflicts-list"),
   conflictsPreview: document.querySelector("#conflicts-preview"),
+  conflictDetailsModal: document.querySelector("#conflict-details-modal"),
+  conflictDetailsCloseBtn: document.querySelector("#conflict-details-close-btn"),
+  conflictDetailsCloseFooterBtn: document.querySelector("#conflict-details-close-footer-btn"),
   confStatPairs: document.querySelector("#conf-stat-pairs"),
   confStatReal: document.querySelector("#conf-stat-real"),
   confStatScript: document.querySelector("#conf-stat-script"),
@@ -2701,7 +2713,9 @@ async function loadDuplicateMemberPreview(member) {
     }
     // Share the cached package thumbnails with Conflicts, without loading
     // previews for all findings in a potentially very large scan.
-    if (state.tab === "conflicts" && (state.conflictsAnalysis?.findings || []).some(
+    if (state.tab === "conflicts" &&
+        el.conflictDetailsModal && !el.conflictDetailsModal.classList.contains("hidden") &&
+        (state.conflictsAnalysis?.findings || []).some(
       (finding) => finding.id === state.conflictSelectedId &&
         (finding.left?.path === path || finding.right?.path === path)
     )) renderConflictsPreview();
@@ -3243,8 +3257,22 @@ function visibleConflictFindings() {
   return result;
 }
 
+function openConflictDetails() {
+  if (!state.conflictSelectedId || !el.conflictDetailsModal) return;
+  el.conflictDetailsModal.classList.remove("hidden");
+  el.conflictDetailsModal.setAttribute("aria-hidden", "false");
+  renderConflictsPreview();
+  el.conflictDetailsCloseBtn?.focus();
+}
+
+function closeConflictDetails() {
+  if (!el.conflictDetailsModal) return;
+  el.conflictDetailsModal.classList.add("hidden");
+  el.conflictDetailsModal.setAttribute("aria-hidden", "true");
+}
+
 function renderConflictsPreview() {
-  if (!el.conflictsPreview) return;
+  if (!el.conflictsPreview || el.conflictDetailsModal?.classList.contains("hidden")) return;
   const finding = (state.conflictsAnalysis?.findings || []).find(
     (item) => item.id === state.conflictSelectedId
   );
@@ -3515,10 +3543,9 @@ function createConflictFindingRow(finding) {
 
   button.append(main, side);
   button.addEventListener("click", () => {
-    if (state.conflictSelectedId === finding.id) return;
     state.conflictSelectedId = finding.id;
     updateActiveVirtualRow(el.conflictsList, "conflictId", finding.id, "active");
-    renderConflictsPreview();
+    openConflictDetails();
   });
   return button;
 }
@@ -6224,6 +6251,7 @@ function clearLoadedLibrary() {
   state.operations = { scan: null, duplicates: null, conflicts: null };
   closePlanModal();
   closeDuplicateDetails();
+  closeConflictDetails();
   closeCollisionReview();
   persistPreferences();
   render();
@@ -6706,6 +6734,10 @@ document.addEventListener("keydown", (event) => {
     closeDuplicateDetails();
     return;
   }
+  if (!el.conflictDetailsModal.classList.contains("hidden")) {
+    closeConflictDetails();
+    return;
+  }
   if (!el.collisionReviewModal.classList.contains("hidden")) {
     closeCollisionReview();
     return;
@@ -6809,6 +6841,11 @@ el.duplicateDetailsCloseBtn.addEventListener("click", closeDuplicateDetails);
 el.duplicateDetailsCloseFooterBtn.addEventListener("click", closeDuplicateDetails);
 el.duplicateDetailsModal.addEventListener("click", (event) => {
   if (event.target === el.duplicateDetailsModal) closeDuplicateDetails();
+});
+el.conflictDetailsCloseBtn.addEventListener("click", closeConflictDetails);
+el.conflictDetailsCloseFooterBtn.addEventListener("click", closeConflictDetails);
+el.conflictDetailsModal.addEventListener("click", (event) => {
+  if (event.target === el.conflictDetailsModal) closeConflictDetails();
 });
 el.collisionReviewCloseBtn.addEventListener("click", closeCollisionReview);
 el.collisionReviewCloseFooterBtn.addEventListener("click", closeCollisionReview);
