@@ -132,3 +132,34 @@ assert.match(css,/outline: 2px solid var\(--fluent-focus-outer\)/);
 assert.match(css,/--winui-control-fill-pressed: rgba\(0,0,0,.16\)/);
 assert.match(css,/--fluent-list-pressed-fill: rgba\(95,27,63,.21\)/);
 console.log("Seven-theme audit: PASS (list/menus/ComboBox states, light hover, status/text contrast, all 7 themes, no row geometry changes)");
+
+
+/* Beta 2 integrated tools: theme coverage must include the dynamically
+ * rendered detail cards, workflow status text and history actions. */
+const integrationCss = css.slice(css.indexOf("Cross-feature integration:"));
+assert(integrationCss.length > 3000, "integrated feature styling missing");
+for (const selector of [
+  ".plan-item",".planner-section",".restore-root-check",".restore-summary article",
+  ".duplicate-member",".duplicate-pair article",".conflict-pair article",
+  ".conflict-evidence",".quarantine-preview",".tools-card",".manual-review-box",
+  ".catalog-table-shell",".sims3pack-group",".sims3pack-warning",
+  ".collision-review-item",".history-record-actions .danger-btn",
+  ".tools-subtab.active",".scan-state.error",".restore-manifest-path"
+]) assert(integrationCss.includes(selector), "unthemed Beta 2 component "+selector);
+for (const token of [
+  "--winui-card-fill-alt","--fluent-control-stroke",
+  "--fluent-text-primary","--fluent-state-success","--fluent-state-warning",
+  "--fluent-state-error","--fluent-list-pressed-fill",
+  "--fluent-list-selected-fill","--fluent-list-active-hover-fill",
+  "--fluent-danger-hover"
+]) assert(integrationCss.includes("var("+token), "missing integrated semantic token "+token);
+assert.match(integrationCss,/forced-colors: active/);
+assert.match(integrationCss,/prefers-reduced-motion: reduce/);
+assert.doesNotMatch(integrationCss,/\b(?:height|min-height|max-height):\s*(?:53|56|62|66)px/,
+  "theme integration may not modify virtual list measurements");
+for (const element of [
+  'id="tools-history"','id="duplicate-details-modal"',
+  'id="conflict-details-modal"','id="collision-review-modal"',
+  'id="restore-root-check"'
+]) assert(html.includes(element), "missing corresponding integrated screen "+element);
+console.log("Beta 2 integrated themes: static coverage PASS (runtime/WebView2 still pending)");
