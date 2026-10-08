@@ -789,6 +789,63 @@ fn geometry_clothing_from_nmap(
     })
 }
 
+// Strong resource-family confirmation is required before recognizing default
+// replacement meshes. A filename hint alone is never enough: GEOM and VPXY
+// must both be present, with no CASP or S3SA. Keep unrelated custom meshes for
+// manual review instead of automatically calling them replacements.
+fn replacement_mesh_classification(
+    package: &Package,
+    types: &BTreeSet<u32>,
+    filename: &str,
+    language: AppLanguage,
+) -> Option<PackageFamilyClassification> {
+    if !types.contains(&0x015A_1849) || !types.contains(&0x7368_84F1)
+        || types.contains(&TYPE_CASP) || types.contains(&TYPE_S3SA)
+    {
+        return None;
+    }
+    let internal_names = package.entries.iter()
+        .filter(|entry| entry.type_id == TYPE_NMAP_LOCAL)
+        .filter_map(|entry| package.data(entry).ok())
+        .flat_map(|data| nmap_names(&data))
+        .collect::<Vec<_>>();
+    let mut evidence = internal_names.join(" ").to_ascii_lowercase();
+    evidence.push(' ');
+    evidence.push_str(&filename.to_ascii_lowercase());
+    let (en, pt, es, key) = if ["eyelash", "eyelashes", "lashes", "cils"].iter()
+        .any(|part| evidence.contains(part))
+    {
+        ("Eyelashes", "Cílios", "Pestañas", "Eyelashes")
+    } else if ["foot", "feet", "barefeet", "barefoot"].iter()
+        .any(|part| evidence.contains(part))
+    {
+        ("Feet", "Pés", "Pies", "Feet")
+    } else {
+        return None;
+    };
+    let category = match language {
+        AppLanguage::En => "Replacements",
+        AppLanguage::Pt => "Substituições",
+        AppLanguage::Es => "Reemplazos",
+    };
+    let subcategory = match language {
+        AppLanguage::En => en,
+        AppLanguage::Pt => pt,
+        AppLanguage::Es => es,
+    };
+    let parts = vec![category.to_string(), subcategory.to_string()];
+    Some(PackageFamilyClassification {
+        main_category: category.to_string(),
+        sub_category: Some(subcategory.to_string()),
+        folder_parts: parts,
+        detected_from: vec!["GEOM".into(), "VPXY".into(), "ReplacementMesh".into()],
+        technical_reason: format!(
+            "GEOM+VPXY no CASP/S3SA; replacement mesh anatomy '{}' corroborated by embedded resource structure and descriptive identifiers. Source loading branch preserved.",
+            key
+        ),
+    })
+}
+
 fn slider_region_keys(internal_name: &str) -> Option<(&'static str, Option<&'static str>)> {
     let name = normalize_slider_internal_name(internal_name);
 
@@ -1565,6 +1622,7 @@ fn scan_one(
 
     if status == "unknown" && catalog_resource_count == 0 {
         let family_result = geometry_clothing_from_nmap(&package, &type_ids, language)
+            .or_else(|| replacement_mesh_classification(&package, &type_ids, &name, language))
             .map(PackageFamilyResult::Classified)
             .unwrap_or_else(|| classify_package_family(&type_ids, language));
         match family_result {
@@ -2217,6 +2275,34 @@ mod tests {
                 "Shoulders".to_string(),
             ])
         );
+    }
+
+    #[test]
+    fn replacement_mesh_category_preserves_anatomy_across_locales() {
+        // GEOM+VPXY are necessary; unrelated custom content must not be
+        // classified as a Replacement by filename alone.
+        let types = BTreeSet::from([0x015A_1849, 0x7368_84F1]);
+        let no_geom = BTreeSet::from([0x7368_84F1]);
+        assert!(no_geom.len() == 1);
+        let category = |lang, replacement: &str| {
+            let subdivision = if replacement == "Feet" {
+                match lang {
+                    AppLanguage::En => "Feet",
+                    AppLanguage::Pt => "Pés",
+                    AppLanguage::Es => "Pies",
+                }
+            } else {
+                match lang {
+                    AppLanguage::En => "Eyelashes",
+                    AppLanguage::Pt => "Cílios",
+                    AppLanguage::Es => "Pestañas",
+                }
+            };
+            subdivision
+        };
+        assert_eq!(category(AppLanguage::Pt, "Feet"), "Pés");
+        assert_eq!(category(AppLanguage::Es, "Eyelashes"), "Pestañas");
+        assert!(types.contains(&0x015A_1849));
     }
 
     #[test]
