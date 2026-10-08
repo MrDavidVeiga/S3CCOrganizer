@@ -57,3 +57,11 @@ Added `src/ui/fluent/overlays.js` and `overlays.css` to standardize keyboard foc
 ## Interaction simulator (Batch 2)
 
 `scripts/test-fluent-interactions.mjs` uses JSDOM in the branch-only Windows CI workflow to verify keyboard/pointer ComboBox selection with native select event propagation, dynamic option refresh, 1200-entry virtualization, language-menu keyboard navigation, and nested modal Escape/focus restoration. This is not a screenshot/WebView accessibility test; that remains a separate release gate.
+
+## UI feedback patch — Oct 8
+
+- ComboBoxes: pointer hover now updates the highlighted option without replacing the hovered DOM element.
+- Closed ComboBox: Up/Down selects the previous/next enabled option immediately (without opening); native input/change events remain intact. Alt+Down opens; Enter/Space opens.
+- EA App theme: accent #276AFC, hover #3978FC, pressed #215BD8, with white text and matching theme swatch.
+- Lists: hover, outline and selected state are centered vertically with label/count, keeping virtual row heights 56px (Manager) and 53px (Duplicates/Conflicts), with existing gaps.
+- Automated interaction and theme regression checks to follow in the same branch.

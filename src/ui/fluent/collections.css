@@ -1,0 +1,80 @@
+/*
+ * Vertical ListView alignment. Respect the virtualization assumptions in app.js:
+ * Manager row 56px + gap 10px = stride 66px;
+ * Duplicates/Conflicts row 53px + gap 9px = stride 62px.
+ * Hover, focus and selection never change row geometry.
+ */
+body.release-v1 :is(.package-row,.duplicate-row,.conflict-row) {
+  box-sizing: border-box;
+  align-items: center;
+  align-content: center;
+  padding-block: 0;
+  border-radius: var(--fluent-radius-control);
+  background-clip: padding-box;
+}
+
+body.release-v1 .package-row {
+  height: 56px;
+  min-height: 56px;
+  max-height: 56px;
+  padding-inline: 12px;
+}
+
+body.release-v1 :is(.duplicate-row,.conflict-row) {
+  height: 53px;
+  min-height: 53px;
+  max-height: 53px;
+  padding-inline: 12px;
+}
+
+body.release-v1 :is(.package-main,.duplicate-row-main,.conflict-row-main) {
+  display: flex;
+  flex-direction: column;
+  align-self: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: 0;
+  min-width: 0;
+}
+
+body.release-v1 :is(.package-main,.duplicate-row-main,.conflict-row-main) strong {
+  display: block;
+  font-size: 14px;
+  line-height: 18px;
+  min-height: 0;
+}
+
+body.release-v1 :is(.package-main,.duplicate-row-main,.conflict-row-main) > span {
+  display: block;
+  line-height: 16px;
+  min-height: 0;
+}
+
+body.release-v1 :is(.package-check,.package-side,.duplicate-kind,.conflict-row-side) {
+  align-self: center;
+}
+body.release-v1 :is(.duplicate-kind,.conflict-row-side) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+body.release-v1 :is(.package-row,.duplicate-row,.conflict-row):hover:not(.active) {
+  background: var(--fluent-control-hover);
+}
+body.release-v1 :is(.duplicate-row,.conflict-row).active {
+  background: var(--fluent-control-hover);
+  border-color: rgba(var(--accent-rgb), .48);
+}
+body.release-v1 :is(.package-row,.duplicate-row,.conflict-row):focus-visible {
+  outline-offset: -2px;
+}
+@media (forced-colors: active) {
+  body.release-v1 :is(.package-row,.duplicate-row,.conflict-row).active {
+    border-color: Highlight;
+  }
+  body.release-v1 :is(.package-row,.duplicate-row,.conflict-row):hover {
+    outline: 1px solid Highlight;
+    outline-offset: -1px;
+  }
+}
