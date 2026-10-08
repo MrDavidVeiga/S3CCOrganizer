@@ -57,6 +57,8 @@ Beta 2 focuses on safer automatic organization, clearer classification evidence,
 - Required confirmation for Restore, Quarantine Restore and interrupted-Quarantine recovery.
 - Added guarded History record removal; incomplete operation journals remain protected.
 - Hardened Organizer and Restore file transfers with verified no-overwrite destinations, more complete rollback accounting, and recoverable manifest replacement on Windows.
+- Fixed Quarantine journal status replacement on Windows using recoverable backups.
+- Serialized Organizer, Restore, Quarantine and restore-history deletion file mutations to avoid concurrent operations against the same CC library.
 - Blocked automatic organization when Resource.cfg contains unsupported loading/traversal rules.
 - Combined Sims3Pack conversion now refuses conflicting same-TGI payloads rather than silently dropping one; thumbnail cache recovery failures are reported.
 - Reanalysis enumerates the current file tree instead of relying on an old cached path list.
