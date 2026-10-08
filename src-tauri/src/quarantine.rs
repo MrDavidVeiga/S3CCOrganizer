@@ -71,7 +71,7 @@ fn transaction_mutex() -> &'static Mutex<()> {
     QUARANTINE_MUTEX.get_or_init(|| Mutex::new(()))
 }
 
-fn transaction_guard() -> Result<std::sync::MutexGuard<'static, ()>, String> {
+pub(crate) fn transaction_guard() -> Result<std::sync::MutexGuard<'static, ()>, String> {
     transaction_mutex()
         .lock()
         .map_err(|_| "Quarantine transaction lock is poisoned.".to_string())
