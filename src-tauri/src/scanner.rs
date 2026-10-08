@@ -966,6 +966,44 @@ fn top_level_relative_folder(relative: &str) -> Option<String> {
     components.next().map(|_| first)
 }
 
+// Only real, named mod folders may propagate a script's destination to
+// companions. Standard resource roots and broad organizer categories group
+// unrelated packages and must never become implicit mod identities.
+fn named_mod_companion_folder(relative: &str) -> Option<String> {
+    let folder = top_level_relative_folder(relative)?;
+    let name = folder.trim().to_ascii_lowercase();
+    let generic = matches!(
+        name.as_str(),
+        "packages" | "overrides" | "test" | "probation" | "dccache"
+            | "mods" | "cc" | "custom content" | "downloads"
+            | "build" | "buy" | "cas" | "gameplay" | "scripts"
+            | "sliders" | "objects" | "poses" | "animations"
+            | "hair" | "clothing" | "accessories" | "skins" | "textures"
+            | "male" | "female" | "misc" | "miscellaneous"
+            | "nraas" | "tuning" | "store" | "ui"
+    );
+    if generic || name.starts_with('#') || name.starts_with('!') || name.starts_with('+') {
+        return None;
+    }
+    Some(folder)
+}
+
+fn may_reclassify_as_companion(item: &ScanPackageItem) -> bool {
+    // Explicit CASP/OBJD classifications and independently identified
+    // scripts must not be overwritten by a neighboring mod's destination.
+    item.status != "invalid"
+        && item.status != "mixed"
+        && item.status != "needs_review"
+        && !item.scripted
+        && item.catalog_resource_count == 0
+        && item.classification_confidence != "high"
+        && !item.detected_from.iter().any(|source| value_is_authoritative_mod_source(source))
+}
+
+fn value_is_authoritative_mod_source(source: &str) -> bool {
+    matches!(source, "NRaasInternal" | "ModName" | "CASP" | "OBJD")
+}
+
 fn apply_named_mod_companions(items: &mut [ScanPackageItem]) {
     let mut destinations = HashMap::<String, BTreeSet<String>>::new();
 
@@ -976,7 +1014,7 @@ fn apply_named_mod_companions(items: &mut [ScanPackageItem]) {
         if !item.detected_from.iter().any(|value| value == "ModName") {
             continue;
         }
-        let Some(folder) = top_level_relative_folder(&item.relative_path) else {
+        let Some(folder) = named_mod_companion_folder(&item.relative_path) else {
             continue;
         };
         destinations
@@ -993,12 +1031,10 @@ fn apply_named_mod_companions(items: &mut [ScanPackageItem]) {
         .collect::<HashMap<_, _>>();
 
     for item in items.iter_mut() {
-        if item.status == "invalid"
-            || item.detected_from.iter().any(|value| value == "NRaasInternal")
-        {
+        if !may_reclassify_as_companion(item) {
             continue;
         }
-        let Some(folder) = top_level_relative_folder(&item.relative_path) else {
+        let Some(folder) = named_mod_companion_folder(&item.relative_path) else {
             continue;
         };
         let Some(destination) = unique.get(&folder.to_ascii_lowercase()) else {
@@ -1618,6 +1654,61 @@ pub async fn scan_packages(folder: String, language: AppLanguage) -> Result<Scan
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn generic_source_folders_cannot_reassign_unrelated_packages() {
+        for source in [
+            "Packages/Scripts/SomeGameplay.package",
+            "Packages/Male Hair/SomeHair.package",
+            "CAS/Sliders/Body/Morph.package",
+            "Build/Windows/SomeWindow.package",
+            "Buy/Decor/SomeObject.package",
+            "#+18/Pns (TS3)/Rigged/Body.package",
+            "NRaas/MasterController/Extension.package",
+            "Overrides/UI/Tuning.package",
+        ] {
+            assert!(named_mod_companion_folder(source).is_none(), "{source}");
+        }
+    }
+
+    #[test]
+    fn specifically_named_mod_folder_can_group_companions() {
+        assert_eq!(
+            named_mod_companion_folder("Baking Mod/Cakes/Chocolate.package").as_deref(),
+            Some("Baking Mod")
+        );
+        assert_eq!(
+            named_mod_companion_folder("PrismHome/Assets/Strings.package").as_deref(),
+            Some("PrismHome")
+        );
+    }
+
+    #[test]
+    fn independent_catalog_and_script_classifications_are_not_companions() {
+        let mut item = ScanPackageItem {
+            id: String::new(), name: String::new(), path: String::new(),
+            relative_path: "Baking Mod/Cakes/Example.package".into(),
+            file_size: 0, resource_count: 0, catalog_resource_count: 1,
+            resource_types: Vec::new(), instances: Vec::new(),
+            scripted: false, content_source: String::new(), source_confidence: None,
+            status: "classified".into(), classification_confidence: "high".into(),
+            creator: None, mod_name: None, gameplay_category: None,
+            detected_from: Vec::new(), category: Some("Objects".into()),
+            sub_category: None, gender: None, age: None, species: None,
+            usage_categories: Vec::new(), destination_parts: vec!["Objects".into()],
+            destination_path: Some("Objects".into()),
+            candidate_destinations: Vec::new(), classifications: Vec::new(),
+            classification_reason: None, warnings: Vec::new(),
+        };
+        assert!(!may_reclassify_as_companion(&item));
+        item.catalog_resource_count = 0;
+        item.scripted = true;
+        assert!(!may_reclassify_as_companion(&item));
+        item.scripted = false;
+        item.classification_confidence = "low".into();
+        item.status = "unknown".into();
+        assert!(may_reclassify_as_companion(&item));
+    }
 
     #[test]
     fn package_extension_is_case_insensitive() {
