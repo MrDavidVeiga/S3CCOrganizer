@@ -1008,6 +1008,57 @@ mod tests {
     }
 
     #[test]
+    fn exact_three_copy_group_creates_a_labeled_folder_and_restores_both_files() {
+        let mods = isolated_mods_root();
+        let kept = test_package(&mods, "Keeper.package", b"three identical packages");
+        let first = test_package(&mods, "CopyA.package", b"three identical packages");
+        let second = test_package(&mods, "CopyB.package", b"three identical packages");
+        let selected = vec![
+            first.to_string_lossy().to_string(),
+            second.to_string_lossy().to_string(),
+        ];
+        let retained = vec![kept.to_string_lossy().to_string()];
+        let folder = mods.to_string_lossy().to_string();
+        let plan = build_exact_duplicate_quarantine_plan(
+            folder.clone(), selected.clone(), retained.clone()
+        ).unwrap();
+        assert!(plan.can_execute);
+        assert_eq!(plan.stats.ready, 2);
+        assert!(plan.items.iter().all(|item| {
+            item.destination_relative_path.contains("3 identical files")
+                && item.destination_relative_path.contains("Exact Duplicates")
+        }));
+        assert!(plan.manifest_preview.contains("3 identical files"));
+        assert!(quarantine_path_matches_identity(
+            Path::new(&plan.items[0].source_relative_path),
+            &validated_relative(&plan.items[0].destination_relative_path).unwrap(),
+            &plan.items[0].sha256
+        ));
+        let result = execute_exact_duplicate_quarantine(
+            folder.clone(),
+            selected,
+            Some(plan.quarantine_root.clone()),
+            retained
+        ).unwrap();
+        assert_eq!(result.moved, 2);
+        assert!(kept.exists());
+        assert!(!first.exists() && !second.exists());
+        for item in &plan.items {
+            assert!(Path::new(&plan.quarantine_root)
+                .join(validated_relative(&item.destination_relative_path).unwrap()).exists());
+        }
+        let restored = restore_quarantine(folder, result.manifest_path, true).unwrap();
+        assert_eq!(restored.moved, 2);
+        assert!(kept.is_file() && first.is_file() && second.is_file());
+        assert!(!quarantine_path_matches_identity(
+            Path::new("CAS/CopyA.package"),
+            Path::new("Exact Duplicates/3 identical files/0000000000000000/CAS/CopyA.package"),
+            &plan.items[0].sha256
+        ));
+        cleanup(&mods);
+    }
+
+    #[test]
     fn normalize_legacy_windows_paths_and_reject_traversal() {
         assert_eq!(
             validated_relative(r"CAS\Hair\one.package").unwrap(),
