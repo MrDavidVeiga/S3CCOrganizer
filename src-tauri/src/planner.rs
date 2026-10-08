@@ -1089,7 +1089,11 @@ pub fn build_organization_plan_with_cfg(
                 rule.name,
                 destination_parts.join("\\")
             ));
-        } else if profile.collapse_to_category {
+        } else if profile.collapse_to_category
+            && !item.destination_parts.first().is_some_and(|first| first == "Scripts")
+        {
+            // A compacting profile must not destroy the canonical
+            // Scripts > Gameplay > Verified Creator hierarchy.
             if let Some(category) = &item.category {
                 destination_parts = vec![category.clone()];
                 classification_reason = Some(format!(
@@ -1116,7 +1120,11 @@ pub fn build_organization_plan_with_cfg(
         // the full category tree rather than compacting it to existing depth.
         let cfg_opt_in = update_resource_cfg
             && (is_mods_root(&root) || is_within_packages(&root) || is_within_overrides(&root));
-        let cfg_fit = if cfg_opt_in {
+        let inactive_package = item.name.to_ascii_lowercase().ends_with(".package.disabled");
+        let cfg_fit = if cfg_opt_in || inactive_package {
+            // Disabled packages are never loaded by The Sims 3. Their
+            // classification must not be blocked by PackedFile depth rules,
+            // and the .disabled suffix must be preserved on relocation.
             Ok((ensure_source_loading_branch(&root, &source_canonical, &destination_parts), None))
         } else {
             fit_destination_to_resource_cfg(

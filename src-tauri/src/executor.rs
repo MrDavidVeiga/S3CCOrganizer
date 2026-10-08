@@ -65,10 +65,9 @@ fn ready_items(plan_items: &[PlanItem]) -> Vec<&PlanItem> {
 }
 
 fn package_extension(path: &Path) -> bool {
-    path.extension()
-        .and_then(|value| value.to_str())
-        .map(|value| value.eq_ignore_ascii_case("package"))
-        .unwrap_or(false)
+    let lower = path.file_name().map(|v| v.to_string_lossy().to_ascii_lowercase())
+        .unwrap_or_default();
+    lower.ends_with(".package") || lower.ends_with(".package.disabled")
 }
 
 fn snapshot_entries(root: &Path, ready: &[&PlanItem]) -> Result<Vec<RestoreEntry>, String> {
@@ -96,7 +95,9 @@ fn snapshot_entries(root: &Path, ready: &[&PlanItem]) -> Result<Vec<RestoreEntry
             package_paths.push(entry.path().to_path_buf());
         }
     }
-    operation::set_total("organize", package_paths.len() + ready.len() + 2);
+    // The denominator describes only the active phase. Snapshot files are
+    // not added to the move count, so '529 / 1757' can never be shown again.
+    operation::set_total("organize", package_paths.len());
     operation::update("organize", 0, None, "snapshotting");
 
     let mut entries = Vec::with_capacity(package_paths.len());
@@ -364,8 +365,8 @@ fn execute_organization_core(
 
     let manifest_path = make_manifest_path(&root)?;
     let snapshot = snapshot_entries(&root, &ready)?;
-    let snapshot_count = snapshot.len();
-    operation::update("organize", snapshot_count, None, "preparing");
+     operation::set_total("organize", move_total);
+    operation::update("organize", 0, None, "preparing");
     let mut manifest = manifest_from_snapshot(
         &root,
         language,
@@ -394,8 +395,12 @@ fn execute_organization_core(
             let parsed = parse_resource_cfg(&cfg_path)?;
             let cfg_dir = cfg_path.parent().ok_or("Resource.cfg parent missing")?;
             let uncovered = ready.iter().filter(|item| {
-                item.destination_path.as_ref()
-                    .is_none_or(|path| package_priority(&parsed, cfg_dir, Path::new(path)).is_none())
+                // .package.disabled remains disabled even after relocation;
+                // Resource.cfg intentionally has no PackedFile rule for it.
+                package_extension(Path::new(&item.source_path))
+                    && item.source_path.to_ascii_lowercase().ends_with(".package")
+                    && item.destination_path.as_ref()
+                        .is_none_or(|path| package_priority(&parsed, cfg_dir, Path::new(path)).is_none())
             }).count();
             if uncovered != 0 {
                 return Err(format!("Updated Resource.cfg misses {uncovered} planned packages."));
@@ -422,7 +427,8 @@ fn execute_organization_core(
         }
     }
 
-    operation::update("organize", snapshot_count + 1, None, "moving");
+    operation::set_total("organize", move_total);
+    operation::update("organize", 0, None, "moving");
     let mut moved_pairs: Vec<(PathBuf, PathBuf, String, u64)> = Vec::new();
     let mut errors = Vec::new();
 
@@ -481,7 +487,7 @@ fn execute_organization_core(
                     expected_hash.clone(),
                     item.size,
                 ));
-                operation::update("organize", snapshot_count + moved_pairs.len() + 1, None, "moving");
+                operation::update("organize", moved_pairs.len(), None, "moving");
             },
             Err(error) => {
                 errors.push(error);
@@ -491,7 +497,8 @@ fn execute_organization_core(
     }
 
     if !errors.is_empty() {
-        operation::update("organize", snapshot_count + moved_pairs.len() + 1, None, "rolling_back");
+        operation::set_total("organize", moved_pairs.len());
+        operation::update("organize", 0, None, "rolling_back");
         let mut rollback_errors = Vec::new();
         let mut rolled_back = 0usize;
 
@@ -582,13 +589,14 @@ fn execute_organization_core(
         });
     }
 
-    operation::update("organize", snapshot_count + move_total + 1, None, "cleaning");
+    operation::set_total("organize", 1);
+    operation::update("organize", 0, None, "cleaning");
     let (old_folders_removed, old_folders_retained, cleanup_warnings) =
         cleanup_empty_directories_after_organization(&root, &moved_pairs);
 
     manifest.status = "COMPLETE".to_string();
     replace_manifest_atomic(&manifest_path, &manifest)?;
-    operation::update("organize", snapshot_count + move_total + 2, None, "complete");
+    operation::update("organize", 1, None, "complete");
 
     Ok(ExecutionResult {
         status: "COMPLETE".to_string(),

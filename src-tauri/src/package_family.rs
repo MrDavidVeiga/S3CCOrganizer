@@ -109,10 +109,11 @@ pub fn classify_package_family(
     if types.contains(&TYPE_S3SA) {
         return PackageFamilyResult::Classified(classification(
             localized(language, "Gameplay", "Jogabilidade", "Jugabilidad"),
-            Some(localized(language, "Scripts", "Scripts", "Scripts")),
+            Some(localized(language, "Gameplay", "Jogabilidade", "Jugabilidad")),
             vec![
-                localized(language, "Gameplay", "Jogabilidade", "Jugabilidad"),
                 localized(language, "Scripts", "Scripts", "Scripts"),
+                localized(language, "Gameplay", "Jogabilidade", "Jugabilidad"),
+                localized(language, "Unknown Author", "Autor Não Identificado", "Autor Desconocido"),
             ],
             vec!["S3SA"],
         ));
@@ -307,7 +308,7 @@ mod tests {
         let PackageFamilyResult::Classified(value) = result else {
             panic!("expected classified");
         };
-        assert_eq!(value.folder_parts, vec!["Gameplay", "Scripts"]);
+        assert_eq!(value.folder_parts, vec!["Scripts", "Gameplay", "Unknown Author"]);
     }
 
     #[test]

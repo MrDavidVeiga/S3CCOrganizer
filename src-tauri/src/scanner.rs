@@ -63,6 +63,7 @@ pub struct ScanStats {
     pub classified: usize,
     pub mixed: usize,
     pub unknown: usize,
+    pub disabled: usize,
     pub needs_review: usize,
     pub invalid: usize,
     pub casp_resources: usize,
@@ -130,10 +131,14 @@ pub fn cached_scan_paths(root: &Path) -> Option<Vec<PathBuf>> {
 }
 
 fn package_extension(path: &Path) -> bool {
-    path.extension()
-        .and_then(|value| value.to_str())
-        .map(|value| value.eq_ignore_ascii_case("package"))
-        .unwrap_or(false)
+    // Treat .package.disabled as an inactive DBPF for ORGANIZATION only.
+    // The physical .disabled suffix is never stripped, so the game will not
+    // load the package after a move. Duplicate and conflict scans have their
+    // own active-package discovery rules and remain unchanged.
+    let name = path.file_name()
+        .map(|v| v.to_string_lossy().to_ascii_lowercase())
+        .unwrap_or_default();
+    name.ends_with(".package") || name.ends_with(".package.disabled")
 }
 
 fn contains_ascii_case_insensitive(data: &[u8], needle: &str) -> bool {
@@ -443,6 +448,22 @@ fn script_category(name: &str, language: AppLanguage) -> &'static str {
 // mod. Conversely, actual gameplay mods may bundle CASP/OBJD resources. A
 // verified internal author or an explicitly scripted source tree is independent
 // evidence that the assembly is primary rather than embedded object behavior.
+fn script_creator_folder(language: AppLanguage, creator: Option<&str>) -> Vec<String> {
+    // Canonical user-requested path. Keep the *mod name* and gameplay topic
+    // as searchable metadata, not as extra physical directory levels.
+    // Unverified names are never guessed from unrelated filenames.
+    let unnamed = match language {
+        AppLanguage::En => "Unknown Author",
+        AppLanguage::Pt => "Autor Não Identificado",
+        AppLanguage::Es => "Autor Desconocido",
+    };
+    vec![
+        localized_special_folder(language, "scripts").to_string(),
+        localized_special_folder(language, "gameplay").to_string(),
+        creator.filter(|name| !name.trim().is_empty()).unwrap_or(unnamed).to_string(),
+    ]
+}
+
 fn script_source_roles(relative: &str) -> (bool, bool, bool) {
     let mut gameplay = false;
     let mut scripts = false;
@@ -457,7 +478,7 @@ fn script_source_roles(relative: &str) -> (bool, bool, bool) {
             catalog_root = matches!(normalized.as_str(), "buy" | "build" | "cas" | "objects");
             first = false;
         }
-        if normalized == "gameplay" {
+        if matches!(normalized.as_str(), "gameplay" | "jogabilidade" | "jugabilidad") {
             gameplay = true;
         }
         if matches!(normalized.as_str(), "scripts" | "#8 scripts") {
@@ -531,9 +552,9 @@ fn special_package_classification(
     ) {
         let folder = localized_special_folder(language, "nraas").to_string();
         return Some(PackageFamilyClassification {
-            main_category: folder.clone(),
-            sub_category: None,
-            folder_parts: vec![folder.clone()],
+            main_category: localized_special_folder(language, "scripts").to_string(),
+            sub_category: Some(localized_special_folder(language, "gameplay").to_string()),
+            folder_parts: script_creator_folder(language, Some("NRaas")),
             detected_from: vec!["NRaasInternal".to_string()],
             technical_reason: format!("Internal NRaas signature ({evidence}) => {folder}"),
         });
@@ -547,7 +568,7 @@ fn special_package_classification(
         let category = script_category(name, language).to_string();
         let creator = verified_script_creator(package, name);
         let mod_name = inferred_script_mod_name(name, relative);
-        let mut folder_parts = vec![gameplay.clone()];
+        let folder_parts = script_creator_folder(language, creator.as_deref());
         let mut detected_from = vec!["S3SA".to_string()];
         if catalog_resource_count > 0
             && type_ids.contains(&TYPE_CASP)
@@ -558,26 +579,20 @@ fn special_package_classification(
             detected_from.push("InternalScriptIdentity".to_string());
         }
 
-        if let Some(creator) = creator {
-            folder_parts.push(creator);
+        if creator.is_some() {
             detected_from.push("InternalCreator".to_string());
         }
-        if let Some(mod_name) = mod_name {
-            folder_parts.push(mod_name);
+        if mod_name.is_some() {
             detected_from.push("ModName".to_string());
-        } else {
-            // If the mod name cannot be established safely, category remains a
-            // useful fallback. It is always retained as metadata either way.
-            folder_parts.push(category.clone());
         }
 
         return Some(PackageFamilyClassification {
-            main_category: gameplay,
-            sub_category: Some(category.clone()),
+            main_category: localized_special_folder(language, "scripts").to_string(),
+            sub_category: Some(gameplay),
             folder_parts: folder_parts.clone(),
             detected_from,
             technical_reason: format!(
-                "S3SA gameplay package; category metadata '{}'; physical destination => {}",
+                "S3SA script package; gameplay topic '{}'; verified creator destination => {}",
                 category,
                 folder_parts.join("\\")
             ),
@@ -842,6 +857,51 @@ fn replacement_mesh_classification(
         technical_reason: format!(
             "GEOM+VPXY no CASP/S3SA; replacement mesh anatomy '{}' corroborated by embedded resource structure and descriptive identifiers. Source loading branch preserved.",
             key
+        ),
+    })
+}
+
+// GEOM+NMAP face-mesh replacements without CASP/VPXY can be legitimate
+// standalone eye default replacements. Do not infer them from the folder
+// where a user stored them (often 'Sliders/Eyes').
+fn verified_eye_mesh_replacement(
+    package: &Package,
+    types: &BTreeSet<u32>,
+    filename: &str,
+    language: AppLanguage,
+) -> Option<PackageFamilyClassification> {
+    if !types.contains(&0x015A_1849) || !types.contains(&TYPE_NMAP_LOCAL)
+        || types.contains(&TYPE_CASP) || types.contains(&TYPE_S3SA)
+        || types.contains(&TYPE_OBJD)
+    {
+        return None;
+    }
+    let name = filename.to_ascii_lowercase();
+    let explicit = name.contains("default replacement eye mesh")
+        || name.contains("eyeball") && (name.contains("simskin") || name.contains("uvfix"));
+    if !explicit { return None; }
+    let names = package.entries.iter()
+        .filter(|entry| entry.type_id == TYPE_NMAP_LOCAL)
+        .filter_map(|entry| package.data(entry).ok())
+        .flat_map(|data| nmap_names(&data))
+        .collect::<Vec<_>>();
+    // The uploaded 2016 packages declare face geometry in the NMAP; verify
+    // that internal evidence before treating a filename as a replacement.
+    if !names.iter().any(|v| v.to_ascii_lowercase().contains("face")) {
+        return None;
+    }
+    let (replacements, eyes) = match language {
+        AppLanguage::En => ("Replacements", "Eyes"),
+        AppLanguage::Pt => ("Substituições", "Olhos"),
+        AppLanguage::Es => ("Reemplazos", "Ojos"),
+    };
+    Some(PackageFamilyClassification {
+        main_category: replacements.into(),
+        sub_category: Some(eyes.into()),
+        folder_parts: vec![replacements.into(), eyes.into()],
+        detected_from: vec!["GEOM".into(), "NMAP".into(), "EyeMeshReplacement".into()],
+        technical_reason: format!(
+            "Verified GEOM+NMAP face mesh and explicit eye replacement filename => {replacements}\\{eyes}"
         ),
     })
 }
@@ -1623,6 +1683,7 @@ fn scan_one(
     if status == "unknown" && catalog_resource_count == 0 {
         let family_result = geometry_clothing_from_nmap(&package, &type_ids, language)
             .or_else(|| replacement_mesh_classification(&package, &type_ids, &name, language))
+            .or_else(|| verified_eye_mesh_replacement(&package, &type_ids, &name, language))
             .map(PackageFamilyResult::Classified)
             .unwrap_or_else(|| classify_package_family(&type_ids, language));
         match family_result {
@@ -1946,6 +2007,9 @@ pub fn scan_packages_core(
     let mut stats = ScanStats::default();
     stats.packages = items.len();
     for item in &items {
+        if item.name.to_ascii_lowercase().ends_with(".package.disabled") {
+            stats.disabled += 1;
+        }
         stats.casp_resources += item
             .classifications
             .iter()
@@ -2009,6 +2073,25 @@ pub async fn scan_packages(folder: String, language: AppLanguage) -> Result<Scan
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn legacy_active_and_disabled_packages_are_organized_without_reactivating() {
+        assert!(package_extension(Path::new("TMZ_CustomBodyHair.package.disabled")));
+        assert!(package_extension(Path::new("OneEuroMuttTip Width.package")));
+        assert!(!package_extension(Path::new("OneEuroMuttTip Width.package.bak")));
+        assert!(!package_extension(Path::new("Backup.zip")));
+    }
+
+    #[test]
+    fn canonical_scripts_gameplay_creator_hierarchy_is_localized() {
+        assert_eq!(script_creator_folder(AppLanguage::Pt, Some("TwinSimming")),
+            vec!["Scripts", "Jogabilidade", "TwinSimming"]);
+        assert_eq!(script_creator_folder(AppLanguage::En, Some("NRaas")),
+            vec!["Scripts", "Gameplay", "NRaas"]);
+        assert_eq!(script_creator_folder(AppLanguage::Es, None),
+            vec!["Scripts", "Jugabilidad", "Autor Desconocido"]);
+        assert!(script_source_roles("Scripts/Jogabilidade/TwinSimming/X.package").0);
+    }
 
     #[test]
     fn script_categories_require_subject_evidence_not_random_assembly_strings() {

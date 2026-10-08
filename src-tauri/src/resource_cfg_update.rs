@@ -98,6 +98,13 @@ pub fn preview_resource_cfg_update(root: &Path, destinations: &[PathBuf]) -> Res
     }
 
     for destination in destinations {
+        // Disabled DBPF files are classified and moved with their .disabled
+        // suffix, but they MUST NOT gain game loading rules or fail a preview.
+        if destination.file_name().is_some_and(|name|
+            name.to_string_lossy().to_ascii_lowercase().ends_with(".package.disabled")
+        ) {
+            continue;
+        }
         let relative = destination.strip_prefix(mods)
             .map_err(|_| format!("Planned destination escaped Mods: {}", destination.display()))?;
         let parts = relative.components().map(|p| p.as_os_str().to_string_lossy().to_string()).collect::<Vec<_>>();

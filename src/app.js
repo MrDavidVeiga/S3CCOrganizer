@@ -4,6 +4,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 
 const I18N = {
   en: {
+    disabledPackages: "Disabled",
     noEligibleConflictDecisions: "No eligible conflict decisions to save in this selection.",
     organizeElapsed: "Elapsed",
     selectVisibleExactGroups: "Select Filtered Exact Groups",
@@ -545,6 +546,7 @@ const I18N = {
     conflictsNext: "Resource-level conflict analysis is implemented in read-only mode.",
   },
   pt: {
+    disabledPackages: "Desativados",
     noEligibleConflictDecisions: "Nenhum conflito selecionado tem dados suficientes para salvar essa decisão.",
     organizeElapsed: "Tempo decorrido",
     selectVisibleExactGroups: "Selecionar Grupos Exatos Filtrados",
@@ -1085,6 +1087,7 @@ const I18N = {
     conflictsNext: "A análise de conflitos por resource está implementada em modo somente leitura.",
   },
   es: {
+    disabledPackages: "Desactivados",
     noEligibleConflictDecisions: "Ningún conflicto seleccionado tiene datos suficientes para guardar esta decisión.",
     organizeElapsed: "Tiempo transcurrido",
     selectVisibleExactGroups: "Seleccionar Grupos Exactos Filtrados",
@@ -1904,7 +1907,9 @@ const el = {
   statClassified: document.querySelector("#stat-classified"),
   statMixed: document.querySelector("#stat-mixed"),
   statReview: document.querySelector("#stat-review"),
+  statUnknown: document.querySelector("#stat-unknown"),
   statInvalid: document.querySelector("#stat-invalid"),
+  statDisabled: document.querySelector("#stat-disabled"),
   planModal: document.querySelector("#plan-modal"),
   planCloseBtn: document.querySelector("#plan-close-btn"),
   planCloseFooterBtn: document.querySelector("#plan-close-footer-btn"),
@@ -6825,7 +6830,9 @@ function renderStats() {
   el.statClassified.textContent = stats.classified ?? 0;
   el.statMixed.textContent = stats.mixed ?? 0;
   el.statReview.textContent = stats.needsReview ?? 0;
+  el.statUnknown.textContent = stats.unknown ?? 0;
   el.statInvalid.textContent = stats.invalid ?? 0;
+  el.statDisabled.textContent = stats.disabled ?? 0;
 }
 
 function metadataForItem(item) {
