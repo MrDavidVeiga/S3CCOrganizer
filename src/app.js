@@ -120,6 +120,10 @@ const I18N = {
     restoreHistory: "Restore History",
     restoreHistoryHint: "Manifests previously created for the selected Mods folder.",
     removeRestoreManifest: "Remove Record",
+    confirmRemoveQuarantineHistoryTitle: "Remove completed quarantine record?",
+    confirmRemoveQuarantineHistoryMessage: "Only the completed quarantine journal will be deleted. No .package files or folders will be removed. Active quarantines and incomplete recoveries are protected.",
+    historyRemovalUnavailable: "Restore or recover this Quarantine before removing its history.",
+    historyRecordRemoved: "History record removed",
     confirmRemoveRestoreTitle: "Remove restore record?",
     confirmRemoveRestoreMessage: "This permanently removes the selected restore manifest, NOT any .package files. Without this manifest, you cannot undo that organization through Restore.",
     restoreRecordRemoved: "Restore record removed",
@@ -590,6 +594,10 @@ const I18N = {
     restoreHistory: "Histórico de Restauração",
     restoreHistoryHint: "Manifestos criados anteriormente para a pasta de Mods selecionada.",
     removeRestoreManifest: "Remover Registro",
+    confirmRemoveQuarantineHistoryTitle: "Remover registro da Quarentena concluída?",
+    confirmRemoveQuarantineHistoryMessage: "Somente o registro da quarentena concluída será excluído. Nenhum arquivo .package ou pasta será removido. Quarentenas ativas ou com recuperação pendente estão protegidas.",
+    historyRemovalUnavailable: "Restaure ou recupere esta Quarentena antes de remover o histórico.",
+    historyRecordRemoved: "Registro do histórico removido",
     confirmRemoveRestoreTitle: "Remover registro de restauração?",
     confirmRemoveRestoreMessage: "Isso remove permanentemente apenas o manifesto selecionado, NÃO os arquivos .package. Sem esse manifesto, não será possível desfazer aquela organização pelo Restore.",
     restoreRecordRemoved: "Registro de restauração removido",
@@ -1059,6 +1067,10 @@ const I18N = {
     restoreHistory: "Historial de Restauración",
     restoreHistoryHint: "Manifiestos creados anteriormente para la carpeta de Mods seleccionada.",
     removeRestoreManifest: "Eliminar Registro",
+    confirmRemoveQuarantineHistoryTitle: "¿Eliminar el registro de Cuarentena finalizada?",
+    confirmRemoveQuarantineHistoryMessage: "Solo se eliminará el registro de cuarentena finalizada. No se borrarán archivos .package ni carpetas. Las cuarentenas activas o con recuperación pendiente están protegidas.",
+    historyRemovalUnavailable: "Restaura o recupera esta Cuarentena antes de eliminar su historial.",
+    historyRecordRemoved: "Registro del historial eliminado",
     confirmRemoveRestoreTitle: "¿Eliminar el registro de restauración?",
     confirmRemoveRestoreMessage: "Solo se elimina permanentemente el manifiesto seleccionado, NO los archivos .package. Sin él, no podrás deshacer esa organización desde Restore.",
     restoreRecordRemoved: "Registro de restauración eliminado",
@@ -1535,6 +1547,7 @@ const state = {
   pendingRemoveManifest: "",
   pendingRestoreManifest: "",
   pendingQuarantineRestore: null,
+  pendingHistoryRemoval: null,
 };
 
 if (!LANGUAGE_ORDER.includes(state.language)) state.language = "en";
@@ -5119,6 +5132,65 @@ async function recoverQuarantineFromHistory(item) {
   }
 }
 
+function historyRecordCanBeRemoved(item) {
+  if (!item?.destination || !state.folder || workspaceReadOnly() ||
+      state.toolsBusy || state.restoreBusy || state.quarantineBusy ||
+      state.executing) return false;
+  if (item.kind === "restore_manifest") {
+    const matching = state.restoreHistory.find(record => record.path === item.destination);
+    return !!matching && (!matching.valid || matching.matchesSelectedRoot);
+  }
+  if (item.kind === "quarantine") {
+    return item.status === "RESTORED" || item.status === "ROLLED_BACK";
+  }
+  return false;
+}
+
+async function removeOperationHistoryRecord() {
+  const item = state.pendingHistoryRemoval;
+  if (state.pendingAction !== "remove_operation_history" ||
+      !item || !historyRecordCanBeRemoved(item) ||
+      el.confirmModal.classList.contains("hidden")) return;
+
+  state.toolsBusy = true;
+  state.toolsError = "";
+  state.toolsNotice = "";
+  el.confirmActionBtn.disabled = true;
+  renderTools();
+  try {
+    if (item.kind === "restore_manifest") {
+      await invoke("remove_restore_history", {
+        folder: state.folder,
+        manifestPath: item.destination,
+        confirmed: true,
+      });
+      if (state.restoreManifest === item.destination) {
+        state.restoreManifest = "";
+        state.restorePlan = null;
+        state.restorePreviewManifest = "";
+      }
+    } else if (item.kind === "quarantine") {
+      await invoke("remove_quarantine_history", {
+        folder: state.folder,
+        manifestPath: item.destination,
+        confirmed: true,
+      });
+    }
+    state.toolsNotice = t("historyRecordRemoved");
+  } catch (error) {
+    state.toolsError = String(error);
+  } finally {
+    state.toolsBusy = false;
+    state.pendingAction = "";
+    state.pendingHistoryRemoval = null;
+    el.confirmModal.classList.add("hidden");
+    el.confirmModal.setAttribute("aria-hidden", "true");
+    el.confirmActionBtn.disabled = false;
+    await Promise.all([loadRestoreHistory(), refreshOperationHistory()]);
+    render();
+  }
+}
+
 function renderHistoryTools() {
   el.toolsOperationHistory.innerHTML = "";
   for (const item of (state.operationHistory || []).filter((entry) => ["restore_manifest", "quarantine"].includes(entry.kind))) {
@@ -5161,6 +5233,20 @@ function renderHistoryTools() {
         });
         row.appendChild(restore);
       }
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "danger-btn compact-btn";
+      remove.textContent = t("removeRestoreManifest");
+      remove.disabled = !historyRecordCanBeRemoved(item);
+      if (item.kind === "quarantine" && !["RESTORED", "ROLLED_BACK"].includes(item.status)) {
+        remove.title = t("historyRemovalUnavailable");
+      }
+      remove.addEventListener("click", () => {
+        if (!historyRecordCanBeRemoved(item)) return;
+        state.pendingHistoryRemoval = item;
+        openConfirm("remove_operation_history");
+      });
+      row.appendChild(remove);
     }
     el.toolsOperationHistory.appendChild(row);
   }
@@ -6254,6 +6340,8 @@ function openConfirm(action) {
     state.pendingRemoveManifest = selected.path;
   } else if (action === "restore_quarantine") {
     if (!state.pendingQuarantineRestore || state.toolsBusy || workspaceReadOnly()) return;
+  } else if (action === "remove_operation_history") {
+    if (!historyRecordCanBeRemoved(state.pendingHistoryRemoval)) return;
   }
 
   state.pendingAction = action;
@@ -6285,6 +6373,13 @@ function openConfirm(action) {
     el.confirmTitle.textContent = t("confirmQuarantineRestoreTitle");
     el.confirmMessage.textContent = `${t("confirmQuarantineRestoreMessage")}\n${state.pendingQuarantineRestore.destination}`;
     el.confirmActionBtn.textContent = t("restoreQuarantine");
+  } else if (action === "remove_operation_history") {
+    const item = state.pendingHistoryRemoval;
+    el.confirmTitle.textContent = item.kind === "quarantine"
+      ? t("confirmRemoveQuarantineHistoryTitle") : t("confirmRemoveRestoreTitle");
+    el.confirmMessage.textContent = `${item.kind === "quarantine"
+      ? t("confirmRemoveQuarantineHistoryMessage") : t("confirmRemoveRestoreMessage")}\n${item.destination}`;
+    el.confirmActionBtn.textContent = t("removeRestoreManifest");
   } else {
     state.pendingAction = "";
     return;
@@ -6296,11 +6391,12 @@ function openConfirm(action) {
 
 function closeConfirm() {
   if (state.executing || state.restoreBusy || state.quarantineBusy ||
-      (state.toolsBusy && state.pendingAction === "restore_quarantine")) return;
+      (state.toolsBusy && ["restore_quarantine", "remove_operation_history"].includes(state.pendingAction))) return;
   state.pendingAction = "";
   state.pendingRemoveManifest = "";
   state.pendingRestoreManifest = "";
   state.pendingQuarantineRestore = null;
+  state.pendingHistoryRemoval = null;
   el.confirmModal.classList.add("hidden");
   el.confirmModal.setAttribute("aria-hidden", "true");
 }
@@ -7196,6 +7292,7 @@ el.confirmActionBtn.addEventListener("click", async () => {
     }
   }
   else if (state.pendingAction === "remove_restore_history") await removeSelectedRestoreHistory();
+  else if (state.pendingAction === "remove_operation_history") await removeOperationHistoryRecord();
   else if (state.pendingAction === "quarantine") await executeQuarantine();
   else if (state.pendingAction === "clear_cache") {
     await clearAnalysisCache();
