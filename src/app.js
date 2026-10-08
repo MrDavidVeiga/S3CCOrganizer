@@ -403,6 +403,12 @@ const I18N = {
     conflictsFailed: "Conflict analysis failed",
     conflictSearch: "Search conflict findings…",
     allConflictTypes: "All findings",
+    conflictNeedsReview: "Needs review",
+    conflictOutsideLoad: "Outside loading rules",
+    conflictDifferentResources: "Different resources",
+    conflictIdenticalResources: "Identical resources",
+    conflictEvidenceLimited: "The visible resources are a sample; totals include all shared resources.",
+    conflictPreviewUnavailable: "No preview available",
     sharedIdentical: "Shared Identical",
     visualOverride: "Visual Override",
     catalogOverride: "Catalog Override",
@@ -414,7 +420,7 @@ const I18N = {
     conflictCasMorphExplanation: "Both packages contain different CAS morph data with the same Type, Group and Instance. This requires review, but does not alone prove that either mod is broken.",
     mixedOverride: "Mixed Override",
     packagePairs: "Package Pairs",
-    realOverrides: "Overrides",
+    realOverrides: "Needs review",
     scriptConflicts: "Script",
     potentialConflicts: "Potential",
     analyzeConflictsToBegin: "Analyze the selected Mods folder to inspect shared resources.",
@@ -851,6 +857,12 @@ const I18N = {
     conflictsFailed: "Falha na análise de conflitos",
     conflictSearch: "Pesquisar resultados de conflitos…",
     allConflictTypes: "Todos os resultados",
+    conflictNeedsReview: "Exige revisão",
+    conflictOutsideLoad: "Fora das regras de carregamento",
+    conflictDifferentResources: "Recursos diferentes",
+    conflictIdenticalResources: "Recursos idênticos",
+    conflictEvidenceLimited: "Os recursos exibidos são uma amostra; os totais incluem todos os recursos compartilhados.",
+    conflictPreviewUnavailable: "Prévia indisponível",
     sharedIdentical: "Compartilhado Idêntico",
     visualOverride: "Override Visual",
     catalogOverride: "Override de Catálogo",
@@ -862,7 +874,7 @@ const I18N = {
     conflictCasMorphExplanation: "Os packages contêm dados diferentes de morfologia CAS com o mesmo Type, Group e Instance. É necessário revisar, mas isso não comprova que algum mod esteja com defeito.",
     mixedOverride: "Override Misto",
     packagePairs: "Pares de Packages",
-    realOverrides: "Overrides",
+    realOverrides: "Exige revisão",
     scriptConflicts: "Script",
     potentialConflicts: "Potenciais",
     analyzeConflictsToBegin: "Analise a pasta de Mods selecionada para inspecionar resources compartilhados.",
@@ -1298,6 +1310,12 @@ const I18N = {
     conflictsFailed: "Error en el análisis de conflictos",
     conflictSearch: "Buscar resultados de conflictos…",
     allConflictTypes: "Todos los resultados",
+    conflictNeedsReview: "Requiere revisión",
+    conflictOutsideLoad: "Fuera de las reglas de carga",
+    conflictDifferentResources: "Recursos diferentes",
+    conflictIdenticalResources: "Recursos idénticos",
+    conflictEvidenceLimited: "Los recursos mostrados son una muestra; los totales incluyen todos los recursos compartidos.",
+    conflictPreviewUnavailable: "Vista previa no disponible",
     sharedIdentical: "Compartido Idéntico",
     visualOverride: "Override Visual",
     catalogOverride: "Override de Catálogo",
@@ -1309,7 +1327,7 @@ const I18N = {
     conflictCasMorphExplanation: "Los packages contienen datos distintos de morfología CAS con el mismo Type, Group e Instance. Requiere revisión, pero no demuestra por sí solo que algún mod esté dañado.",
     mixedOverride: "Override Mixto",
     packagePairs: "Pares de Packages",
-    realOverrides: "Overrides",
+    realOverrides: "Requiere revisión",
     scriptConflicts: "Script",
     potentialConflicts: "Potenciales",
     analyzeConflictsToBegin: "Analiza la carpeta de Mods seleccionada para inspeccionar resources compartidos.",
@@ -1409,7 +1427,7 @@ const state = {
     preferences.conflictsFilter !== "intentional_override" &&
     preferences.conflictsFilter !== "ignored_session"
       ? preferences.conflictsFilter
-      : "all",
+      : "attention",
   conflictSelectedId: "",
   operations: { scan: null, duplicates: null, conflicts: null },
   technicalDetails: {},
@@ -2678,6 +2696,12 @@ async function loadDuplicateMemberPreview(member) {
     if (el.duplicateDetailsModal && !el.duplicateDetailsModal.classList.contains("hidden")) {
       renderDuplicatesPreview();
     }
+    // Share the cached package thumbnails with Conflicts, without loading
+    // previews for all findings in a potentially very large scan.
+    if (state.tab === "conflicts" && (state.conflictsAnalysis?.findings || []).some(
+      (finding) => finding.id === state.conflictSelectedId &&
+        (finding.left?.path === path || finding.right?.path === path)
+    )) renderConflictsPreview();
   }
 }
 
@@ -3085,7 +3109,9 @@ function renderDuplicates() {
 function renderConflictFilter() {
   if (!el.conflictsFilter) return;
   const options = [
+    ["attention", t("conflictNeedsReview")],
     ["all", t("allConflictTypes")],
+    ["inactive", t("conflictOutsideLoad")],
     ["script_conflict", t("scriptConflict")],
     ["gameplay_override", t("gameplayOverride")],
     ["catalog_override", t("catalogOverride")],
@@ -3169,7 +3195,13 @@ function visibleConflictFindings() {
       if (mark !== "intentional") return false;
     } else {
       if (mark === "ignored") return false;
-      if (state.conflictsFilter !== "all") {
+      const outsideLoadRules = analysis?.resourceCfg?.precedenceReliable &&
+        ["unmatched", "partially_matched"].includes(item.loadOrderStatus);
+      if (state.conflictsFilter === "attention" &&
+          (item.severity === "info" || mark === "intentional" || item.differentPayloadCount === 0)) return false;
+      if (state.conflictsFilter === "inactive" && !outsideLoadRules) return false;
+      if (state.conflictsFilter !== "all" &&
+          state.conflictsFilter !== "attention" && state.conflictsFilter !== "inactive") {
         const matchesPrimary = item.kind === state.conflictsFilter;
         const matchesImpact = (item.impactKinds || []).includes(state.conflictsFilter);
         if (!matchesPrimary && !matchesImpact) return false;
@@ -3193,6 +3225,13 @@ function visibleConflictFindings() {
     );
   });
 
+  if (state.conflictsFilter === "attention") {
+    const rank = { high: 3, warning: 2, review: 1, info: 0 };
+    result.sort((a, b) =>
+      (rank[b.severity] || 0) - (rank[a.severity] || 0) ||
+      (b.differentPayloadCount || 0) - (a.differentPayloadCount || 0)
+    );
+  }
   conflictVisibleMemo.analysis = analysis;
   conflictVisibleMemo.filter = state.conflictsFilter;
   conflictVisibleMemo.search = search;
@@ -3276,6 +3315,25 @@ function renderConflictsPreview() {
     const card = document.createElement("article");
     const mark = document.createElement("b");
     mark.textContent = label;
+    const visual = document.createElement("div");
+    visual.className = "conflict-member-visual";
+    const preview = state.packagePreviews[member?.path];
+    if (preview?.thumbnailBase64) {
+      const image = document.createElement("img");
+      image.className = "conflict-member-thumb";
+      image.alt = member?.name || "";
+      image.src = `data:${preview.mimeType || "image/png"};base64,${preview.thumbnailBase64}`;
+      visual.appendChild(image);
+    } else {
+      const fallback = document.createElement("div");
+      fallback.className = "conflict-member-thumb conflict-member-fallback";
+      fallback.textContent = t("conflictPreviewUnavailable");
+      visual.appendChild(fallback);
+      if (member?.path && !(member.path in state.packagePreviews) &&
+          !state.packagePreviewLoading[member.path]) {
+        queueMicrotask(() => loadDuplicateMemberPreview(member));
+      }
+    }
     const name = document.createElement("strong");
     name.textContent = member?.name || "—";
     const path = document.createElement("code");
@@ -3289,7 +3347,12 @@ function renderConflictsPreview() {
     rule.textContent =
       `${t("matchingRule")}: ${member?.loadRule || "—"}`;
 
-    card.append(mark, name, path, priority, rule);
+    const open = document.createElement("button");
+    open.type = "button";
+    open.className = "secondary-btn conflict-member-open";
+    open.textContent = t("openLocation");
+    open.addEventListener("click", () => revealSafe(member?.path));
+    card.append(mark, visual, name, path, priority, rule, open);
     pair.appendChild(card);
   }
 
@@ -3352,6 +3415,19 @@ function renderConflictsPreview() {
 
   const evidenceList = document.createElement("div");
   evidenceList.className = "conflict-evidence-list";
+  const identicalList = document.createElement("div");
+  identicalList.className = "conflict-evidence-list";
+  const differentHeading = document.createElement("strong");
+  differentHeading.className = "conflict-evidence-heading";
+  differentHeading.textContent = `${t("conflictDifferentResources")} · ${finding.differentPayloadCount || 0}`;
+  el.conflictsPreview.appendChild(differentHeading);
+
+  if (finding.evidenceTruncated) {
+    const warning = document.createElement("p");
+    warning.className = "conflict-evidence-note";
+    warning.textContent = t("conflictEvidenceLimited");
+    el.conflictsPreview.appendChild(warning);
+  }
 
   for (const evidence of finding.evidence || []) {
     const card = document.createElement("article");
@@ -3387,10 +3463,18 @@ function renderConflictsPreview() {
     }
 
     card.append(top, tgi, details);
-    evidenceList.appendChild(card);
+    (evidence.samePayload ? identicalList : evidenceList).appendChild(card);
   }
 
-  el.conflictsPreview.appendChild(evidenceList);
+  if (evidenceList.childElementCount) el.conflictsPreview.appendChild(evidenceList);
+  if (identicalList.childElementCount) {
+    const identicalSection = document.createElement("details");
+    identicalSection.className = "conflict-identical-section";
+    const summary = document.createElement("summary");
+    summary.textContent = `${t("conflictIdenticalResources")} · ${finding.identicalPayloadCount || 0}`;
+    identicalSection.append(summary, identicalList);
+    el.conflictsPreview.appendChild(identicalSection);
+  }
 }
 
 function createConflictFindingRow(finding) {
@@ -3493,14 +3577,17 @@ function renderConflicts() {
   const stats = analysis?.stats || {};
   // Resource overlap is not an actionable override when neither (or only
   // one) of the files is loaded under the current Resource.cfg rules.
-  const realOverrides = (analysis?.findings || []).filter(
+  const needsReview = (analysis?.findings || []).filter(
     (finding) => finding.kind !== "shared_identical" && finding.severity !== "info"
-  ).length;
-
+  );
   el.confStatPairs.textContent = stats.packagePairs ?? 0;
-  el.confStatReal.textContent = realOverrides;
-  el.confStatScript.textContent = stats.scriptConflicts ?? 0;
-  el.confStatPotential.textContent = (stats.potentialConflicts ?? 0) + (stats.casMorphOverlaps ?? 0);
+  el.confStatReal.textContent = needsReview.length;
+  el.confStatScript.textContent = needsReview.filter(
+    (finding) => (finding.impactKinds || []).includes("script_conflict")
+  ).length;
+  el.confStatPotential.textContent = needsReview.filter(
+    (finding) => ["potential_conflict", "cas_morph_overlap"].includes(finding.kind)
+  ).length;
   el.confStatShared.textContent = stats.sharedIdentical ?? 0;
 
   if (state.conflictsBusy) {
