@@ -1105,7 +1105,16 @@ pub fn build_organization_plan(
             }
         }
 
-        if let Err(reason) = validate_destination_parts(&destination_parts) {
+        // With a flat Overrides/*.package rule, the sole safe destination
+        // when Overrides itself was selected is its root (zero categories).
+        // This empty path is allowed only after fit_destination_to_resource_cfg
+        // has verified that Resource.cfg loads the resulting root-level file.
+        let validated = if is_overrides_root(&root) && destination_parts.is_empty() {
+            Ok(())
+        } else {
+            validate_destination_parts(&destination_parts)
+        };
+        if let Err(reason) = validated {
             stats.blocked += 1;
             items.push(make_blocked(item, reason));
             continue;
