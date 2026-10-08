@@ -130,7 +130,12 @@ pub fn apply_confirmed_organization_moves(
     let mut changed = 0;
     for item in &mut cached.result.items {
         let source = PathBuf::from(&item.path);
-        let Some(destination) = by_source.get(&source) else { continue };
+        // The scan may have been opened through a symlink or noncanonical
+        // Windows path. The transactional planner uses canonical sources.
+        // The old relative path is still known after the file has moved.
+        let canonical_source = canonical_root.join(&item.relative_path);
+        let Some(destination) = by_source.get(&source)
+            .or_else(|| by_source.get(&canonical_source)) else { continue };
         let Ok(relative) = destination.strip_prefix(&canonical_root) else { continue };
         item.id = destination.to_string_lossy().to_string();
         item.path = item.id.clone();
