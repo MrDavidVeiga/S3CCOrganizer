@@ -41,7 +41,10 @@ assert.match(index, /src\/ui\/fluent\/feedback\.css/);
 assert.match(index, /src\/ui\/fluent\/feedback\.js/);
 assert.match(feedback, /syncFluentInfoBar/);
 assert.match(feedbackCss, /fluent-ring-spin/);
-assert.equal((index.match(/role="progressbar"/g) || []).length, 3);
+assert.equal((index.match(/role="progressbar"/g) || []).length, 4);
+for (const id of ["organize-progress", "organize-progress-bar", "organize-progress-track", "organize-progress-count", "organize-progress-text"]) {
+  assert(index.includes(`id="${id}"`), `missing organization progress control ${id}`);
+}
 assert.match(index, /src\/ui\/fluent\/chrome\.js/);
 assert.match(index, /src\/ui\/fluent\/fields\.js/);
 assert.match(index, /src\/ui\/fluent\/tooltips\.js/);
