@@ -53,3 +53,7 @@ The thirteen static `<select>` controls are enhanced by `src/ui/fluent/combobox.
 Added `src/ui/fluent/overlays.js` and `overlays.css` to standardize keyboard focus trapping and restoration, nested modal stacking, Escape cancellation using existing close buttons, background inertness, and dialog visual tokens. All seven existing modal IDs and actions remain owned by app/catalog code. Added `menus.js` for Arrow/Home/End/Enter/Escape keyboard handling and role/selection synchronization on the Language/Status/Theme menus. Fixed ComboBox initial active scroll. Catalog import dialog now has an explicit labelledby target.
 
 **Still requires:** Browser/WebView runtime tests of modal nesting and focus return when a virtualized list item is replaced. No application-logic backend change, no merge to main.
+
+## Interaction simulator (Batch 2)
+
+`scripts/test-fluent-interactions.mjs` uses JSDOM in the branch-only Windows CI workflow to verify keyboard/pointer ComboBox selection with native select event propagation, dynamic option refresh, 1200-entry virtualization, language-menu keyboard navigation, and nested modal Escape/focus restoration. This is not a screenshot/WebView accessibility test; that remains a separate release gate.

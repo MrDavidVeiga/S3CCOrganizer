@@ -26,5 +26,9 @@ jobs:
         run: npm install
       - name: Verify Fluent foundation
         run: node scripts/verify-fluent-foundation.mjs
+      - name: Install simulated DOM testing dependency
+        run: npm install --no-save jsdom@26
+      - name: Test Fluent interactions
+        run: node scripts/test-fluent-interactions.mjs
       - name: Build Vite frontend
         run: npm run build

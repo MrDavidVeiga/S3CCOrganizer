@@ -42,7 +42,6 @@ for(const entry of components){
     const candidates=options().filter(el=>!el.disabled);
     if(!candidates.length)return;
     const at=candidates.indexOf(document.activeElement);
-    const next=candidates[(at<0?(delta>0?-1:0):at) + delta + candidates.length*2 % candidates.length];
     // Normalize index after addition to support wrapping in both directions.
     const index=at<0?(delta>0?0:candidates.length-1):(at+delta+candidates.length)%candidates.length;
     candidates[index]?.focus({preventScroll:true});
