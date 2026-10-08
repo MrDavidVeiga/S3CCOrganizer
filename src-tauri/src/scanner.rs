@@ -2513,6 +2513,34 @@ mod tests {
     }
 
     #[test]
+    fn renamed_mods_copy_scan_previews_never_escape_packages() {
+        let base = std::env::temp_dir().join(format!(
+            "s3cc-scanner-copy-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
+        ));
+        let root = base.join("Mods - Copia");
+        std::fs::create_dir_all(root.join("Packages")).unwrap();
+        std::fs::create_dir_all(root.join("Overrides")).unwrap();
+        assert_eq!(
+            physical_destination_parts(&root, "Packages/Old/m.package",
+                &["Scripts".into(), "Jogabilidade".into(), "NRaas".into()]),
+            vec!["Packages", "Scripts", "Jogabilidade", "NRaas"]
+        );
+        assert_eq!(
+            physical_destination_parts(&root, "Genética/Skin/a.package",
+                &["Genética".into(), "Tons de Pele".into()]),
+            vec!["Packages", "Genética", "Tons de Pele"]
+        );
+        assert_eq!(
+            physical_destination_parts(&root, "Overrides/old.package",
+                &["Scripts".into()]),
+            vec!["Overrides", "Scripts"]
+        );
+        std::fs::remove_dir_all(base).unwrap();
+    }
+
+    #[test]
     fn scan_previews_use_packages_without_cas_level() {
         let mods = Path::new("The Sims 3").join("Mods");
         let packages = mods.join("Packages");
