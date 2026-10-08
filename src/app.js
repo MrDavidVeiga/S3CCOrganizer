@@ -2756,7 +2756,7 @@ function appendDuplicateMemberDetails(card, member, label = "") {
     const mark = document.createElement("b");
     mark.className = "duplicate-member-mark";
     mark.textContent = label;
-    body.appendChild(mark);
+    card.appendChild(mark);
   }
 
   const name = document.createElement("strong");
