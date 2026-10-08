@@ -17,6 +17,7 @@ on:
       - "scripts/test-fluent-feedback.mjs"
       - "scripts/test-fluent-chrome.mjs"
       - "scripts/test-fluent-buttons.mjs"
+      - "scripts/test-fluent-theme-audit.mjs"
   workflow_dispatch:
 
 permissions:
@@ -69,6 +70,9 @@ jobs:
 
       - name: Test WinUI Button geometry and theme invariants
         run: node scripts/test-fluent-buttons.mjs
+
+      - name: Audit seven themes hover, selection and contrast
+        run: node scripts/test-fluent-theme-audit.mjs
 
       - name: Reconstruct application icon
         shell: pwsh

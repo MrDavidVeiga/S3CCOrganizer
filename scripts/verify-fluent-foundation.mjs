@@ -9,6 +9,7 @@ const index = read("index.html");
 const tokens = read("src/ui/fluent/tokens.css");
 const controls = read("src/ui/fluent/controls.css");
 const buttonGeometry = read("src/ui/fluent/button-geometry.css");
+const themeAudit = read("src/ui/fluent/theme-audit.css");
 const listview = read("src/ui/fluent/listview.js");
 const scrollbars = read("src/ui/fluent/scrollbars.css");
 const feedback = read("src/ui/fluent/feedback.js");
@@ -82,6 +83,9 @@ assert.match(index, /src\/ui\/fluent\/button-geometry\.css/);
 assert.match(buttonGeometry, /min-height: var\(--fluent-control-height\)/);
 assert.match(buttonGeometry, /padding: 5px 12px/);
 assert.match(buttonGeometry, /\.sidebar > \.primary-btn/);
+assert.match(index, /src\/ui\/fluent\/theme-audit\.css/);
+assert.match(themeAudit, /--fluent-list-hover-fill/);
+assert.match(themeAudit, /--fluent-list-selected-fill/);
 
 for (const themeId of ["system","veiga-light","veiga-dark","mean-girls","ea-app","winui-light","winui-dark"]) {
   assert(index.includes(`data-theme="${themeId}"`), `missing ${themeId} theme choice`);
