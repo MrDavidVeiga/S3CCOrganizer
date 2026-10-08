@@ -734,7 +734,7 @@ pub fn classify_casp(data: &[u8], language: AppLanguage) -> Option<CatalogClassi
     let gender = casp_gender_label(core.age_species_gender, language);
     let species = casp_species_label(core.age_species_gender, language);
 
-    let mut folder_parts = vec![tr(language, "CAS").to_string(), main_category.clone()];
+    let mut folder_parts = vec![main_category.clone()];
     if main_key != "Pets" {
         folder_parts.push(gender.clone());
         folder_parts.push(age.clone());
@@ -1552,7 +1552,7 @@ mod tests {
         assert_eq!(classification.species.as_deref(), Some("Human"));
         assert_eq!(
             classification.folder_parts,
-            vec!["CAS", "Clothing", "Female", "YA-A", "Top"]
+            vec!["Clothing", "Female", "YA-A", "Top"]
         );
         assert_eq!(
             classification.usage_categories,
