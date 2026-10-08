@@ -4884,3 +4884,131 @@ body.release-v1 .conflicts-results {
   border-color: var(--winui-accent, var(--green));
 }
 .conflict-row.reviewed { border-inline-start: 2px solid var(--winui-accent, var(--green)); }
+
+
+/* Conflict findings remain the scrollable region, not a one-character-wide
+   flex item displaced by the global review action toolbar. */
+body.release-v1 #page-conflicts {
+  min-width: 0;
+  min-height: 0;
+}
+body.release-v1 #conflicts-results {
+  min-width: 0;
+  min-height: 120px;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+body.release-v1 #conflicts-list {
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+body.release-v1 #conflicts-list .conflict-row-shell {
+  min-width: 0;
+  width: 100%;
+}
+body.release-v1 #page-conflicts > .analysis-list-footer {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  padding: 10px 0 0;
+}
+body.release-v1 #page-conflicts .analysis-audit-status {
+  min-width: 0;
+  width: 100%;
+  overflow-wrap: break-word;
+  word-break: normal;
+  white-space: normal;
+}
+body.release-v1 #page-conflicts .analysis-batch-summary {
+  min-width: 0;
+  width: 100%;
+  overflow-wrap: break-word;
+}
+body.release-v1 #page-conflicts .conflicts-list-primary-actions {
+  min-width: 0;
+  width: 100%;
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 6px;
+}
+body.release-v1 #page-conflicts .conflicts-list-primary-actions > button,
+body.release-v1 #page-conflicts .conflicts-batch-menu-trigger {
+  flex: 0 0 auto;
+  min-width: 0;
+  width: auto;
+  max-width: 100%;
+  padding: 6px 10px;
+  font-size: .74rem;
+  line-height: 1.3;
+  white-space: normal;
+  text-align: center;
+}
+body.release-v1 #page-conflicts .conflicts-batch-menu {
+  position: relative;
+  flex: 0 0 auto;
+  min-width: 0;
+  max-width: 100%;
+}
+body.release-v1 #page-conflicts .conflicts-batch-menu-trigger {
+  display: block;
+  border: 1px solid var(--winui-control-stroke, var(--panel-border));
+  border-radius: var(--winui-control-radius, 4px);
+  background: var(--winui-control-bg, var(--surface));
+  color: var(--winui-text-primary, var(--text));
+  cursor: pointer;
+  font-weight: 600;
+  list-style-position: inside;
+}
+body.release-v1 #page-conflicts .conflicts-batch-menu-trigger:hover {
+  background: var(--winui-control-bg-hover, var(--accent-low));
+}
+body.release-v1 #page-conflicts .conflicts-batch-menu-trigger:focus-visible {
+  outline: 2px solid var(--winui-accent, var(--green));
+  outline-offset: 2px;
+}
+body.release-v1 #page-conflicts .conflicts-batch-menu[open] {
+  z-index: 5;
+}
+body.release-v1 #page-conflicts .conflicts-batch-menu-content {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 7px);
+  z-index: 6;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+  width: max-content;
+  min-width: min(260px, 80vw);
+  max-width: min(360px, 85vw);
+  max-height: min(430px, 60vh);
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid var(--winui-control-stroke, var(--panel-border));
+  border-radius: var(--winui-control-radius, 8px);
+  background: var(--winui-popup, var(--panel));
+  box-shadow: 0 12px 28px rgba(0, 0, 0, .25);
+}
+body.release-v1 #page-conflicts .conflicts-batch-menu-content > button {
+  width: 100%;
+  min-width: 0;
+  text-align: left;
+  white-space: normal;
+  font-size: .74rem;
+  line-height: 1.35;
+}
+@media (max-width: 800px) {
+  body.release-v1 #page-conflicts .conflicts-batch-menu-content {
+    right: auto;
+    left: 0;
+  }
+}
