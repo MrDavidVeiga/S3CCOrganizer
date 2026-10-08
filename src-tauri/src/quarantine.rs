@@ -294,7 +294,7 @@ fn verified(path: &Path, item: &QuarantinePlanItem) -> Result<(), String> {
 }
 
 
-fn transfer_no_replace(source: &Path, destination: &Path, hash: &str, size: u64) -> Result<(), String> {
+pub(crate) fn transfer_no_replace(source: &Path, destination: &Path, hash: &str, size: u64) -> Result<(), String> {
     if destination.exists() {
         return Err(format!("Destination already exists: {}", destination.display()));
     }
