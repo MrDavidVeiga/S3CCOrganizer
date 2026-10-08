@@ -6249,26 +6249,17 @@ function render() {
   el.folderPath.textContent = state.folder || t("noFolder");
   el.folderPath.title = state.folder;
   el.scanBtn.disabled =
-    !state.folder ||
-    state.scanning ||
-    state.duplicatesBusy ||
-    state.conflictsBusy ||
-    state.structureBusy ||
-    state.toolsBusy ||
-    state.planning ||
-    state.executing;
+    !state.folder || analysisReadsBusy() || state.auditBusy ||
+    state.structureBusy || state.toolsBusy ||
+    state.planning || state.executing;
   const hasLoadedLibrary =
     state.items.length > 0 ||
     !!state.duplicatesAnalysis ||
     !!state.conflictsAnalysis;
   el.clearListBtn.classList.toggle("hidden", !hasLoadedLibrary);
   el.clearListBtn.disabled =
-    state.scanning ||
-    state.duplicatesBusy ||
-    state.conflictsBusy ||
-    state.structureBusy ||
-    state.planning ||
-    state.executing;
+    analysisReadsBusy() || state.auditBusy || state.structureBusy ||
+    state.planning || state.executing;
 
   el.chooseFolderBtn.disabled =
     analysisReadsBusy() || state.auditBusy || state.restoreBusy ||
@@ -6303,11 +6294,9 @@ function render() {
 
 function clearLoadedLibrary() {
   if (
-    state.scanning ||
+    analysisReadsBusy() ||
     state.planning ||
     state.executing ||
-    state.duplicatesBusy ||
-    state.conflictsBusy ||
     state.restoreBusy ||
     state.structureBusy
   ) return;
