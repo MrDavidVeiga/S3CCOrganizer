@@ -18,6 +18,10 @@ on:
       - "package.json"
   workflow_dispatch:
 
+concurrency:
+  group: winui3-validation-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   frontend:
     runs-on: windows-latest

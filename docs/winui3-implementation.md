@@ -142,3 +142,6 @@ The converter previously used a fixed light foreground (#d4dde1) for filesystem 
 
 ### Validation boundary
 Automated CI can validate CSS wiring, state declarations, theme coverage, statuses, contrast examples and frontend/Rust builds. Only a **Windows WebView2 visual test** can establish final pixel-level hover/focus fidelity at 100%, 125% and 150% scaling in the seven themes. That manual acceptance remains necessary before merging to `main`.
+
+### Final integration checkpoint
+The current WinUI branch includes the latest completed-quarantine history removal in Tools (frontend/Rust with explicit confirmation and recovered-state safeguards) and the latest main scanner improvements. The audit still uses semantic theme tokens rather than replacing these features. Windows UI-test CI now includes a seven-theme hover/selection walkthrough in the artifact README and cancels outdated runs for the same development branch.

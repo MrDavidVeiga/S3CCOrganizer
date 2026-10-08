@@ -20,6 +20,10 @@ on:
       - "scripts/test-fluent-theme-audit.mjs"
   workflow_dispatch:
 
+concurrency:
+  group: winui3-ui-test-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -119,6 +123,10 @@ jobs:
             "4. Verify modal focus, Tab / Shift+Tab, Escape and return focus.",
             "5. Test System, Veiga Light/Dark, Mean Girls, EA App, WinUI Light/Dark themes.",
             "6. Use a COPY of the Mods folder for actions that can move or quarantine files.",
+            "7. Compare ListView hover, pressed and selected states on Manager, Duplicates, Conflicts, Restore and Catalog.",
+            "8. Inspect all seven themes, including readable paths, semantic success/warning/error colors, menus, ComboBoxes and dialogs.",
+            "9. Resize the window and test Windows scaling at 100%, 125% and 150%.",
+            "10. Verify completed Quarantine history removal confirmation on a COPY of the Mods folder.",
             "",
             "Please report screenshots and the exact action if something breaks."
           )
