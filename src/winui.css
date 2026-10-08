@@ -10,8 +10,10 @@
   --accent-dark-1: #6f9827;
   --accent-dark-2: #5d801f;
   --accent-dark-3: #435c17;
-  --accent-low: rgba(127,173,45,.12);
-  --accent-outline: rgba(127,173,45,.42);
+  --accent-rgb: 127, 173, 45;
+  --accent-dark-rgb: 67, 92, 23;
+  --accent-low: rgba(var(--accent-rgb),.12);
+  --accent-outline: rgba(var(--accent-rgb),.42);
 }
 
 html[data-resolved-mode="dark"] {
