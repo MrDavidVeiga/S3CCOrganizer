@@ -102,7 +102,7 @@ impl AppLanguage {
     pub fn baby(self) -> &'static str {
         match self {
             Self::En => "Baby",
-            Self::Pt => "Bebê",
+            Self::Pt => "Recém-Nascido",
             Self::Es => "Bebé",
         }
     }
@@ -110,7 +110,7 @@ impl AppLanguage {
     pub fn toddler(self) -> &'static str {
         match self {
             Self::En => "Toddler",
-            Self::Pt => "Criança Pequena",
+            Self::Pt => "Bebê",
             Self::Es => "Niño Pequeño",
         }
     }
