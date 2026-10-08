@@ -5,7 +5,7 @@ use crate::{
 use chrono::Local;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     fs::{self, File, OpenOptions},
     io::{self, Write},
     path::{Component, Path, PathBuf},
@@ -289,7 +289,7 @@ fn read_manifest(root: &Path, input: &str) -> Result<(PathBuf, QuarantineManifes
     for item in &manifest.items {
         let src = validated_relative(&item.source_relative_path)?;
         let dst = validated_relative(&item.destination_relative_path)?;
-        if src != dst || !seen.insert(src.clone()) {
+        if !quarantine_path_matches_identity(&src, &dst, &item.sha256) || !seen.insert(src.clone()) {
             return Err("Manifest has conflicting or inconsistent relative paths.".into());
         }
         if item.sha256.len() != 64 || !item.sha256.bytes().all(|b| b.is_ascii_hexdigit()) {
@@ -300,6 +300,35 @@ fn read_manifest(root: &Path, input: &str) -> Result<(PathBuf, QuarantineManifes
         let _ = checked_join(&qroot, &dst)?;
     }
     Ok((manifest_path, manifest, qroot))
+}
+
+// Historical manifests used identical source/destination relative paths.
+// Exact-duplicate batches may instead be grouped by identical copy count.
+fn quarantine_path_matches_identity(source: &Path, target: &Path, hash: &str) -> bool {
+    if source == target { return true; }
+    if hash.len() < 16 || !target.ends_with(source) { return false; }
+    let components = target.components().filter_map(|part| match part {
+        Component::Normal(text) => text.to_str(),
+        _ => None,
+    }).collect::<Vec<_>>();
+    if components.len() != source.components().count() + 3 ||
+        components.first() != Some(&"Exact Duplicates")
+    {
+        return false;
+    }
+    let count = components[1].strip_suffix(" identical files")
+        .and_then(|value| value.parse::<usize>().ok());
+    count.is_some_and(|n| (2..=100_000).contains(&n)) &&
+        components[2].eq_ignore_ascii_case(&hash[..16])
+}
+
+fn quarantine_destination_relative(item: &QuarantinePlanItem) -> Result<PathBuf, String> {
+    let source = validated_relative(&item.source_relative_path)?;
+    let target = validated_relative(&item.destination_relative_path)?;
+    if !quarantine_path_matches_identity(&source, &target, &item.sha256) {
+        return Err("Quarantine source/destination mapping is invalid.".to_string());
+    }
+    Ok(target)
 }
 
 fn verified(path: &Path, item: &QuarantinePlanItem) -> Result<(), String> {
@@ -543,7 +572,7 @@ fn verify_exact_survivors(
     root: &Path,
     plan: &QuarantinePlan,
     retained_paths: &[String],
-) -> Result<(), String> {
+) -> Result<HashMap<String, usize>, String> {
     if retained_paths.is_empty() || plan.items.is_empty() {
         return Err("Exact-duplicate quarantine must retain at least one package.".into());
     }
@@ -552,7 +581,7 @@ fn verify_exact_survivors(
     let selected = plan.items.iter()
         .map(|item| PathBuf::from(&item.source_path))
         .collect::<HashSet<_>>();
-    let mut retained_hashes = HashSet::<String>::new();
+    let mut retained_hashes = HashMap::<String, usize>::new();
     for raw in retained_paths {
         let survivor = PathBuf::from(raw).canonicalize()
             .map_err(|error| format!("Exact-duplicate survivor is missing: {error}"))?;
@@ -563,16 +592,55 @@ fn verify_exact_survivors(
         }
         let (hash, _) = sha256_file(&survivor)
             .map_err(|error| format!("Could not verify retained duplicate: {error}"))?;
-        retained_hashes.insert(hash.to_ascii_uppercase());
+        *retained_hashes.entry(hash.to_ascii_uppercase()).or_default() += 1;
     }
     for item in &plan.items {
-        if !retained_hashes.contains(&item.sha256.to_ascii_uppercase()) {
+        if !retained_hashes.contains_key(&item.sha256.to_ascii_uppercase()) {
             return Err(format!(
                 "No unselected byte-identical survivor remains for {}. Quarantine blocked.",
                 item.source_relative_path
             ));
         }
     }
+    Ok(retained_hashes)
+}
+
+fn group_exact_duplicate_destinations(
+    plan: &mut QuarantinePlan,
+    retained_counts: &HashMap<String, usize>,
+) -> Result<(), String> {
+    let mut moved_counts = HashMap::<String, usize>::new();
+    for item in &plan.items {
+        *moved_counts.entry(item.sha256.to_ascii_uppercase()).or_default() += 1;
+    }
+    let root = Path::new(&plan.quarantine_root);
+    for item in &mut plan.items {
+        let hash = item.sha256.to_ascii_uppercase();
+        let total = moved_counts.get(&hash).copied().unwrap_or(0) +
+            retained_counts.get(&hash).copied().unwrap_or(0);
+        if !(2..=100_000).contains(&total) {
+            return Err("Exact duplicate group must retain a verified copy.".into());
+        }
+        let original = validated_relative(&item.source_relative_path)?;
+        let grouped = Path::new("Exact Duplicates")
+            .join(format!("{total} identical files"))
+            .join(&hash[..16])
+            .join(&original);
+        let destination = checked_join(root, &grouped)?;
+        item.destination_relative_path = relative_text(&grouped);
+        item.destination_path = destination.to_string_lossy().into_owned();
+    }
+    let mut preview = format!(
+        "S3CC ORGANIZER EXACT DUPLICATE QUARANTINE\nmode=PREVIEW\nquarantine_root={}\nfiles={}\n",
+        root.display(), plan.items.len()
+    );
+    for item in &plan.items {
+        preview.push_str(&format!(
+            "\n[file]\nsha256={}\noriginal={}\nquarantine={}\n[/file]\n",
+            item.sha256, item.source_relative_path, item.destination_relative_path
+        ));
+    }
+    plan.manifest_preview = preview;
     Ok(())
 }
 
@@ -584,7 +652,9 @@ pub fn build_exact_duplicate_quarantine_plan(
 ) -> Result<QuarantinePlan, String> {
     let root = canonical_root(&folder)?;
     let plan = build_quarantine_plan(folder, selected_paths)?;
-    verify_exact_survivors(&root, &plan, &retained_paths)?;
+    let retained = verify_exact_survivors(&root, &plan, &retained_paths)?;
+    let mut plan = plan;
+    group_exact_duplicate_destinations(&mut plan, &retained)?;
     Ok(plan)
 }
 
@@ -596,7 +666,7 @@ fn preflight_plan(root: &Path, plan: &QuarantinePlan) -> Result<(), String> {
     for item in &plan.items {
         let relative = validated_relative(&item.source_relative_path)?;
         let source = checked_join(root, &relative)?;
-        let destination = checked_join(&qroot, &relative)?;
+        let destination = checked_join(&qroot, &quarantine_destination_relative(item)?)?;
         if !source.is_file() || destination.exists() {
             return Err(format!("Quarantine plan is stale for {}", source.display()));
         }
@@ -639,14 +709,15 @@ fn execute_quarantine_core(
         return Err("Quarantine is blocked by preflight checks.".into());
     }
     if let Some(ref survivors) = retained_paths {
-        verify_exact_survivors(&root, &plan, survivors)?;
+        let retained = verify_exact_survivors(&root, &plan, survivors)?;
+        group_exact_duplicate_destinations(&mut plan, &retained)?;
     }
     if let Some(requested) = planned_quarantine_root {
         let qroot = validate_session_dir(&root, Path::new(&requested))?;
         plan.quarantine_root = qroot.to_string_lossy().into_owned();
         for item in &mut plan.items {
-            let relative = validated_relative(&item.destination_relative_path)?;
-            item.destination_path = qroot.join(relative).to_string_lossy().into_owned();
+            let relative = quarantine_destination_relative(item)?;
+            item.destination_path = checked_join(&qroot, &relative)?.to_string_lossy().into_owned();
         }
     }
     preflight_plan(&root, &plan)?;
@@ -669,7 +740,11 @@ fn execute_quarantine_core(
             Ok(path) => path,
             Err(error) => return Err(abort_quarantine(&manifest_path, &mut journal, &moved, error)),
         };
-        let destination = match checked_join(&qroot, &relative) {
+        let quarantine_relative = match quarantine_destination_relative(item) {
+            Ok(relative) => relative,
+            Err(error) => return Err(abort_quarantine(&manifest_path, &mut journal, &moved, error)),
+        };
+        let destination = match checked_join(&qroot, &quarantine_relative) {
             Ok(path) => path,
             Err(error) => return Err(abort_quarantine(&manifest_path, &mut journal, &moved, error)),
         };
@@ -686,7 +761,7 @@ fn execute_quarantine_core(
                     format!("Could not create quarantine folder: {error}")));
             }
         }
-        if let Err(error) = checked_join(&qroot, &relative) {
+        if let Err(error) = checked_join(&qroot, &quarantine_relative) {
             return Err(abort_quarantine(&manifest_path, &mut journal, &moved, error));
         }
         if let Err(error) = transfer_no_replace(&source, &destination, &item.sha256, item.size) {
@@ -729,7 +804,7 @@ pub fn restore_quarantine(
     for item in &journal.items {
         let relative = validated_relative(&item.source_relative_path)?;
         let source = checked_join(&root, &relative)?;
-        let quarantined = checked_join(&qroot, &relative)?;
+        let quarantined = checked_join(&qroot, &quarantine_destination_relative(item)?)?;
         if source.exists() || !quarantined.is_file() {
             return Err(format!("Restore blocked by occupied/missing file: {}", source.display()));
         }
@@ -748,7 +823,7 @@ pub fn restore_quarantine(
             Ok(path) => path,
             Err(error) => return Err(abort_restore(&path, &mut journal, &restored, error)),
         };
-        let quarantined = match checked_join(&qroot, &relative) {
+        let quarantined = match checked_join(&qroot, &quarantine_destination_relative(item)?) {
             Ok(path) => path,
             Err(error) => return Err(abort_restore(&path, &mut journal, &restored, error)),
         };
@@ -810,7 +885,7 @@ pub fn recover_quarantine(folder: String, manifest_path: String) -> Result<Quara
     for item in &journal.items {
         let relative = validated_relative(&item.source_relative_path)?;
         let source = checked_join(&root, &relative)?;
-        let quarantined = checked_join(&qroot, &relative)?;
+        let quarantined = checked_join(&qroot, &quarantine_destination_relative(item)?)?;
         if source.is_file() && !quarantined.exists() {
             verified(&source, item)?;
         } else if !source.exists() && quarantined.is_file() {
@@ -885,7 +960,7 @@ pub fn remove_quarantine_history(
     // remain in quarantine. Never delete a journal needed to recover CCs.
     for item in &journal.items {
         let relative = validated_relative(&item.source_relative_path)?;
-        let quarantined = checked_join(&quarantine_root, &relative)?;
+        let quarantined = checked_join(&quarantine_root, &quarantine_destination_relative(item)?)?;
         if quarantined.exists() {
             return Err(format!(
                 "Quarantined content still exists; record removal was blocked: {}",
