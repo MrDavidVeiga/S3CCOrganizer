@@ -5,7 +5,7 @@ const THEME_KEY = "s3cc-manager-theme";
 const VALID_THEMES = new Set(["system","veiga-light","veiga-dark","mean-girls","ea-app","winui-light","winui-dark"]);
 const VEIGA_ACCENT = "#7FAD2D";
 const MEAN_GIRLS_ACCENT = "#F92F60";
-const EA_APP_ACCENT = "#276AFC";
+const EA_APP_ACCENT = "#FF4747";
 const WINUI_ACCENT_FALLBACK = "#0078D4";
 const osDark = window.matchMedia("(prefers-color-scheme: dark)");
 
