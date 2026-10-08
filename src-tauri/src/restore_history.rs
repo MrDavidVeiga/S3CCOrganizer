@@ -180,6 +180,16 @@ pub fn remove_restore_history(
     if indexed.valid && !indexed.matches_selected_root {
         return Err("This manifest belongs to a different Mods root.".to_string());
     }
+    // Keep every journal that could still be required for recovery, including
+    // partially completed and interrupted operations.
+    if indexed.valid
+        && !matches!(indexed.status.as_str(), "COMPLETE" | "RESTORED" | "ROLLED_BACK")
+    {
+        return Err(
+            "This manifest records an active or incomplete operation and cannot be removed."
+                .to_string(),
+        );
+    }
 
     crate::workspace::ensure_writable(&root)?;
     fs::remove_file(&canonical)
