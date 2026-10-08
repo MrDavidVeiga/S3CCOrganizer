@@ -410,6 +410,8 @@ const I18N = {
     scriptConflict: "Script Conflict",
     textOverride: "Text Override",
     potentialConflict: "Potential Conflict",
+    casMorphOverlap: "CAS Morph Overlap",
+    conflictCasMorphExplanation: "Both packages contain different CAS morph data with the same Type, Group and Instance. This requires review, but does not alone prove that either mod is broken.",
     mixedOverride: "Mixed Override",
     packagePairs: "Package Pairs",
     realOverrides: "Overrides",
@@ -856,6 +858,8 @@ const I18N = {
     scriptConflict: "Conflito de Script",
     textOverride: "Override de Texto",
     potentialConflict: "Conflito Potencial",
+    casMorphOverlap: "Sobreposição de Morfologia CAS",
+    conflictCasMorphExplanation: "Os packages contêm dados diferentes de morfologia CAS com o mesmo Type, Group e Instance. É necessário revisar, mas isso não comprova que algum mod esteja com defeito.",
     mixedOverride: "Override Misto",
     packagePairs: "Pares de Packages",
     realOverrides: "Overrides",
@@ -1301,6 +1305,8 @@ const I18N = {
     scriptConflict: "Conflicto de Script",
     textOverride: "Override de Texto",
     potentialConflict: "Conflicto Potencial",
+    casMorphOverlap: "Superposición de Morfología CAS",
+    conflictCasMorphExplanation: "Los packages contienen datos distintos de morfología CAS con el mismo Type, Group e Instance. Requiere revisión, pero no demuestra por sí solo que algún mod esté dañado.",
     mixedOverride: "Override Mixto",
     packagePairs: "Pares de Packages",
     realOverrides: "Overrides",
@@ -3086,6 +3092,7 @@ function renderConflictFilter() {
     ["visual_override", t("visualOverride")],
     ["text_override", t("textOverride")],
     ["potential_conflict", t("potentialConflict")],
+    ["cas_morph_overlap", t("casMorphOverlap")],
     ["mixed_override", t("mixedOverride")],
     ["shared_identical", t("sharedIdentical")],
     ["intentional_override", t("intentionalOverride")],
@@ -3110,6 +3117,7 @@ function conflictKindLabel(kind) {
     script_conflict: t("scriptConflict"),
     text_override: t("textOverride"),
     potential_conflict: t("potentialConflict"),
+    cas_morph_overlap: t("casMorphOverlap"),
     mixed_override: t("mixedOverride"),
   }[kind] || kind;
 }
@@ -3134,6 +3142,7 @@ function conflictExplanation(kind) {
     script_conflict: t("conflictScriptExplanation"),
     text_override: t("conflictTextExplanation"),
     potential_conflict: t("conflictPotentialExplanation"),
+    cas_morph_overlap: t("conflictCasMorphExplanation"),
     mixed_override: t("conflictMixedExplanation"),
   }[kind] || "";
 }
@@ -3491,7 +3500,7 @@ function renderConflicts() {
   el.confStatPairs.textContent = stats.packagePairs ?? 0;
   el.confStatReal.textContent = realOverrides;
   el.confStatScript.textContent = stats.scriptConflicts ?? 0;
-  el.confStatPotential.textContent = stats.potentialConflicts ?? 0;
+  el.confStatPotential.textContent = (stats.potentialConflicts ?? 0) + (stats.casMorphOverlaps ?? 0);
   el.confStatShared.textContent = stats.sharedIdentical ?? 0;
 
   if (state.conflictsBusy) {
