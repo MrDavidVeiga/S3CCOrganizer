@@ -129,7 +129,14 @@ pub fn list_restore_history(folder: String) -> Result<Vec<RestoreHistoryItem>, S
 /// Remove only a manifest indexed in this Mods root's managed Restore History.
 /// Packages and their directory structure are never touched.
 #[tauri::command]
-pub fn remove_restore_history(folder: String, manifest_path: String) -> Result<(), String> {
+pub fn remove_restore_history(
+    folder: String,
+    manifest_path: String,
+    confirmed: bool,
+) -> Result<(), String> {
+    if !confirmed {
+        return Err("Removing a restore record requires explicit confirmation.".to_string());
+    }
     let root = PathBuf::from(folder.trim())
         .canonicalize()
         .map_err(|error| format!("Could not resolve restore root: {error}"))?;
