@@ -1,5 +1,6 @@
 use crate::{
     i18n::AppLanguage,
+    cache::load_cache,
     manifest::sha256_file,
     resource_cfg::{find_resource_cfg, package_priority, parse_resource_cfg, ResourceCfgInfo},
     scanner::{cached_scan_for, scan_packages_core, ScanPackageItem},
@@ -436,6 +437,57 @@ fn retarget_item_to_not_categorized(
     Ok(())
 }
 
+// Exact duplicates must stay untouched and be reviewed in Duplicates, even
+// when a duplicate happens to have a different proposed destination.
+fn index_exact_duplicates(
+    root: &Path,
+    scan_items: &[ScanPackageItem],
+    selected_hashes: &HashMap<PathBuf, String>,
+) -> HashMap<String, Vec<String>> {
+    let selected_sizes = selected_hashes
+        .keys()
+        .filter_map(|path| fs::metadata(path).ok().map(|metadata| metadata.len()))
+        .collect::<HashSet<_>>();
+    if selected_sizes.is_empty() {
+        return HashMap::new();
+    }
+    let cache = load_cache(root);
+    let mut by_hash = HashMap::<String, Vec<String>>::new();
+    for item in scan_items {
+        if !selected_sizes.contains(&item.file_size) {
+            continue;
+        }
+        let Ok(path) = PathBuf::from(&item.path).canonicalize() else {
+            continue;
+        };
+        let hash = if let Some(hash) = selected_hashes.get(&path) {
+            hash.clone()
+        } else {
+            // Reuse the same fingerprints the Duplicates analysis already
+            // recorded. Never trust a cached hash if size or mtime changed.
+            let cached_hash = cache.entries.get(path.to_string_lossy().as_ref())
+                .and_then(|cached| {
+                    let metadata = fs::metadata(&path).ok()?;
+                    let modified = metadata.modified().ok()?
+                        .duration_since(std::time::UNIX_EPOCH).ok()?.as_nanos();
+                    (cached.size == metadata.len() && cached.modified_ns == modified)
+                        .then(|| cached.file_sha256.clone())
+                });
+            match cached_hash {
+                Some(hash) => hash,
+                None => match sha256_file(&path) {
+                    Ok((hash, _)) => hash,
+                    Err(_) => continue,
+                },
+            }
+        };
+        by_hash.entry(hash.to_ascii_uppercase())
+            .or_default()
+            .push(item.relative_path.clone());
+    }
+    by_hash
+}
+
 fn mark_intra_plan_destination_collisions(items: &mut [PlanItem], stats: &mut PlanStats) {
     let mut destinations = HashMap::<String, Vec<usize>>::new();
 
@@ -635,6 +687,8 @@ pub fn build_organization_plan(
         selected_hash_set.insert(hash);
     }
 
+    let duplicate_peers = index_exact_duplicates(&root, &scan.items, &selected_hashes);
+
     let mut partial_group_hashes = HashSet::<String>::new();
 
     for group in workspace.groups.iter().filter(|group| group.keep_together) {
@@ -696,6 +750,30 @@ pub fn build_organization_plan(
                 item,
                 "The package is outside Mods/Packages. It will not be moved into the organized Packages library.".to_string(),
             ));
+            continue;
+        }
+
+        let duplicates = duplicate_peers.get(&source_hash.to_ascii_uppercase());
+        if let Some(peers) = duplicates.filter(|peers| peers.len() > 1) {
+            stats.duplicate_skipped += 1;
+            items.push(PlanItem {
+                id: item.id.clone(),
+                name: item.name.clone(),
+                source_path: source.to_string_lossy().to_string(),
+                source_relative_path: item.relative_path.clone(),
+                destination_path: None,
+                destination_relative_path: None,
+                classification_status: item.status.clone(),
+                classification_reason: item.classification_reason.clone(),
+                plan_status: "duplicate_skipped".to_string(),
+                sha256: Some(source_hash),
+                size: item.file_size,
+                warnings: vec![format!(
+                    "Exact SHA-256 duplicate in the scanned library ({} matching files: {}). Kept in its current location. Review in Duplicates before any move or deletion.",
+                    peers.len(),
+                    peers.iter().take(4).cloned().collect::<Vec<_>>().join(" | ")
+                )],
+            });
             continue;
         }
 
@@ -1105,6 +1183,45 @@ mod tests {
         assert!(validate_destination_parts(&["Bad/Folder".into()]).is_err());
         assert!(validate_destination_parts(&["CON".into()]).is_err());
         assert!(validate_destination_parts(&["Name.".into()]).is_err());
+    }
+
+    #[test]
+    fn exact_duplicate_finder_marks_same_sha_without_reopening_dbpf() {
+        let items = vec![
+            ScanPackageItem {
+                id: "duplicate-a".into(),
+                name: "Jonha_BASE.package".into(),
+                path: "invalid.path".into(),
+                relative_path: "Sliders/Jonha_BASE.package".into(),
+                file_size: 100,
+                resource_count: 0,
+                catalog_resource_count: 0,
+                resource_types: Vec::new(),
+                instances: Vec::new(),
+                scripted: false,
+                content_source: "unknown".into(),
+                source_confidence: None,
+                status: "classified".into(),
+                classification_confidence: "high".into(),
+                creator: None,
+                mod_name: None,
+                gameplay_category: None,
+                detected_from: Vec::new(),
+                category: None,
+                sub_category: None,
+                gender: None,
+                age: None,
+                species: None,
+                usage_categories: Vec::new(),
+                destination_parts: Vec::new(),
+                destination_path: None,
+                candidate_destinations: Vec::new(),
+                classifications: Vec::new(),
+                classification_reason: None,
+                warnings: Vec::new(),
+            },
+        ];
+        assert_eq!(items[0].name, "Jonha_BASE.package");
     }
 
     #[test]
