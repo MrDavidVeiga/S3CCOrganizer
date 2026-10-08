@@ -447,3 +447,50 @@ body.release-v1 :is(.tools-subtab,.restore-history-actions button,
   body.release-v1 :is(.plan-item,.tools-subtab,.catalog-row,
     .sims3pack-item,.collision-review-item) { transition: none; }
 }
+
+
+/* Preserve interactive surfaces and the distinction between secondary and
+ * destructive History actions after the integrated card rules. */
+body.release-v1 .history-record-actions .secondary-btn:hover:not(:disabled),
+body.release-v1 .restore-history-actions .secondary-btn:hover:not(:disabled) {
+  background-color: var(--fluent-control-hover);
+}
+body.release-v1 .history-record-actions .secondary-btn:active:not(:disabled),
+body.release-v1 .restore-history-actions .secondary-btn:active:not(:disabled) {
+  background-color: var(--fluent-control-pressed);
+}
+body.release-v1 .history-record-actions .danger-btn:hover:not(:disabled),
+body.release-v1 .restore-history-actions .danger-btn:hover:not(:disabled) {
+  color: var(--fluent-danger);
+  border-color: var(--fluent-danger);
+  background-color: var(--fluent-danger-hover);
+}
+body.release-v1 .history-record-actions .danger-btn:active:not(:disabled),
+body.release-v1 .restore-history-actions .danger-btn:active:not(:disabled) {
+  color: var(--fluent-danger);
+  background-color: var(--fluent-control-pressed);
+}
+body.release-v1 :is(.plan-item,.duplicate-member,.duplicate-pair article,
+  .conflict-pair article,.conflict-evidence,.collision-review-item,
+  .sims3pack-item):active:not(.selected):not(.active) {
+  background-color: var(--fluent-list-pressed-fill);
+}
+body.release-v1 .tools-subtab.active:active:not(:disabled) {
+  background-color: var(--fluent-list-pressed-fill);
+}
+body.release-v1 :is(.tools-list-item,.technical-resource,.catalog-queue-item).selected,
+body.release-v1 :is(.tools-list-item,.technical-resource,.catalog-queue-item).active {
+  background-color: var(--fluent-list-selected-fill);
+}
+body.release-v1 :is(.tools-list-item,.technical-resource,.catalog-queue-item).selected:hover,
+body.release-v1 :is(.tools-list-item,.technical-resource,.catalog-queue-item).active:hover {
+  background-color: var(--fluent-list-active-hover-fill);
+}
+@media (forced-colors: active) {
+  body.release-v1 .history-record-actions .danger-btn:hover:not(:disabled),
+  body.release-v1 .restore-history-actions .danger-btn:hover:not(:disabled) {
+    color: HighlightText;
+    background-color: Highlight;
+    border-color: Highlight;
+  }
+}
