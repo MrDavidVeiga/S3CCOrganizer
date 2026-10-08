@@ -4,6 +4,8 @@ import { open } from "@tauri-apps/plugin-dialog";
 
 const I18N = {
   en: {
+    remainingLegacyFiles: "files still in original folders",
+    remainingLegacyExamples: "Show remaining files (never deleted automatically)",
     disabledPackages: "Disabled",
     noEligibleConflictDecisions: "No eligible conflict decisions to save in this selection.",
     organizeElapsed: "Elapsed",
@@ -546,6 +548,8 @@ const I18N = {
     conflictsNext: "Resource-level conflict analysis is implemented in read-only mode.",
   },
   pt: {
+    remainingLegacyFiles: "arquivos ainda nas pastas originais",
+    remainingLegacyExamples: "Ver arquivos restantes (nunca excluídos automaticamente)",
     disabledPackages: "Desativados",
     noEligibleConflictDecisions: "Nenhum conflito selecionado tem dados suficientes para salvar essa decisão.",
     organizeElapsed: "Tempo decorrido",
@@ -1087,6 +1091,8 @@ const I18N = {
     conflictsNext: "A análise de conflitos por resource está implementada em modo somente leitura.",
   },
   es: {
+    remainingLegacyFiles: "archivos aún en las carpetas originales",
+    remainingLegacyExamples: "Ver archivos restantes (nunca eliminados automáticamente)",
     disabledPackages: "Desactivados",
     noEligibleConflictDecisions: "Ningún conflicto seleccionado tiene datos suficientes para guardar esta decisión.",
     organizeElapsed: "Tiempo transcurrido",
@@ -1936,6 +1942,8 @@ const el = {
   planStatFolders: document.querySelector("#plan-stat-folders"),
   organizationReviewPanel: document.querySelector("#organization-review-panel"),
   organizationReviewSummary: document.querySelector("#organization-review-summary"),
+  organizationReviewLeftovers: document.querySelector("#organization-review-leftovers"),
+  organizationReviewLeftoverPaths: document.querySelector("#organization-review-leftover-paths"),
   reviewDuplicatesBtn: document.querySelector("#review-duplicates-btn"),
   reviewCollisionsBtn: document.querySelector("#review-collisions-btn"),
   collisionReviewModal: document.querySelector("#collision-review-modal"),
@@ -7249,7 +7257,15 @@ function renderOrganizationReview() {
   if (review.oldFoldersRetained > 0) {
     summaryParts.push(`${review.oldFoldersRetained} ${t("oldFoldersStillOccupied")}`);
   }
+  if (review.remainingLegacyFiles > 0) {
+    summaryParts.push(`${review.remainingLegacyFiles} ${t("remainingLegacyFiles")}`);
+  }
   el.organizationReviewSummary.textContent = summaryParts.join(" · ");
+  const leftovers = review.remainingLegacyExamples || [];
+  el.organizationReviewLeftovers?.classList.toggle("hidden", leftovers.length === 0);
+  if (el.organizationReviewLeftoverPaths) {
+    el.organizationReviewLeftoverPaths.textContent = leftovers.join("\n");
+  }
 
   el.reviewDuplicatesBtn.classList.toggle("hidden", !(review.duplicates > 0));
   el.reviewCollisionsBtn.classList.toggle("hidden", !(review.collisions > 0));
@@ -8142,6 +8158,8 @@ async function executeOrganization() {
           (completedStats.collisionDifferentContent ?? 0),
         oldFoldersRemoved: result.oldFoldersRemoved ?? 0,
         oldFoldersRetained: result.oldFoldersRetained ?? 0,
+        remainingLegacyFiles: result.remainingLegacyFiles ?? 0,
+        remainingLegacyExamples: result.remainingLegacyExamples ?? [],
       };
       state.organizationCollisionItems = collisionItems;
 
