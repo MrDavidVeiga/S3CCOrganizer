@@ -763,7 +763,9 @@ fn mark_intra_plan_destination_collisions(items: &mut [PlanItem], stats: &mut Pl
 }
 
 fn plan_can_execute(stats: &PlanStats, read_only: bool) -> bool {
-    !read_only && stats.ready > 0 && stats.blocked == 0
+    // Blocked items are excluded from movement. They must not prevent the
+    // independently validated ready items from being organized and restored.
+    !read_only && stats.ready > 0
 }
 
 fn manifest_preview(
@@ -1822,7 +1824,7 @@ mod tests {
     }
 
     #[test]
-    fn true_blockers_still_prevent_organization() {
+    fn blocked_items_are_skipped_without_blocking_independent_ready_moves() {
         let stats = PlanStats {
             selected: 2,
             ready: 1,
@@ -1830,7 +1832,8 @@ mod tests {
             ..PlanStats::default()
         };
 
-        assert!(!plan_can_execute(&stats, false));
+        assert!(plan_can_execute(&stats, false));
+        assert!(!plan_can_execute(&PlanStats { ready: 0, blocked: 1, ..PlanStats::default() }, false));
         assert!(!plan_can_execute(&PlanStats { ready: 1, ..PlanStats::default() }, true));
     }
 
