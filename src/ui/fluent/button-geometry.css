@@ -75,6 +75,32 @@ body.release-v1 :is(
   align-self: stretch;
 }
 
+/*
+ * Sims3Pack toolbar: the original 190px flex basis was too narrow for
+ * "Converter para .package" at the standard 14px Semibold and 125% DPI.
+ * Keep all three commands at the same width, and wrap entire controls
+ * (not their labels) when there isn't enough horizontal space.
+ */
+body.release-v1 .sims3pack-converter-actions > :is(.primary-btn, .secondary-btn) {
+  flex: 0 0 240px;
+  width: 240px;
+  min-width: 240px;
+  white-space: nowrap;
+  align-self: center;
+  padding-inline: 12px;
+}
+body.release-v1 .sims3pack-converter-actions > :is(.primary-btn, .secondary-btn) > span {
+  white-space: nowrap;
+  min-width: 0;
+}
+@media (max-width: 620px) {
+  body.release-v1 .sims3pack-converter-actions > :is(.primary-btn, .secondary-btn) {
+    flex: 1 1 100%;
+    width: 100%;
+    min-width: 0;
+  }
+}
+
 /* Manager selection commands belong to the narrow preview-column toolbar.
  * Portuguese/Spanish labels must stay on ONE line without shrinking below
  * the normal WinUI 3 14px caption. Desktop stays aligned with the preview;

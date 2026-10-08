@@ -85,6 +85,19 @@ for(const id of ["select-all-btn","select-none-btn"]){
 assert.match(geometry, /#page-organizer \.results-selection-controls \{/);
 assert.match(geometry, /grid-column: 1 \/ -1/);
 assert.match(geometry, /grid-template-columns: repeat\(2, max-content\)/);
+// Regression from Windows PT screenshot: "Converter para .package"
+// wrapped under legacy fixed 190px, unlike neighboring secondary commands.
+// The new fixed basis is shared, and the entire button wraps at narrow widths.
+const converterCss = geometry.match(/body\.release-v1 \.sims3pack-converter-actions > :is\(\.primary-btn, \.secondary-btn\) \{([^}]*)\}/);
+assert(converterCss, "converter buttons need a scoped, shared size rule");
+assert.match(converterCss[1],/flex: 0 0 240px/);
+assert.match(converterCss[1],/width: 240px/);
+assert.match(converterCss[1],/min-width: 240px/);
+assert.match(converterCss[1],/white-space: nowrap/);
+assert.match(geometry,/\.sims3pack-converter-actions > :is\(\.primary-btn, \.secondary-btn\) > span \{[^}]*white-space: nowrap/);
+assert.match(geometry,/@media \(max-width: 620px\) \{[^]*?\.sims3pack-converter-actions > :is\(\.primary-btn, \.secondary-btn\) \{[^}]*flex: 1 1 100%/);
+assert.match(read("src/style.css"),/\.sims3pack-converter-actions \.primary-btn,[^]*?flex: 0 0 190px/);
+assert(geometry.includes("240px"), "the scoped override must supersede 190px");
 assert.equal(get("choose-folder-btn").paddingTop,"12px","sidebar large button stays large");
 assert.equal(get("choose-folder-btn").paddingLeft,"14px");
 assert.equal(get("compact").fontSize,"12px","compact sidebar actions are intentional");
