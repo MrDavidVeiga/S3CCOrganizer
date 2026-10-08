@@ -4,7 +4,7 @@ use crate::{
     manifest::{
         replace_manifest_atomic, sha256_file, write_manifest_atomic, RestoreEntry, RestoreManifest,
     },
-    planner::{build_organization_plan_with_cfg, PlanItem},
+    planner::{build_organization_plan_with_cfg, legacy_manager_source, PlanItem},
     operation,
     mods_layout::{is_mods_root, validate_organization_destination},
     resource_cfg::{parse_resource_cfg, package_priority},
@@ -13,7 +13,7 @@ use crate::{
 use chrono::{Local, SecondsFormat};
 use serde::Serialize;
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap},
     fs,
     path::{Path, PathBuf},
 };
@@ -327,8 +327,48 @@ fn remaining_legacy_sources(
             }
         }
     }
+    // Old manager releases placed category trees *beside* Packages in the
+    // Mods root. Include everything still inside those trees, even if this
+    // particular transaction could not move a single package from one of
+    // them (blocked, duplicate, invalid, sidecar).
+    if is_mods_root(root) {
+        for entry in WalkDir::new(root).follow_links(false).into_iter().filter_map(Result::ok) {
+            if !entry.file_type().is_file() || !legacy_manager_source(root, entry.path()) {
+                continue;
+            }
+            if let Ok(relative) = entry.path().strip_prefix(root) {
+                remaining.insert(relative.to_string_lossy().to_string());
+            }
+        }
+    }
     let count = remaining.len();
-    (count, remaining.into_iter().take(12).collect())
+    (count, remaining.into_iter().collect())
+}
+
+fn report_all_pending_sources(
+    root: &Path,
+    moved_pairs: &[(PathBuf, PathBuf, String, u64)],
+    plan_items: &[PlanItem],
+) -> (usize, Vec<String>) {
+    let (_, leftovers) = remaining_legacy_sources(root, moved_pairs);
+    let mut reports = BTreeMap::<String, String>::new();
+    for relative in leftovers {
+        reports.insert(relative.clone(), relative);
+    }
+    // Every selected, unmoved package must be visible with its disposition,
+    // even if its old directory had no other successful movement.
+    for item in plan_items {
+        if item.plan_status.starts_with("ready") || item.plan_status == "already_organized" {
+            continue;
+        }
+        let source = Path::new(&item.source_path);
+        if !source.is_file() { continue; }
+        if let Ok(relative) = source.strip_prefix(root) {
+            let key = relative.to_string_lossy().to_string();
+            reports.insert(key.clone(), format!("{key} — {}", item.plan_status));
+        }
+    }
+    (reports.len(), reports.into_values().collect())
 }
 
 #[tauri::command]
@@ -391,20 +431,39 @@ fn execute_organization_core(
     let move_total = ready.len();
     operation::update("organize", 0, None, "preparing");
 
+    // Fail the entire transaction before touching Resource.cfg, a recovery
+    // manifest, or a single package if any proposed path crosses a loading
+    // branch. Recheck in the move loop to cover future planner regressions.
+    for item in &ready {
+        let destination = item.destination_path.as_ref()
+            .ok_or_else(|| format!("Missing proposed destination for {}", item.name))?;
+        validate_organization_destination(
+            &root, Path::new(&item.source_path), Path::new(destination)
+        )?;
+    }
+
     if ready.is_empty() {
+        // Organize was confirmed; remove only truly empty directories, even
+        // if this pass had no eligible package moves.
+        let (removed, retained, warnings) =
+            cleanup_empty_directories_after_organization(&root, &[]);
+        let (remaining, examples) = report_all_pending_sources(&root, &[], &plan.items);
+        let organized_root = if is_mods_root(&root) {
+            root.join("Packages")
+        } else { root.clone() };
         return Ok(ExecutionResult {
-            status: "NO_CHANGES".to_string(),
+            status: if removed > 0 { "COMPLETE" } else { "NO_CHANGES" }.to_string(),
             manifest_path: None,
             moved: 0,
             already_organized: plan.stats.already_organized,
             rolled_back: 0,
-            old_folders_removed: 0,
-            old_folders_retained: 0,
-            remaining_legacy_files: 0,
-            remaining_legacy_examples: Vec::new(),
-            organized_root: root.to_string_lossy().to_string(),
+            old_folders_removed: removed,
+            old_folders_retained: retained,
+            remaining_legacy_files: remaining,
+            remaining_legacy_examples: examples,
+            organized_root: organized_root.to_string_lossy().to_string(),
             moved_paths: Vec::new(),
-            errors: Vec::new(),
+            errors: warnings,
         });
     }
 
@@ -647,7 +706,7 @@ fn execute_organization_core(
         cleanup_empty_directories_after_organization(&root, &moved_pairs);
 
     let (remaining_legacy_files, remaining_legacy_examples) =
-        remaining_legacy_sources(&root, &moved_pairs);
+        report_all_pending_sources(&root, &moved_pairs, &plan.items);
 
     manifest.status = "COMPLETE".to_string();
     replace_manifest_atomic(&manifest_path, &manifest)?;
