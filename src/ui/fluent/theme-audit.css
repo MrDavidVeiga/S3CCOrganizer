@@ -316,3 +316,134 @@ body.release-v1 :is(
     transition: none;
   }
 }
+
+
+/* Cross-feature integration: theme every new Tools, Restore, report, converter,
+ * inspection and planning surface without changing virtual list geometry. */
+body.release-v1 {
+  --workflow-card: var(--winui-card-fill-alt, var(--surface));
+  --workflow-panel: var(--winui-card-fill, var(--surface));
+  --workflow-stroke: var(--fluent-control-stroke);
+  --workflow-divider: var(--winui-divider, var(--fluent-control-stroke));
+}
+body.release-v1 :is(
+  .plan-items,.plan-item,.planner-section,.restore-manifest-path,
+  .restore-summary article,.restore-root-check,.duplicate-reason,
+  .duplicate-member,.duplicate-pair article,.conflict-reason,
+  .conflict-pair article,.conflict-evidence,.conflict-load-order,
+  .quarantine-preview,.structure-breadcrumb,.structure-list,.structure-preview,
+  .tools-card,.manual-review-box,.catalog-autosave,.catalog-path,
+  .catalog-health article,.catalog-source-panel,.catalog-secondary-panel,
+  .catalog-source-columns > section,.catalog-path-row,.catalog-table-shell,
+  .catalog-preview,.catalog-preview-flags,.sims3pack-converter-paths > div,
+  .sims3pack-group,.sims3pack-conversion-summary,.collision-review-item
+) {
+  background-color: var(--workflow-card);
+  border-color: var(--workflow-stroke);
+  color: var(--fluent-text-primary);
+}
+body.release-v1 :is(.plan-items,.planner-section,.restore-summary article,
+  .tools-card,.catalog-table-shell,.catalog-preview,.structure-list,
+  .structure-preview) { background-color: var(--workflow-panel); }
+/* Intentional severity rails must survive the shared neutral card rule. */
+body.release-v1 .plan-ready,
+body.release-v1 :is(.restore-ready_restore,.restore-ready_new) {
+  border-left-color: var(--fluent-accent-fill);
+}
+body.release-v1 :is(.plan-collision_same_content,.plan-collision_different_content,
+  .collision-review-item) { border-left-color: var(--fluent-state-warning); }
+body.release-v1 :is(.plan-blocked,.restore-collision_same_content,
+  .restore-collision_different_content,.restore-changed,.restore-missing,
+  .restore-ambiguous,.conflict-evidence.different) {
+  border-left-color: var(--fluent-state-error);
+}
+body.release-v1 :is(.plan-status,.restore-history-status,.restore-root-check strong,
+  .duplicate-kind,.conflict-kind,.duplicate-metrics,.duplicate-metrics > div,
+  .conflict-metrics,.conflict-metrics > div,.conflict-evidence-details > div,
+  .plan-tree-row,.catalog-cell-input,.catalog-url-cell,
+  .sims3pack-group-header,.sims3pack-conversion-summary-head,
+  .sims3pack-item,.sims3pack-converted-line) {
+  border-color: var(--workflow-divider);
+}
+body.release-v1 :is(.collision-review-modal,.duplicate-details-modal,.conflict-details-modal) {
+  background: var(--winui-popup);
+  border-color: var(--workflow-stroke);
+  color: var(--fluent-text-primary);
+}
+body.release-v1 :is(.restore-manifest-path,.catalog-path-row,.structure-breadcrumb,
+  .plan-tree-row code,.collision-review-paths code,.restore-root-check code,
+  .tools-list-item code) { color: var(--fluent-text-primary); }
+body.release-v1 :is(.plan-status-keep_uncategorized,.plan-status-duplicate_skipped,
+  .catalog-cell-input[readonly],.tools-list-item small) { color: var(--fluent-text-secondary); }
+body.release-v1 :is(.plan-status-ready,.restore-status-ready_restore,
+  .restore-status-ready_new,.duplicate-kind-exact_duplicate,
+  .duplicate-kind-content_duplicate,.restore-root-check.match strong) {
+  color: var(--fluent-state-success);
+}
+body.release-v1 :is(.restore-root-check.mismatch strong,
+  .plan-status-blocked,.scan-state.error,.tools-health-bad) {
+  color: var(--fluent-state-error);
+}
+body.release-v1 :is(.sims3pack-warning,.collision-review-warning,
+  .plan-status-collision_same_content,.plan-status-collision_different_content,
+  .duplicate-kind-retexture,.duplicate-kind-recategorized_variant,
+  .duplicate-kind-related_variant,.manual-review-box > strong) {
+  color: var(--fluent-state-warning);
+}
+body.release-v1 .scan-state.success { color: var(--fluent-state-success); }
+body.release-v1 .scan-state.fluent-infobar { color: var(--fluent-text-primary); }
+body.release-v1 :is(.tools-subtab,.restore-history-actions button,
+  .catalog-mini-icon,.catalog-row-button):hover:not(:disabled) {
+  background-color: var(--fluent-list-hover-fill);
+}
+body.release-v1 :is(.tools-subtab,.restore-history-actions button,
+  .catalog-mini-icon,.catalog-row-button):active:not(:disabled) {
+  background-color: var(--fluent-list-pressed-fill);
+}
+body.release-v1 .tools-subtab.active {
+  background-color: var(--fluent-list-selected-fill);
+  color: var(--fluent-text-primary);
+  border-color: var(--fluent-control-stroke-strong);
+}
+body.release-v1 .tools-subtab.active:hover { background-color: var(--fluent-list-active-hover-fill); }
+/* Shared card backgrounds must not erase interactions or selected stripes. */
+body.release-v1 :is(.plan-item,.duplicate-member,.duplicate-pair article,
+  .conflict-pair article,.conflict-evidence,.collision-review-item,
+  .sims3pack-item):hover:not(.selected):not(.active) {
+  background-color: var(--fluent-list-hover-fill);
+}
+body.release-v1 .catalog-row:nth-child(even):not(.selected):not(:hover) {
+  background-color: var(--winui-card-fill-alt);
+}
+body.release-v1 .catalog-row.selected,
+body.release-v1 .catalog-row:nth-child(even).selected { background-color: var(--fluent-list-selected-fill); }
+body.release-v1 .catalog-row.selected:hover { background-color: var(--fluent-list-active-hover-fill); }
+body.release-v1 :is(.tools-subtab,.restore-history-actions button,
+  .catalog-mini-icon,.catalog-row-button):focus-visible {
+  outline: 2px solid var(--fluent-focus-outer);
+  outline-offset: -2px;
+}
+@media (forced-colors: active) {
+  body.release-v1 :is(.plan-items,.plan-item,.planner-section,.restore-manifest-path,
+    .restore-summary article,.restore-root-check,.duplicate-reason,.duplicate-member,
+    .duplicate-pair article,.conflict-reason,.conflict-pair article,.conflict-evidence,
+    .quarantine-preview,.tools-card,.manual-review-box,.catalog-table-shell,
+    .catalog-preview,.sims3pack-group,.collision-review-item,
+    .collision-review-modal,.duplicate-details-modal,.conflict-details-modal) {
+    background: Canvas;
+    color: CanvasText;
+    border-color: CanvasText;
+  }
+  body.release-v1 .tools-subtab.active,
+  body.release-v1 .catalog-row.selected {
+    background: Highlight;
+    color: HighlightText;
+    border-color: Highlight;
+  }
+  body.release-v1 :is(.scan-state.error,.scan-state.success,.sims3pack-warning,
+    .collision-review-warning) { color: CanvasText; }
+}
+@media (prefers-reduced-motion: reduce) {
+  body.release-v1 :is(.plan-item,.tools-subtab,.catalog-row,
+    .sims3pack-item,.collision-review-item) { transition: none; }
+}
