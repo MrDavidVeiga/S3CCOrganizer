@@ -122,6 +122,7 @@ pub fn run() {
             quarantine::execute_quarantine,
             quarantine::restore_quarantine,
             quarantine::recover_quarantine,
+            quarantine::remove_quarantine_history,
             planner::build_organization_plan,
             executor::execute_organization,
             restore::preview_restore,
