@@ -506,6 +506,13 @@ const I18N = {
     organizerAllSubcategories: "All subcategories",
     organizerAllGenders: "All genders",
     organizerAllAges: "All ages",
+    organizerAgeBaby: "Baby",
+    organizerAgeToddler: "Toddler",
+    organizerAgeChild: "Child",
+    organizerAgeTeen: "Teen",
+    organizerAgeYoungAdult: "Young Adult",
+    organizerAgeAdult: "Adult",
+    organizerAgeElder: "Elder",
     organizerAllOutfits: "All outfit categories",
     organizerFilterCount: "Visible packages",
     conflictRelatedPairs: "Related conflict pairs",
@@ -1115,6 +1122,13 @@ const I18N = {
     organizerAllSubcategories: "Todas as subcategorias",
     organizerAllGenders: "Todos os gêneros",
     organizerAllAges: "Todas as idades",
+    organizerAgeBaby: "Bebê",
+    organizerAgeToddler: "Bebê de colo",
+    organizerAgeChild: "Criança",
+    organizerAgeTeen: "Adolescente",
+    organizerAgeYoungAdult: "Jovem Adulto",
+    organizerAgeAdult: "Adulto",
+    organizerAgeElder: "Idoso",
     organizerAllOutfits: "Todas as categorias de roupa",
     organizerFilterCount: "Packages visíveis",
     conflictRelatedPairs: "Pares de conflitos relacionados",
@@ -1724,6 +1738,13 @@ const I18N = {
     organizerAllSubcategories: "Todas las subcategorías",
     organizerAllGenders: "Todos los géneros",
     organizerAllAges: "Todas las edades",
+    organizerAgeBaby: "Bebé",
+    organizerAgeToddler: "Infante",
+    organizerAgeChild: "Niño",
+    organizerAgeTeen: "Adolescente",
+    organizerAgeYoungAdult: "Adulto Joven",
+    organizerAgeAdult: "Adulto",
+    organizerAgeElder: "Anciano",
     organizerAllOutfits: "Todas las categorías de ropa",
     organizerFilterCount: "Packages visibles",
     conflictRelatedPairs: "Pares de conflictos relacionados",
@@ -7440,6 +7461,15 @@ function metadataForItem(item) {
 }
 
 const ORGANIZER_CAS_KEYS = ["category", "subcategory", "gender", "age", "outfit"];
+const ORGANIZER_AGE_FLAGS = [
+  ["baby", 0x01, "organizerAgeBaby"],
+  ["toddler", 0x02, "organizerAgeToddler"],
+  ["child", 0x04, "organizerAgeChild"],
+  ["teen", 0x08, "organizerAgeTeen"],
+  ["young_adult", 0x10, "organizerAgeYoungAdult"],
+  ["adult", 0x20, "organizerAgeAdult"],
+  ["elder", 0x40, "organizerAgeElder"],
+];
 const ORGANIZER_SORT_MODES = new Set(["original", "name_asc", "name_desc", "size_desc", "resources_desc"]);
 
 function organizerCaspClassifications(item) {
@@ -7455,7 +7485,8 @@ function matchesOrganizerCasFilters(item, filters = state.organizerFilters) {
     (!filters.category || c.mainCategory === filters.category) &&
     (!filters.subcategory || c.subCategory === filters.subcategory) &&
     (!filters.gender || c.gender === filters.gender) &&
-    (!filters.age || c.age === filters.age) &&
+    (!filters.age || ORGANIZER_AGE_FLAGS.some(([value, bit]) =>
+      value === filters.age && (Number(c.ageFlags || 0) & bit) !== 0)) &&
     (!filters.outfit || (c.usageCategories || []).includes(filters.outfit))
   );
 }
@@ -7477,13 +7508,19 @@ function renderOrganizerAdvancedFilters() {
       organizerFilterOptionsMemo.language !== state.language) {
     const catalog = state.items.flatMap(organizerCaspClassifications);
     for (const [select, key, field, allKey] of specs) {
-      const values = [...new Set(catalog.flatMap(c => {
-        const fieldValue = c[field];
-        return Array.isArray(fieldValue) ? fieldValue : fieldValue ? [fieldValue] : [];
-      }))].sort((a,b) => a.localeCompare(b, state.language === "pt" ? "pt-BR" : state.language));
+      const values = key === "age"
+        ? ORGANIZER_AGE_FLAGS.filter(([,bit]) => catalog.some(c =>
+            (Number(c.ageFlags || 0) & bit) !== 0)).map(([value]) => value)
+        : [...new Set(catalog.flatMap(c => {
+            const fieldValue = c[field];
+            return Array.isArray(fieldValue) ? fieldValue : fieldValue ? [fieldValue] : [];
+          }))].sort((a,b) => a.localeCompare(b, state.language === "pt" ? "pt-BR" : state.language));
       select.replaceChildren();
       select.add(new Option(t(allKey), ""));
-      values.forEach(value => select.add(new Option(value, value)));
+      values.forEach(value => select.add(new Option(
+        key === "age"
+          ? t(ORGANIZER_AGE_FLAGS.find(([id]) => id === value)?.[2] || value)
+          : value, value)));
       if (state.organizerFilters[key] && !values.includes(state.organizerFilters[key])) {
         state.organizerFilters[key] = "";
       }
