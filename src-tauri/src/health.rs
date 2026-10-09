@@ -1,5 +1,7 @@
 use crate::{
     dbpf::Package,
+    mods_layout::is_mods_root,
+    planner::legacy_manager_source,
     resource_cfg::{find_resource_cfg, package_priority, parse_resource_cfg, ResourceCfgInfo},
     structure_manager::{append_log, ManualOperationRecord},
     workspace::ensure_writable,
@@ -101,15 +103,19 @@ fn empty_dirs(root:&Path)->Vec<String>{
     out.sort_by_key(|v|v.to_ascii_lowercase());out
 }
 fn outside_packages(root:&Path)->Vec<String>{
-    let Some(parent)=root.parent() else{return Vec::new();};
+    // Health is scoped to the chosen Mods root, never its parent folder.
+    // Packages and Overrides are both valid loading branches. Only known
+    // legacy category folders placed beside Packages are migration findings.
+    if !is_mods_root(root) { return Vec::new(); }
     let mut out=Vec::new();
-    for e in walkdir::WalkDir::new(parent).follow_links(false).max_depth(6).into_iter().filter_map(Result::ok){
-        if !e.file_type().is_file() || !is_package(e.path()) || e.path().starts_with(root){continue;}
-        let text=e.path().to_string_lossy();
-        if text.contains("S3CC Organizer"){continue;}
-        out.push(e.path().to_string_lossy().to_string());
+    for e in walkdir::WalkDir::new(root).follow_links(false).into_iter().filter_map(Result::ok) {
+        if !e.file_type().is_file() || !is_package(e.path()) { continue; }
+        if legacy_manager_source(root, e.path()) {
+            out.push(rel(root, e.path()));
+        }
     }
-    out.sort_by_key(|v|v.to_ascii_lowercase());out
+    out.sort_by_key(|v|v.to_ascii_lowercase());
+    out
 }
 #[tauri::command]
 pub fn remove_empty_folder(folder:String,relative_path:String)->Result<bool,String>{
