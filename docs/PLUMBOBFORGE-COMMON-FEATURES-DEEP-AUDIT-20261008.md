@@ -73,3 +73,33 @@ Data: 2026-10-08. Escopo: Veiga's S3CC Manager, branch `fix/mods-copy-packages-i
 
 ## Status
 Auditoria estática pré-correção registrada. As conclusões de superioridade são limitadas às áreas observáveis pelo código; não representam benchmarks nem testes em jogo. As implementações serão próprias, mantendo bibliotecas Rust/Tauri e os princípios de licença/autoria.
+
+
+## Resultados da primeira etapa de correções (após a auditoria)
+
+**Escopo implementado na branch, não necessariamente lançado:**
+- **C-01 / C-05:** expansão de filtros da aba Organizer por categoria CASP, subcategoria, gênero, idade e uso/roupa, com ordenação por nome/tamanho/recursos e persistência no `localStorage`. Os cinco filtros CASP correlacionam seus predicados no **mesmo** `CatalogClassification` e não alteram `destinationPath`, `plan`, `executor` ou `Resource.cfg`. Opções geradas dos valores retornados pelo scanner; valores localizados são apagados ao trocar idioma. A faixa de idade, nesta primeira etapa, ainda é filtrada pelo rótulo **exato do conjunto de idades declarado por um CASP** (ex.: `YA-A`) e não por bit etário isolado: isso evita falsos positivos; filtros por cada idade individual exigiriam expor flags estáveis do Rust.
+- **C-02:** cache visual compartilhado e limitado a 80 entradas / 16 MiB de Base64, guardando no máximo 8 MiB por thumbnail individual. Prévia acima de 8 MiB é exibida como não disponível em vez de exceder esse limite; otimizar/downsample do payload **ainda é pendente**. Fila compartilhada com máximo de 3 `get_package_preview` concorrentes; pedidos pendentes são abandonados quando muda a análise/pasta; retornos de sessões anteriores não contaminam a próxima raiz. Cache de fingerprints DBPF não foi alterado.
+- **C-03 (parcial e seguro):** painel expansível `Pares de conflitos relacionados` no detalhe, computado na UI a partir de conexões de packages **do mesmo tipo de conflito e mesmo estado ativo/inativo**, respeitando a lista atualmente visível (filtro/pesquisa). Preserva lista virtualizada de pares e seleção/revisão/quarentena existentes, não infere que todos os arquivos do componente conflitam diretamente. Exibe total de pares e paths normalizados distintos e links para até 16 pares. **Não** substitui a lista principal por cabeçalhos agrupados: isso exigiria revisão da altura fixa/virtualização e testes visuais antes de alterar.
+- **C-04:** ação contextual de favoritar no Organizer e botão para abrir o editor de tags/status na aba Tools. Para impedir perda de tags em UI desatualizada, a ação Favorito usa a nova função Rust `toggle_package_favorite`: carrega o store atual, calcula o SHA-256 do package, modifica **somente** `favorite`/data/localização e salva. Enforce `ensure_writable(&root)` em `set_package_metadata` e no novo toggle. Foi adicionado teste Rust de regressão para preservação de tags e status; **não executado**.
+- **C-06:** sem reescrever índice DBPF, paralelização ou fingerprints sem benchmark real. Essas otimizações permanecem candidatas.
+- **C-07:** sem mudanças no roteamento `Packages`/`Overrides`, `.package.disabled`, identificação SHA-256 de duplicados, geração de planos, confirmações, quarentena, histórico ou Restore.
+
+### Validação estática/simulada feita neste atendimento
+- Parser do código JavaScript completo: **PASS** (somente compilação sintática em isolamento; sem executá-lo no Tauri).
+- Filtros CASP: **10/10 cenários de predicados simulados**, incluindo múltiplos CASPs, idade em recurso diferente, idade exata, Build/Buy excluído por filtro CAS, uso/roupa correlacionados. O teste não equivale a conferir o parser CASP com corpus real.
+- Connected groups: **5/5 casos simulados**, incluindo cadeia A-B-C, grupos disjuntos, tipo distinto, ativo versus inativo e quatro pares conectados.
+- LRU de imagens: **5/5 cenários simulados**, limite de entradas, recência, orçamento total, preview oversized, reset da sessão.
+- Respostas atrasadas de thumbnail após mudar pasta, armazenamento válido e não refetch do item em cache: **3/3 cenários simulados**.
+- Fila com 11 solicitações assíncronas simuladas: pico **3** concorrentes; todas concluíram; requisição com pasta incompatível descartada. Uma simulação anterior bloqueou por construção inadequada do mock; foi substituída por esta simulação determinística. **Não afirmar que Rust/Tauri/browser foram executados.**
+- Conferência por inspeção: selectors HTML únicos, I18N PT/EN/ES, persistência dos valores, `aria-pressed` no favorito, cores por tokens de tema, `details/summary` com foco, modal e lista virtual preservados, comando Tauri registrado.
+
+### Verificações necessárias quando build/teste forem expressamente autorizados
+1. `cargo test` / teste das operações de metadata favorito e scanner/Planner.
+2. Compilação Rust/Tauri com dependências reais, teste de front-end compilado.
+3. Interação WinUI: foco/hover/disabled/scroll/menus, janelas estreitas, textos em três idiomas e 5 temas; testar com e sem listas.
+4. Benchmarks cold/warm de thumbnails e conflitos com 2.429+ arquivos; medir impacto de extração fallback dos caches do jogo.
+5. Casos físicos: um package CASP multi-idade/multi-gênero, somente Build/Buy, sem preview, preview >8 MiB, arquivos que mudam externamente, `readOnly`, biblioteca grande.
+6. Ordenação, filtros e navegação dos conflitos com truncamento `MAX_FINDINGS` e grupo extenso; UX da seção expansível após clicar em outro par.
+
+**Nota de integridade:** nenhuma build/workflow foi disparada; os testes Rust foram apenas acrescentados ao código. Não foi feita alteração no diretório Mods real do usuário.
