@@ -4956,3 +4956,23 @@ body.release-v1 .conflicts-results {
 .health-review-item span {min-width:0;display:grid;gap:4px;overflow-wrap:anywhere}
 .health-review-item:focus-within {outline:2px solid var(--green);outline-offset:1px}
 @media(max-width:640px){.health-review-toolbar .secondary-btn{flex:1 1 130px}}
+
+/* Health review — Fluent-aware controls and responsive findings */
+.health-review-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 8px;
+  margin: 10px 0;
+}
+.health-review-controls > label { min-width: 130px; flex: 1 1 160px; margin: 0; }
+.health-review-controls > button { flex: 0 1 auto; width: auto; min-width: 0; white-space: normal; }
+.health-review-controls > [role="status"] { flex: 1 1 100%; color: var(--muted); }
+.health-finding { grid-template-columns: auto minmax(0, 1fr); align-items: start; cursor: pointer; }
+.health-finding > input { margin: 2px 4px 0 0; accent-color: var(--green); }
+.health-finding > span { display: grid; gap: 5px; min-width: 0; overflow-wrap: anywhere; }
+.health-finding > span code { overflow-wrap: anywhere; }
+.health-finding:focus-within { outline: 2px solid var(--green); outline-offset: 1px; }
+@media (max-width: 580px) {
+  .health-review-controls > button { flex: 1 1 135px; }
+}
