@@ -5508,3 +5508,78 @@ body.release-v1 .conflict-related-links > button {
   overflow-wrap: anywhere;
   text-align: left;
 }
+
+
+/* Dashboard-informed read-only Health findings: accessible checkboxes,
+   category-specific filtering and an explicit export action. */
+body.release-v1 #tools-health .tools-health-filters {
+  display: grid;
+  grid-template-columns: minmax(min(100%, 210px), 1fr) repeat(3, auto);
+  align-items: end;
+  gap: 9px;
+  min-width: 0;
+  margin: 10px 0;
+}
+body.release-v1 #tools-health .tools-health-filters .organizer-filter-field {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  font-size: .78rem;
+  color: var(--fluent-text-secondary);
+}
+body.release-v1 #tools-health .tools-health-filters :is(select, .fluent-combobox) {
+  width: 100%;
+  min-width: 0;
+}
+body.release-v1 #tools-health .tools-health-filters > button {
+  min-height: 36px;
+  height: auto;
+  min-width: 0;
+  padding: 8px 12px;
+  white-space: normal;
+  overflow-wrap: break-word;
+  line-height: 1.3;
+}
+body.release-v1 #tools-health-selection-summary {
+  grid-column: 1 / -1;
+  color: var(--fluent-text-secondary);
+  font-size: .75rem;
+  overflow-wrap: break-word;
+  line-height: 1.5;
+}
+body.release-v1 #tools-health .health-finding-row {
+  display: flex;
+  align-items: start;
+  flex-wrap: wrap;
+  gap: 9px;
+  min-width: 0;
+  padding: 8px 10px;
+}
+body.release-v1 #tools-health .health-finding-row > input[type="checkbox"] {
+  flex: 0 0 auto;
+  margin: 4px 0 0;
+  accent-color: var(--fluent-accent-fill);
+}
+body.release-v1 #tools-health .health-finding-row > :not(input):not(button) {
+  flex: 1 1 220px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+body.release-v1 #tools-health .health-finding-row > button {
+  flex: 0 0 auto;
+  min-width: 95px;
+  white-space: normal;
+}
+@media (max-width: 1080px) {
+  body.release-v1 #tools-health .tools-health-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  body.release-v1 #tools-health .tools-health-filters > button {
+    width: 100%;
+  }
+}
+@media (max-width: 520px) {
+  body.release-v1 #tools-health .tools-health-filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
