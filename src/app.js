@@ -4,8 +4,8 @@ import { open } from "@tauri-apps/plugin-dialog";
 
 const I18N = {
   en: {
-    openCurrentFolder: "Open Current Folder",
-    openOrganizedFolder: "Open Organized Folder",
+      openOrganizedFolder: "Open Organized Folder",
+    packagesAnalyzed: "Packages analyzed",
     analysisNeedsRefresh: "Package list updated. Reanalyze duplicates and conflicts when needed.",
     someMovesNeedRefresh: "Some moved files are not in the current list. Run Analyze CCs to refresh.",
     remainingLegacyFiles: "files still in original folders",
@@ -553,8 +553,8 @@ const I18N = {
     conflictsNext: "Resource-level conflict analysis is implemented in read-only mode.",
   },
   pt: {
-    openCurrentFolder: "Abrir Pasta Atual",
-    openOrganizedFolder: "Abrir Pasta Organizada",
+      openOrganizedFolder: "Abrir Pasta Organizada",
+    packagesAnalyzed: "Packages analisados",
     analysisNeedsRefresh: "Lista atualizada. Reanalise duplicatas e conflitos quando necessário.",
     someMovesNeedRefresh: "Alguns arquivos movimentados não estavam na lista atual. Use Analisar CCs para atualizar.",
     remainingLegacyFiles: "arquivos ainda nas pastas originais",
@@ -1101,8 +1101,8 @@ const I18N = {
     conflictsNext: "A análise de conflitos por resource está implementada em modo somente leitura.",
   },
   es: {
-    openCurrentFolder: "Abrir Carpeta Actual",
-    openOrganizedFolder: "Abrir Carpeta Organizada",
+      openOrganizedFolder: "Abrir Carpeta Organizada",
+    packagesAnalyzed: "Packages analizados",
     analysisNeedsRefresh: "Lista actualizada. Vuelve a analizar duplicados y conflictos cuando sea necesario.",
     someMovesNeedRefresh: "Algunos archivos movidos no estaban en la lista actual. Usa Analizar CCs para actualizar.",
     remainingLegacyFiles: "archivos aún en las carpetas originales",
@@ -1960,7 +1960,6 @@ const el = {
   organizationReviewLeftovers: document.querySelector("#organization-review-leftovers"),
   organizationReviewLeftoverPaths: document.querySelector("#organization-review-leftover-paths"),
   openOrganizedFolderBtn: document.querySelector("#open-organized-folder-btn"),
-  openCurrentFolderBtn: document.querySelector("#open-current-folder-btn"),
   reviewDuplicatesBtn: document.querySelector("#review-duplicates-btn"),
   reviewCollisionsBtn: document.querySelector("#review-collisions-btn"),
   collisionReviewModal: document.querySelector("#collision-review-modal"),
@@ -3914,7 +3913,7 @@ function renderDuplicates() {
     el.duplicatesState.className = "scan-state";
   } else if (state.duplicatesAnalysis) {
     const unreadable = stats.unreadablePackages ?? 0;
-    const parts = [t("duplicatesReady")];
+    const parts = [t("duplicatesReady"), `${t("packagesAnalyzed")}: ${stats.packagesScanned ?? 0}`];
     if (unreadable) parts.push(`${t("unreadablePackages")}: ${unreadable}`);
     if (stats.cacheHits) parts.push(`${t("cacheReused")}: ${stats.cacheHits}`);
     if (stats.cacheMisses) parts.push(`${t("cacheUpdated")}: ${stats.cacheMisses}`);
@@ -4877,7 +4876,7 @@ function renderConflicts() {
     el.conflictsState.textContent = state.conflictsNotice;
     el.conflictsState.className = "scan-state";
   } else if (analysis) {
-    const parts = [t("conflictsReady")];
+    const parts = [t("conflictsReady"), `${t("packagesAnalyzed")}: ${stats.packagesScanned ?? 0}`];
     if (stats.unreadablePackages) parts.push(`${t("unreadablePackages")}: ${stats.unreadablePackages}`);
     if (stats.cacheHits) parts.push(`${t("cacheReused")}: ${stats.cacheHits}`);
     if (stats.cacheMisses) parts.push(`${t("cacheUpdated")}: ${stats.cacheMisses}`);
@@ -7716,7 +7715,6 @@ function render() {
 
   el.folderPath.textContent = state.folder || t("noFolder");
   el.folderPath.title = state.folder;
-  el.openCurrentFolderBtn.disabled = !state.folder || state.executing;
   el.scanBtn.disabled =
     !state.folder ||
     analysisReadsBusy() ||
@@ -8590,7 +8588,6 @@ document.addEventListener("keydown", (event) => {
 
 
 el.chooseFolderBtn.addEventListener("click", chooseFolder);
-el.openCurrentFolderBtn.addEventListener("click", () => openDirectorySafe(state.folder));
 el.openOrganizedFolderBtn.addEventListener("click", () =>
   openDirectorySafe(state.organizationReview?.organizedRoot || state.folder));
 el.scanCancelBtn.addEventListener("click", () => cancelAnalysis("scan"));
