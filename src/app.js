@@ -7,6 +7,8 @@ const I18N = {
       openOrganizedFolder: "Open Organized Folder",
     packagesAnalyzed: "Packages analyzed",
     filesFound: "Files found",
+    eligiblePackages: "Active packages found",
+    packagesNotProcessed: "Active packages not processed",
     disabledExcluded: "Disabled packages excluded",
     otherFilesExcluded: "Other file types excluded",
     analysisNeedsRefresh: "Package list updated. Reanalyze duplicates and conflicts when needed.",
@@ -559,6 +561,8 @@ const I18N = {
       openOrganizedFolder: "Abrir Pasta Organizada",
     packagesAnalyzed: "Packages analisados",
     filesFound: "Arquivos encontrados",
+    eligiblePackages: "Packages ativos encontrados",
+    packagesNotProcessed: "Packages ativos não processados",
     disabledExcluded: "Packages desativados excluídos",
     otherFilesExcluded: "Arquivos de outros formatos",
     analysisNeedsRefresh: "Lista atualizada. Reanalise duplicatas e conflitos quando necessário.",
@@ -1110,6 +1114,8 @@ const I18N = {
       openOrganizedFolder: "Abrir Carpeta Organizada",
     packagesAnalyzed: "Packages analizados",
     filesFound: "Archivos encontrados",
+    eligiblePackages: "Packages activos encontrados",
+    packagesNotProcessed: "Packages activos sin procesar",
     disabledExcluded: "Packages desactivados excluidos",
     otherFilesExcluded: "Archivos de otros formatos",
     analysisNeedsRefresh: "Lista actualizada. Vuelve a analizar duplicados y conflictos cuando sea necesario.",
@@ -3925,8 +3931,14 @@ function renderDuplicates() {
     const parts = [
       t("duplicatesReady"),
       `${t("filesFound")}: ${stats.filesDiscovered ?? 0}`,
+      `${t("eligiblePackages")}: ${stats.activePackagesFound ?? 0}`,
       `${t("packagesAnalyzed")}: ${stats.packagesScanned ?? 0}`,
     ];
+    const notProcessed = Math.max(0,
+      Number(stats.activePackagesFound ?? 0) - Number(stats.packagesScanned ?? 0));
+    if (notProcessed) {
+      parts.push(`${t("packagesNotProcessed")}: ${notProcessed}`);
+    }
     if (stats.disabledPackagesExcluded) {
       parts.push(`${t("disabledExcluded")}: ${stats.disabledPackagesExcluded}`);
     }
@@ -4898,8 +4910,14 @@ function renderConflicts() {
     const parts = [
       t("conflictsReady"),
       `${t("filesFound")}: ${stats.filesDiscovered ?? 0}`,
+      `${t("eligiblePackages")}: ${stats.activePackagesFound ?? 0}`,
       `${t("packagesAnalyzed")}: ${stats.packagesScanned ?? 0}`,
     ];
+    const notProcessed = Math.max(0,
+      Number(stats.activePackagesFound ?? 0) - Number(stats.packagesScanned ?? 0));
+    if (notProcessed) {
+      parts.push(`${t("packagesNotProcessed")}: ${notProcessed}`);
+    }
     if (stats.disabledPackagesExcluded) {
       parts.push(`${t("disabledExcluded")}: ${stats.disabledPackagesExcluded}`);
     }
