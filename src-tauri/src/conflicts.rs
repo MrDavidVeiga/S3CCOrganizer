@@ -1,6 +1,7 @@
 use crate::{
     cache::{get_or_build_with_metrics, load_cache, retain_existing, save_cache},
     catalog::{TYPE_CASP, TYPE_OBJD},
+    package_discovery::discover_active_packages,
     operation::{self, CANCELLED_ERROR},
     resource_cfg::{find_resource_cfg, package_priority, parse_resource_cfg, relative_package_path, ResourceCfgInfo},
 };
@@ -11,7 +12,6 @@ use std::{
     path::{Path, PathBuf},
     time::Instant,
 };
-use walkdir::WalkDir;
 
 const TYPE_IMG: u32 = 0x00B2_D882;
 const TYPE_PNG: u32 = 0x2F7D_0004;
@@ -127,6 +127,9 @@ pub struct ConflictFinding {
 #[serde(rename_all = "camelCase")]
 pub struct ConflictStats {
     pub packages_scanned: usize,
+    pub files_discovered: usize,
+    pub disabled_packages_excluded: usize,
+    pub other_files_excluded: usize,
     pub readable_packages: usize,
     pub unreadable_packages: usize,
     pub package_pairs: usize,
@@ -481,16 +484,11 @@ pub fn analyze_conflicts_core(
         .as_ref()
         .and_then(|cfg| PathBuf::from(&cfg.path).parent().map(Path::to_path_buf));
 
-    let mut all_paths = crate::scanner::cached_scan_paths(&root).unwrap_or_else(|| {
-        WalkDir::new(&root)
-            .follow_links(false)
-            .into_iter()
-            .filter_map(Result::ok)
-            .filter(|entry| entry.file_type().is_file() && is_package(entry.path()))
-            .map(|entry| entry.into_path())
-            .collect::<Vec<_>>()
-    });
-    all_paths.sort_by_key(|path| path.to_string_lossy().to_ascii_lowercase());
+    // Enumerate the filesystem again on every run: the cached Organizer file
+    // list can be stale after external changes, and includes .package.disabled.
+    // Expensive DBPF resource fingerprints still reuse their own disk cache.
+    let discovery = discover_active_packages(&root)?;
+    let all_paths = discovery.active_paths.clone();
 
     let mut paths = if let Some(selected_paths) = selected_paths {
         if selected_paths.is_empty() {
@@ -753,6 +751,9 @@ pub fn analyze_conflicts_core(
     let mut findings = Vec::with_capacity(pairs.len());
     let mut stats = ConflictStats {
         packages_scanned: packages.len(),
+        files_discovered: discovery.total_files,
+        disabled_packages_excluded: discovery.disabled_packages,
+        other_files_excluded: discovery.other_files,
         readable_packages: packages.iter().filter(|package| package.readable).count(),
         unreadable_packages: packages.iter().filter(|package| !package.readable).count(),
         analysis_truncated: truncated,
