@@ -308,6 +308,7 @@ const I18N = {
     analyzeHealth: "Analyze Health",
     resourceCfgViewer: "Resource.cfg Viewer / Load Order",
     healthFindings: "Health Findings",
+    healthSelectVisible: "Select visible", healthClearSelection: "Clear selection", healthExport: "Export selected (JSON)", healthAll: "All findings", healthErrors: "Errors", healthWarnings: "Warnings", healthInformation: "Information", healthSelectedCount: "selected",
     createSnapshot: "Create Snapshot",
     snapshots: "Snapshots",
     compareFolders: "Compare Two Mods Folders",
@@ -855,6 +856,7 @@ const I18N = {
     analyzeHealth: "Analisar Saúde",
     resourceCfgViewer: "Resource.cfg / Ordem de Carregamento",
     healthFindings: "Resultados de Saúde",
+    healthSelectVisible: "Selecionar visíveis", healthClearSelection: "Limpar seleção", healthExport: "Exportar selecionados (JSON)", healthAll: "Todos os resultados", healthErrors: "Erros", healthWarnings: "Avisos", healthInformation: "Informações", healthSelectedCount: "selecionados",
     createSnapshot: "Criar Snapshot",
     snapshots: "Snapshots",
     compareFolders: "Comparar Duas Pastas de Mods",
@@ -1401,6 +1403,7 @@ const I18N = {
     analyzeHealth: "Analizar Salud",
     resourceCfgViewer: "Resource.cfg / Orden de Carga",
     healthFindings: "Resultados de Salud",
+    healthSelectVisible: "Seleccionar visibles", healthClearSelection: "Limpiar selección", healthExport: "Exportar seleccionados (JSON)", healthAll: "Todos los resultados", healthErrors: "Errores", healthWarnings: "Avisos", healthInformation: "Información", healthSelectedCount: "seleccionados",
     createSnapshot: "Crear Snapshot",
     snapshots: "Snapshots",
     compareFolders: "Comparar Dos Carpetas de Mods",
@@ -6044,7 +6047,7 @@ function renderHealthTools() {
   for (const id of [...state.healthSelected]) if (!ids.has(id)) state.healthSelected.delete(id);
   el.healthFilter.value = state.healthFilter;
   const visible = findings.filter(f => state.healthFilter === "all" || f.severity === state.healthFilter);
-  el.healthSelectionStatus.textContent = `${state.healthSelected.size} selected`;
+  el.healthSelectionStatus.textContent = `${state.healthSelected.size} ${t("healthSelectedCount")}`;
   el.healthExport.disabled = !report || !state.healthSelected.size || state.toolsBusy;
   el.healthClearSelection.disabled = !state.healthSelected.size || state.toolsBusy;
   el.healthSelectVisible.disabled = !visible.length || state.toolsBusy;
