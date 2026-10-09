@@ -73,4 +73,44 @@ assert.equal(state.analysisStatus.conflicts,"not_run");
 assert.equal(state.quarantineSelected.size,0);
 assert.equal(memo.items,null);
 assert.equal(views.manager.items,null);
+// Real report regression: a Mods - Copia scan contains 375 Unknown entries,
+// which must be selectable for safe Not Categorized handling, not hidden.
+const eligibleFrom = js.indexOf("function eligibleForPlan(item) {");
+const eligibleTo = js.indexOf("function statusLabel(", eligibleFrom);
+assert(eligibleFrom >= 0 && eligibleTo > eligibleFrom);
+const eligibility = vm.createContext({});
+vm.runInContext(js.slice(eligibleFrom,eligibleTo),eligibility);
+assert.equal(vm.runInContext(
+  'eligibleForPlan({path:"C:/Mods - Copia/Packages/Legacy/unknown.package",status:"unknown"})',
+  eligibility), true);
+assert.equal(vm.runInContext(
+  'eligibleForPlan({path:"x",status:"classified",destinationPath:"Accessories/Headwear",classificationConfidence:"high"})',
+  eligibility), true);
+assert.equal(vm.runInContext(
+  'eligibleForPlan({path:"x",status:"classified",destinationPath:"Scripts/Gameplay/Creator",classificationConfidence:"medium",detectedFrom:["ModFolderCompanion"]})',
+  eligibility), true);
+assert.equal(vm.runInContext(
+  'eligibleForPlan({path:"x",status:"mixed",destinationPath:"Clothing"})',
+  eligibility), false);
+assert.equal(vm.runInContext(
+  'eligibleForPlan({path:"x",status:"invalid"})',
+  eligibility), false);
+const cfgStart = js.indexOf("function supportsResourceCfgUpdate(folder) {");
+const cfgEnd = js.indexOf("function planCanExecute(",cfgStart);
+assert(cfgStart>=0 && cfgEnd>cfgStart);
+const cfgCtx=vm.createContext({});
+vm.runInContext(js.slice(cfgStart,cfgEnd),cfgCtx);
+assert.equal(vm.runInContext('supportsResourceCfgUpdate("C:/Sims 3/Mods - Copia")',cfgCtx),true);
+assert.equal(vm.runInContext('supportsResourceCfgUpdate("C:/Sims 3/Mods - Copia/Packages/Legacy")',cfgCtx),true);
+assert.equal(vm.runInContext('supportsResourceCfgUpdate("C:/Other/CC Incoming")',cfgCtx),false);
+assert.match(js,/plannedAction: plannedBySource.get/);
+assert.match(js,/planDestination: plannedBySource.get/);
+assert.match(js,/state\.analysisRefreshQueued = true/);
+assert.match(js,/state\.analysisPipelineBusy = false/);
+const planner = read("src-tauri/src/planner.rs");
+assert.match(planner,/if item\.status == "unknown" && !source_uses_overrides/);
+assert.match(planner,/plan_status: destination_status\.to_string\(\)/);
+assert.match(planner,/verify.*companion|verified_companion/);
+assert.match(planner,/validate_destination_parts\(&fallback_parts\)/);
+assert.match(planner,/fit_destination_to_resource_cfg\(/);
 console.log("Organization incremental reconciliation and no-full-rescan: PASS");
