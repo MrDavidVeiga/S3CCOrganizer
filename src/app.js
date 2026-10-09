@@ -7310,11 +7310,14 @@ function renderOrganizerAdvancedFilters() {
     organizerFilterOptionsMemo.items = state.items;
     organizerFilterOptionsMemo.language = state.language;
   }
+  const labels = { category:"category", subcategory:"subCategory", gender:"gender", age:"age", outfit:"usageCategories" };
   for (const [select, key,, allKey] of specs) {
+    select.setAttribute("aria-label", t(labels[key]));
     if (select.options.length) select.options[0].textContent = t(allKey);
     select.value = state.organizerFilters[key] || "";
   }
   if (!ORGANIZER_SORT_MODES.has(state.organizerFilters.sort)) state.organizerFilters.sort = "original";
+  el.organizerSort.setAttribute("aria-label", t("organizerSort"));
   el.organizerSort.value = state.organizerFilters.sort;
   el.organizerAdvancedFilters.classList.toggle("filters-active", organizerAdvancedActive());
 }
