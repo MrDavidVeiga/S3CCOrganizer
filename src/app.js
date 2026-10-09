@@ -1763,6 +1763,8 @@ const state = {
   toolsError: "",
   toolsNotice: "",
   healthReport: null,
+  healthSelected: new Set(),
+  healthFilter: "all",
   snapshots: [],
   snapshotDiff: null,
   compareRoot: "",
@@ -2116,6 +2118,11 @@ const el = {
   toolsAddRule: document.querySelector("#tools-add-rule"),
   toolsRulesList: document.querySelector("#tools-rules-list"),
   toolsHealthRun: document.querySelector("#tools-health-run"),
+  healthFilter: document.querySelector("#tools-health-filter"),
+  healthSelectVisible: document.querySelector("#tools-health-select-visible"),
+  healthClearSelection: document.querySelector("#tools-health-clear-selection"),
+  healthExport: document.querySelector("#tools-health-export"),
+  healthSelectionStatus: document.querySelector("#tools-health-selection-status"),
   toolsHealthSummary: document.querySelector("#tools-health-summary"),
   toolsResourcecfg: document.querySelector("#tools-resourcecfg"),
   toolsHealthFindings: document.querySelector("#tools-health-findings"),
@@ -6032,31 +6039,38 @@ function renderHealthTools() {
   }
 
   el.toolsHealthFindings.innerHTML = "";
-  if (report) {
-    for (const folder of report.emptyFolders || []) {
-      const row = toolListItem(t("emptyFolders"), folder);
-      const remove = document.createElement("button");
-      remove.type = "button";
-      remove.className = "secondary-btn compact-btn";
-      remove.textContent = t("removeEmptyFolder");
-      remove.disabled = workspaceReadOnly() || state.toolsBusy;
-      remove.addEventListener("click", () => {
-        state.pendingEmptyFolder = folder;
-        openConfirm("remove_empty_folder");
-      });
-      row.appendChild(remove);
-      el.toolsHealthFindings.appendChild(row);
-    }
-    for (const path of report.unreadablePackages || []) {
-      el.toolsHealthFindings.appendChild(toolListItem(t("invalid"), path, "tools-health-bad"));
-    }
-    for (const path of report.outsidePackages || []) {
-      el.toolsHealthFindings.appendChild(toolListItem(t("outsidePackages"), path, "tools-health-bad"));
-    }
-    for (const item of (report.coverage || []).filter((item) => !item.covered)) {
-      el.toolsHealthFindings.appendChild(toolListItem(t("uncoveredPackages"), item.relativePath, "tools-health-bad"));
-    }
+  const findings = report?.findings || [];
+  const ids = new Set(findings.map(f => f.id));
+  for (const id of [...state.healthSelected]) if (!ids.has(id)) state.healthSelected.delete(id);
+  el.healthFilter.value = state.healthFilter;
+  const visible = findings.filter(f => state.healthFilter === "all" || f.severity === state.healthFilter);
+  el.healthSelectionStatus.textContent = `${state.healthSelected.size} selected`;
+  el.healthExport.disabled = !report || !state.healthSelected.size || state.toolsBusy;
+  el.healthClearSelection.disabled = !state.healthSelected.size || state.toolsBusy;
+  el.healthSelectVisible.disabled = !visible.length || state.toolsBusy;
+  for (const f of visible) {
+    const row = document.createElement("label");
+    row.className = "tools-list-item health-review-item";
+    const check = document.createElement("input");
+    check.type = "checkbox";
+    check.checked = state.healthSelected.has(f.id);
+    check.setAttribute("aria-label", f.category + ": " + f.relativePath);
+    check.addEventListener("change", () => {
+      if (check.checked) state.healthSelected.add(f.id); else state.healthSelected.delete(f.id);
+      renderHealthTools();
+    });
+    const content = document.createElement("span");
+    const heading = document.createElement("strong");
+    heading.textContent = `${f.category.replaceAll("_", " ")} (${f.severity})`;
+    const path = document.createElement("code");
+    path.textContent = f.relativePath;
+    const detail = document.createElement("small");
+    detail.textContent = f.detail;
+    content.append(heading, path, detail);
+    row.append(check, content);
+    el.toolsHealthFindings.appendChild(row);
   }
+
 }
 
 function renderSnapshotDiff(diff) {
@@ -6585,6 +6599,7 @@ async function analyzeHealth() {
   renderTools();
   try {
     state.healthReport = await invoke("analyze_mods_health", { folder: state.folder });
+    state.healthSelected.clear();
   } catch (error) { state.toolsError = String(error); }
   finally { state.toolsBusy = false; renderTools(); }
 }
@@ -8684,6 +8699,30 @@ el.toolsDeleteProfile.addEventListener("click", deleteActiveProfile);
 el.toolsAddProtected.addEventListener("click", addProtectedFolder);
 el.toolsAddRule.addEventListener("click", addCustomRule);
 el.toolsHealthRun.addEventListener("click", analyzeHealth);
+el.healthFilter.addEventListener("change", () => { state.healthFilter = el.healthFilter.value; renderHealthTools(); });
+el.healthSelectVisible.addEventListener("click", () => {
+  for (const f of state.healthReport?.findings || []) if (state.healthFilter === "all" || f.severity === state.healthFilter) state.healthSelected.add(f.id);
+  renderHealthTools();
+});
+el.healthClearSelection.addEventListener("click", () => { state.healthSelected.clear(); renderHealthTools(); });
+el.healthExport.addEventListener("click", async () => {
+  if (!state.healthReport || state.toolsBusy || !state.folder) return;
+  const selected = state.healthReport.findings.filter(f => state.healthSelected.has(f.id));
+  if (!selected.length) return;
+  state.toolsBusy = true; state.toolsError = ""; renderTools();
+  try {
+    const snapshot = { reportKind:"health", root:state.healthReport.root,
+      generatedAt:new Date().toISOString(), filter:state.healthFilter,
+      totalFindings:state.healthReport.findings.length, selectedCount:selected.length,
+      stats:state.healthReport.stats, findings:selected };
+    const markdown = ["# Health review", "", ...selected.map(f =>
+      `- [${f.severity}] ${f.category}: ${f.relativePath} — ${f.detail}`)].join("\n");
+    const saved = await invoke("save_audit_report", {folder:state.folder, kind:"health",
+      markdown, jsonContent:JSON.stringify(snapshot,null,2)});
+    state.toolsNotice = saved.jsonPath;
+  } catch (error) { state.toolsError = String(error); }
+  finally { state.toolsBusy = false; renderTools(); }
+});
 el.toolsCreateSnapshot.addEventListener("click", createSnapshotTool);
 el.toolsRefreshSnapshots.addEventListener("click", refreshSnapshots);
 el.toolsChooseCompareRoot.addEventListener("click", chooseCompareRoot);
