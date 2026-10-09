@@ -1,6 +1,7 @@
 use crate::{
     cache::{get_or_build_with_metrics, load_cache, retain_existing, save_cache, CacheBuildMetrics, FingerprintCache},
     catalog::{TYPE_CASP, TYPE_OBJD},
+    package_discovery::discover_active_packages,
     operation::{self, CANCELLED_ERROR},
 };
 use serde::Serialize;
@@ -10,7 +11,6 @@ use std::{
     path::{Path, PathBuf},
     time::Instant,
 };
-use walkdir::WalkDir;
 
 const TYPE_IMG: u32 = 0x00B2_D882;
 const TYPE_GEOM: u32 = 0x015A_1849;
@@ -107,6 +107,9 @@ pub struct VariantRelation {
 #[serde(rename_all = "camelCase")]
 pub struct DuplicateStats {
     pub packages_scanned: usize,
+    pub files_discovered: usize,
+    pub disabled_packages_excluded: usize,
+    pub other_files_excluded: usize,
     pub readable_packages: usize,
     pub unreadable_packages: usize,
     pub exact_groups: usize,
@@ -608,16 +611,11 @@ pub fn analyze_duplicates_core(
         return Err(format!("Folder does not exist: {}", root.display()));
     }
 
-    let mut all_paths = crate::scanner::cached_scan_paths(&root).unwrap_or_else(|| {
-        WalkDir::new(&root)
-            .follow_links(false)
-            .into_iter()
-            .filter_map(Result::ok)
-            .filter(|entry| entry.file_type().is_file() && is_package(entry.path()))
-            .map(|entry| entry.into_path())
-            .collect::<Vec<_>>()
-    });
-    all_paths.sort_by_key(|path| path.to_string_lossy().to_ascii_lowercase());
+    // Enumerate the filesystem again on every run: the cached Organizer file
+    // list can be stale after external changes, and includes .package.disabled.
+    // Expensive DBPF resource fingerprints still reuse their own disk cache.
+    let discovery = discover_active_packages(&root)?;
+    let all_paths = discovery.active_paths.clone();
 
     let mut paths = if let Some(selected_paths) = selected_paths {
         if selected_paths.is_empty() {
@@ -706,6 +704,9 @@ pub fn analyze_duplicates_core(
 
     let mut stats = DuplicateStats {
         packages_scanned: packages.len(),
+        files_discovered: discovery.total_files,
+        disabled_packages_excluded: discovery.disabled_packages,
+        other_files_excluded: discovery.other_files,
         readable_packages: packages
             .iter()
             .filter(|package| package.parse_error.is_none())
