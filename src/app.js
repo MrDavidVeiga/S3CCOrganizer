@@ -4049,6 +4049,16 @@ function isInactiveConflictFinding(finding, analysis = state.conflictsAnalysis) 
     ["unmatched", "partially_matched"].includes(finding?.loadOrderStatus);
 }
 
+// Bulk review must not reselect inactive, identical or previously treated pairs.
+// Unresolved load priority is reviewable, never an automatic delete decision.
+function pendingConflictNeedsReview(finding, analysis = state.conflictsAnalysis) {
+  return !!finding && finding.kind !== "shared_identical" &&
+    Number(finding.differentPayloadCount || 0) > 0 &&
+    finding.severity !== "info" &&
+    !isInactiveConflictFinding(finding, analysis) &&
+    !["intentional", "reviewed", "ignored"].includes(effectiveConflictMark(finding));
+}
+
 // Prioritization never nominates a file for removal. It only orders
 // *active*, differing payload overlaps for manual inspection.
 function conflictRiskScore(finding) {
@@ -4135,13 +4145,10 @@ function selectAllVisibleConflicts() {
 
 function selectAllDetectedConflicts() {
   if (!state.conflictsAnalysis || state.reviewBusy || state.conflictsBusy) return;
-  // Dashboard-inspired Select-by-category: select across the complete scan,
-  // not just current search/filter. Exclude identical/shared-only findings:
-  // these are not conflicts requiring action.
+  // Include all pending pairs, not only those visible through a filter.
+  // Keep any manually checked items; never select a package for quarantine.
   for (const finding of state.conflictsAnalysis.findings || []) {
-    if (finding.kind !== "shared_identical" && finding.differentPayloadCount > 0) {
-      state.conflictReviewSelected.add(finding.id);
-    }
+    if (pendingConflictNeedsReview(finding)) state.conflictReviewSelected.add(finding.id);
   }
   conflictVisibleMemo.analysis = null;
   renderConflicts();
@@ -4156,23 +4163,59 @@ function clearConflictReviewSelection() {
   renderConflictVirtualRows(visibleConflictFindings(), true);
 }
 
+function selectedConflictReviewQueue() {
+  return (state.conflictsAnalysis?.findings || [])
+    .filter(finding => state.conflictReviewSelected.has(finding.id))
+    .sort((a, b) => conflictRiskScore(b) - conflictRiskScore(a) ||
+      Number(b.differentPayloadCount || 0) - Number(a.differentPayloadCount || 0) ||
+      String(a.id).localeCompare(String(b.id)));
+}
+
+function renderConflictReviewNavigation() {
+  if (!el.conflictReviewNavigation) return;
+  const queue = state.conflictsReviewWalkthrough ? selectedConflictReviewQueue() : [];
+  const index = queue.findIndex(finding => finding.id === state.conflictSelectedId);
+  const visible = state.conflictsReviewWalkthrough && index >= 0;
+  el.conflictReviewNavigation.classList.toggle("hidden", !visible);
+  el.conflictReviewPrevBtn.disabled = !visible || index === 0;
+  el.conflictReviewNextBtn.disabled = !visible || index === queue.length - 1;
+  el.conflictReviewPosition.textContent = visible
+    ? `${t("reviewProgress")}: ${index + 1} / ${queue.length}`
+    : "";
+}
+
+function navigateSelectedConflict(step) {
+  if (!state.conflictsReviewWalkthrough ||
+      el.conflictDetailsModal.classList.contains("hidden")) return;
+  const queue = selectedConflictReviewQueue();
+  const index = queue.findIndex(finding => finding.id === state.conflictSelectedId);
+  const next = index + step;
+  if (index < 0 || next < 0 || next >= queue.length) return;
+  state.conflictSelectedId = queue[next].id;
+  el.conflictDetailsContent?.scrollTo({ top: 0, behavior: "instant" });
+  updateActiveVirtualRow(el.conflictsList, "conflictId", state.conflictSelectedId, "active");
+  renderConflictsPreview();
+}
+
 function prioritizeSelectedConflicts() {
-  if (!state.conflictsAnalysis || !state.conflictReviewSelected.size) return;
-  // Only filter and rank review findings: never automatically nominate
-  // a conflicting package for quarantine or remove it.
+  if (!state.conflictsAnalysis || !state.conflictReviewSelected.size ||
+      state.reviewBusy || state.conflictsBusy) return;
+  const queue = selectedConflictReviewQueue();
+  if (!queue.length) return;
+  // Reviewing is read-only; no inferred winner or automatic quarantine.
   state.conflictsSelectedOnly = true;
-  // Prioritize all checked findings, including those selected under another
-  // filter. Do not silently omit hidden selections from the review list.
+  state.conflictsReviewWalkthrough = true;
   state.conflictsFilter = "all";
   state.conflictsSearch = "";
   el.conflictsFilter.value = "all";
   el.conflictsSearch.value = "";
+  state.conflictSelectedId = queue[0].id;
   persistPreferences();
   conflictVisibleMemo.analysis = null;
   renderConflicts();
   renderConflictVirtualRows(visibleConflictFindings(), true);
+  openConflictDetails();
 }
-
 async function applySelectedConflictReviewMark(mark) {
   if (!state.folder || !state.conflictsAnalysis || !state.conflictReviewSelected.size ||
       state.reviewBusy || state.quarantineBusy || state.scanning) return;
