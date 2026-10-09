@@ -1918,6 +1918,38 @@ const organizerFilterOptionsMemo = { items: null, language: "" };
 
 // Budget for Base64 image strings; the separate DBPF fingerprint cache is not
 // an image cache. Each preview is shared among Organizer/Duplicates/Conflicts.
+// Keep concurrent DBPF and game-thumbnail cache decoding bounded.
+const PREVIEW_MAX_IN_FLIGHT = 3;
+const previewRequestQueue = [];
+let previewRequestsActive = 0;
+
+function pumpPreviewRequests() {
+  while (previewRequestsActive < PREVIEW_MAX_IN_FLIGHT && previewRequestQueue.length) {
+    const request = previewRequestQueue.shift();
+    if (request.folder !== state.folder || request.session !== state.previewSession) {
+      request.resolve(null);
+      continue;
+    }
+    previewRequestsActive += 1;
+    Promise.resolve()
+      .then(() => invoke("get_package_preview", {
+        folder: request.folder, packagePath: request.path,
+      }))
+      .then(request.resolve, request.reject)
+      .finally(() => {
+        previewRequestsActive -= 1;
+        pumpPreviewRequests();
+      });
+  }
+}
+
+function queuedPackagePreview(folder, path, session) {
+  return new Promise((resolve, reject) => {
+    previewRequestQueue.push({ folder, path, session, resolve, reject });
+    pumpPreviewRequests();
+  });
+}
+
 const PREVIEW_CACHE_ENTRIES = 80;
 const PREVIEW_CACHE_BASE64_BUDGET = 16 * 1024 * 1024;
 const PREVIEW_CACHE_MAX_SINGLE = 8 * 1024 * 1024;
@@ -1929,6 +1961,9 @@ function clearPackagePreviewCache() {
   state.packagePreviewLoading = {};
   state.packagePreviewErrors = {};
   previewCacheLru.clear();
+  // In-flight native work cannot be cancelled here, but queued work from a
+  // previous scan/root need not start. Resolve callers as stale instead.
+  for (const request of previewRequestQueue.splice(0)) request.resolve(null);
 }
 
 function cachedPackagePreview(path) {
@@ -3604,8 +3639,8 @@ async function loadDuplicateMemberPreview(member) {
   const session = state.previewSession;
   state.packagePreviewLoading[path] = true;
   try {
-    const preview = await invoke("get_package_preview", { folder, packagePath: path });
-    if (state.folder === folder && state.previewSession === session) {
+    const preview = await queuedPackagePreview(folder, path, session);
+    if (preview && state.folder === folder && state.previewSession === session) {
       rememberPackagePreview(path, preview);
     }
   } catch (error) {
@@ -7355,8 +7390,8 @@ async function loadPackagePreview(item) {
   delete state.packagePreviewErrors[path];
   renderPreview();
   try {
-    const preview = await invoke("get_package_preview", { folder, packagePath: path });
-    if (state.folder === folder && state.previewSession === session) {
+    const preview = await queuedPackagePreview(folder, path, session);
+    if (preview && state.folder === folder && state.previewSession === session) {
       rememberPackagePreview(path, preview);
     }
   } catch (error) {
