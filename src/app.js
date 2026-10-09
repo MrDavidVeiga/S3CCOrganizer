@@ -475,6 +475,7 @@ const I18N = {
     reviewProgress: "Review pair",
     packagesInSelection: "Packages involved",
     markReviewedSingle: "Mark Reviewed (Session)",
+    conflictReviewNavLabel: "Navigate selected conflict pairs",
     organizePlanning: "Preparing and checking organization plan…",
     organizePreparing: "Preparing recovery manifest and Resource.cfg…",
     organizeSnapshotting: "Verifying the library and recording recovery hashes…",
@@ -1038,6 +1039,7 @@ const I18N = {
     reviewProgress: "Par em revisão",
     packagesInSelection: "Packages envolvidos",
     markReviewedSingle: "Marcar como revisado (sessão)",
+    conflictReviewNavLabel: "Navegar entre os pares selecionados",
     organizePlanning: "Preparando e conferindo o plano de organização…",
     organizePreparing: "Preparando o manifesto de recuperação e Resource.cfg…",
     organizeSnapshotting: "Verificando o acervo e registrando hashes para recuperação…",
@@ -1600,6 +1602,7 @@ const I18N = {
     reviewProgress: "Par en revisión",
     packagesInSelection: "Packages involucrados",
     markReviewedSingle: "Marcar como revisado (sesión)",
+    conflictReviewNavLabel: "Navegar entre los pares seleccionados",
     organizePlanning: "Preparando y verificando el plan de organización…",
     organizePreparing: "Preparando el manifiesto de recuperación y Resource.cfg…",
     organizeSnapshotting: "Verificando la biblioteca y guardando hashes de recuperación…",
@@ -4177,6 +4180,7 @@ function renderConflictReviewNavigation() {
   const queue = state.conflictsReviewWalkthrough ? selectedConflictReviewQueue() : [];
   const index = queue.findIndex(finding => finding.id === state.conflictSelectedId);
   const visible = state.conflictsReviewWalkthrough && index >= 0;
+  el.conflictReviewNavigation.setAttribute("aria-label", t("conflictReviewNavLabel"));
   el.conflictReviewNavigation.classList.toggle("hidden", !visible);
   el.conflictReviewPrevBtn.disabled = !visible || index === 0;
   el.conflictReviewNextBtn.disabled = !visible || index === queue.length - 1;
@@ -4193,7 +4197,7 @@ function navigateSelectedConflict(step) {
   const next = index + step;
   if (index < 0 || next < 0 || next >= queue.length) return;
   state.conflictSelectedId = queue[next].id;
-  el.conflictDetailsContent?.scrollTo({ top: 0, behavior: "instant" });
+  el.conflictDetailsContent?.scrollTo({ top: 0, behavior: "auto" });
   updateActiveVirtualRow(el.conflictsList, "conflictId", state.conflictSelectedId, "active");
   renderConflictsPreview();
 }
