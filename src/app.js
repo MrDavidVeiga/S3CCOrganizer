@@ -9636,17 +9636,23 @@ el.confirmActionBtn.addEventListener("click", async () => {
     el.confirmModal.classList.add("hidden");
     render();
   } else if (state.pendingAction === "remove_empty_folder") {
+    const folder = state.folder;
+    const relativePath = state.pendingEmptyFolder;
     state.toolsBusy = true;
     try {
-      await invoke("remove_empty_folder", {
-        folder: state.folder,
-        relativePath: state.pendingEmptyFolder,
-      });
-      state.healthReport = await invoke("analyze_mods_health", { folder: state.folder });
-      state.toolsNotice = t("structureComplete");
-      await refreshOperationHistory();
+      await invoke("remove_empty_folder", { folder, relativePath });
+      if (state.folder === folder) {
+        const report = await invoke("analyze_mods_health", { folder });
+        if (state.folder === folder) {
+          state.healthReport = report;
+          state.healthFilter = "all";
+          state.healthSelected.clear();
+          state.toolsNotice = t("structureComplete");
+          await refreshOperationHistory();
+        }
+      }
     } catch (error) {
-      state.toolsError = String(error);
+      if (state.folder === folder) state.toolsError = String(error);
     } finally {
       state.toolsBusy = false;
       state.pendingEmptyFolder = "";
