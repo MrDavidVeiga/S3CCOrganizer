@@ -1580,7 +1580,7 @@ pub fn build_organization_plan_with_cfg(
                         || name.to_string_lossy().eq_ignore_ascii_case("Overrides")
                 });
             !protected && fs::read_dir(path)
-                .ok().and_then(|mut items| items.next()).is_none()
+                .map(|mut items| items.next().is_none()).unwrap_or(false)
         })
         .count();
 
