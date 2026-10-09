@@ -47,6 +47,7 @@ pub struct PlanStats {
     pub collision_different_content: usize,
     pub blocked: usize,
     pub directories_to_create: usize,
+    pub empty_folders_to_clean: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -823,7 +824,7 @@ fn mark_intra_plan_destination_collisions(items: &mut [PlanItem], stats: &mut Pl
 fn plan_can_execute(stats: &PlanStats, read_only: bool) -> bool {
     // Blocked items are excluded from movement. They must not prevent the
     // independently validated ready items from being organized and restored.
-    !read_only && stats.ready > 0
+    !read_only && (stats.ready > 0 || stats.empty_folders_to_clean > 0)
 }
 
 fn manifest_preview(
@@ -1565,6 +1566,23 @@ pub fn build_organization_plan_with_cfg(
         .collect::<Vec<_>>();
 
     stats.directories_to_create = directories.len();
+    // Enable a confirmed cleanup-only pass after a previous organization,
+    // but count only actually empty directories and never loading roots.
+    stats.empty_folders_to_clean = walkdir::WalkDir::new(&root)
+        .follow_links(false).min_depth(1).into_iter()
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_type().is_dir())
+        .filter(|entry| {
+            let path = entry.path();
+            let protected = is_mods_root(&root) && path.parent() == Some(root.as_path())
+                && path.file_name().is_some_and(|name| {
+                    name.to_string_lossy().eq_ignore_ascii_case("Packages")
+                        || name.to_string_lossy().eq_ignore_ascii_case("Overrides")
+                });
+            !protected && fs::read_dir(path)
+                .ok().and_then(|mut items| items.next()).is_none()
+        })
+        .count();
 
     let can_execute = plan_can_execute(&stats, workspace.read_only);
     let cfg_opt_in = update_resource_cfg
@@ -2165,6 +2183,8 @@ mod tests {
 
         assert!(plan_can_execute(&stats, false));
         assert!(!plan_can_execute(&PlanStats { ready: 0, blocked: 1, ..PlanStats::default() }, false));
+        assert!(plan_can_execute(&PlanStats { ready: 0, empty_folders_to_clean: 2, ..PlanStats::default() }, false));
+        assert!(!plan_can_execute(&PlanStats { ready: 0, empty_folders_to_clean: 2, ..PlanStats::default() }, true));
         assert!(!plan_can_execute(&PlanStats { ready: 1, ..PlanStats::default() }, true));
     }
 
