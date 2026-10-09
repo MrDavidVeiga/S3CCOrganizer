@@ -108,6 +108,7 @@ pub struct VariantRelation {
 pub struct DuplicateStats {
     pub packages_scanned: usize,
     pub files_discovered: usize,
+    pub active_packages_found: usize,
     pub disabled_packages_excluded: usize,
     pub other_files_excluded: usize,
     pub readable_packages: usize,
@@ -705,6 +706,7 @@ pub fn analyze_duplicates_core(
     let mut stats = DuplicateStats {
         packages_scanned: packages.len(),
         files_discovered: discovery.total_files,
+        active_packages_found: discovery.active_paths.len(),
         disabled_packages_excluded: discovery.disabled_packages,
         other_files_excluded: discovery.other_files,
         readable_packages: packages
