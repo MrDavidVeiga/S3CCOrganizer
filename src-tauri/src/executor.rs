@@ -239,9 +239,7 @@ fn cleanup_empty_directories_after_organization(
     root: &Path,
     moved_pairs: &[(PathBuf, PathBuf, String, u64)],
 ) -> (usize, usize, Vec<String>) {
-    let mods_root = root.file_name().is_some_and(|name| {
-        name.to_string_lossy().eq_ignore_ascii_case("Mods")
-    });
+    let mods_root = crate::resource_cfg::is_mods_layout_root(root);
     let mut candidates = Vec::<PathBuf>::new();
     let mut warnings = Vec::<String>::new();
 
@@ -412,6 +410,11 @@ fn execute_organization_core(
     operation::update("organize", 0, None, "preparing");
 
     if ready.is_empty() {
+        // A previous organization may already have emptied legacy category
+        // directories. Clean only genuinely empty ones, even if no new move
+        // was necessary. Never remove files or the Packages/Overrides roots.
+        let (removed, retained, cleanup_warnings) =
+            cleanup_empty_directories_after_organization(&root, &[]);
         return Ok(ExecutionResult {
             status: "NO_CHANGES".to_string(),
             moved_files: Vec::new(),
@@ -420,11 +423,11 @@ fn execute_organization_core(
             moved: 0,
             already_organized: plan.stats.already_organized,
             rolled_back: 0,
-            old_folders_removed: 0,
-            old_folders_retained: 0,
+            old_folders_removed: removed,
+            old_folders_retained: retained,
             remaining_legacy_files: 0,
             remaining_legacy_examples: Vec::new(),
-            errors: Vec::new(),
+            errors: cleanup_warnings,
         });
     }
 
@@ -794,6 +797,29 @@ mod tests {
         assert!(!old.exists() && !orphan.exists() && !legacy.exists());
         assert!(!override_old.exists() && !packages.join("Custom Empty Folder").exists());
         std::fs::remove_dir_all(mods.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn copied_mods_root_keeps_loading_branches_while_cleaning_empty_legacy() {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let nonce = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let base = std::env::temp_dir()
+            .join(format!("s3cc-copied-cleanup-{}-{nonce}",std::process::id()));
+        let root = base.join("Mods - Copia");
+        let packages = root.join("Packages");
+        let overrides = root.join("Overrides");
+        let legacy = root.join("#+18").join("Rigged");
+        let old = packages.join("Old Categorization").join("Empty");
+        for path in [&packages,&overrides,&legacy,&old] {
+            std::fs::create_dir_all(path).unwrap();
+        }
+        std::fs::write(root.join("Resource.cfg"), b"Priority 500\nPackedFile Packages/*.package\n").unwrap();
+        let (removed, _, warnings) = cleanup_empty_directories_after_organization(&root, &[]);
+        assert!(removed >= 4, "removed only {removed}");
+        assert!(warnings.is_empty(), "{warnings:?}");
+        assert!(root.is_dir() && packages.is_dir() && overrides.is_dir());
+        assert!(!legacy.exists() && !old.exists());
+        std::fs::remove_dir_all(base).unwrap();
     }
 
     #[test]
