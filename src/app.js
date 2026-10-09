@@ -2791,7 +2791,8 @@ function buildScopedAuditMarkdown(snapshot) {
     lines.push("IMPORTANT: Classification destinations are suggestions, not proof of moved files. A move only occurs after an executable plan and confirmed transaction.");
     lines.push("Plan: " + (organizer?.planStatus || "not_generated") +
       " · Ready: " + (organizer?.planStats?.ready ?? "not_calculated") +
-      " · Blocked: " + (organizer?.planStats?.blocked ?? "not_calculated"), "");
+      " · Blocked: " + (organizer?.planStats?.blocked ?? "not_calculated") +
+      " · Empty directories: " + (organizer?.planStats?.emptyFoldersToClean ?? "not_calculated"), "");
     lines.push(
       `Packages: ${stats.packages ?? organizer?.packages?.length ?? 0} · ${t("classified")}: ${stats.classified ?? 0} · ${t("mixed")}: ${stats.mixed ?? 0} · ${t("needsReview")}: ${stats.needsReview ?? 0} · ${t("invalid")}: ${stats.invalid ?? 0}`,
       "",
@@ -2981,7 +2982,8 @@ function supportsResourceCfgUpdate(folder) {
 
 function planCanExecute(plan) {
   const stats = plan?.stats || {};
-  return (stats.ready ?? 0) > 0 && !workspaceReadOnly();
+  return ((stats.ready ?? 0) > 0 || (stats.emptyFoldersToClean ?? 0) > 0)
+    && !!plan?.canExecute && !workspaceReadOnly();
 }
 
 function planStatusLabel(status) {
