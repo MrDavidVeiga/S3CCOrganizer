@@ -188,6 +188,43 @@
                   </div>
                   <input id="search-input" class="text-input results-search-input" type="search" autocomplete="off" spellcheck="false" />
                 </div>
+                <details id="organizer-advanced-filters" class="organizer-advanced-filters">
+                  <summary class="organizer-advanced-trigger" data-i18n="organizerAdvancedFilters">CAS Filters and Sort</summary>
+                  <div class="organizer-advanced-content">
+                    <label class="organizer-filter-field" for="organizer-cas-category">
+                      <span data-i18n="category">Category</span>
+                      <select id="organizer-cas-category" class="text-input" aria-label="CAS category"><option value="">All categories</option></select>
+                    </label>
+                    <label class="organizer-filter-field" for="organizer-cas-subcategory">
+                      <span data-i18n="subCategory">Subcategory</span>
+                      <select id="organizer-cas-subcategory" class="text-input" aria-label="CAS subcategory"><option value="">All subcategories</option></select>
+                    </label>
+                    <label class="organizer-filter-field" for="organizer-cas-gender">
+                      <span data-i18n="gender">Gender</span>
+                      <select id="organizer-cas-gender" class="text-input" aria-label="CAS gender"><option value="">All genders</option></select>
+                    </label>
+                    <label class="organizer-filter-field" for="organizer-cas-age">
+                      <span data-i18n="age">Age</span>
+                      <select id="organizer-cas-age" class="text-input" aria-label="CAS age"><option value="">All ages</option></select>
+                    </label>
+                    <label class="organizer-filter-field" for="organizer-cas-outfit">
+                      <span data-i18n="usageCategories">Outfit categories</span>
+                      <select id="organizer-cas-outfit" class="text-input" aria-label="CAS outfit category"><option value="">All outfits</option></select>
+                    </label>
+                    <label class="organizer-filter-field" for="organizer-sort">
+                      <span data-i18n="organizerSort">Sort by</span>
+                      <select id="organizer-sort" class="text-input" aria-label="Package sort">
+                        <option value="original" data-i18n="organizerSortOriginal">Scan order</option>
+                        <option value="name_asc" data-i18n="organizerSortNameAsc">Name A–Z</option>
+                        <option value="name_desc" data-i18n="organizerSortNameDesc">Name Z–A</option>
+                        <option value="size_desc" data-i18n="organizerSortSizeDesc">Largest first</option>
+                        <option value="resources_desc" data-i18n="organizerSortResourcesDesc">Most resources first</option>
+                      </select>
+                    </label>
+                    <button id="organizer-reset-advanced-filters" class="secondary-btn" type="button" data-i18n="organizerResetFilters">Reset CAS filters</button>
+                  </div>
+                  <div id="organizer-filter-result-summary" class="organizer-filter-result-summary" role="status" aria-live="polite"></div>
+                </details>
                 <div class="results-selection-controls">
                   <button id="select-all-btn" class="secondary-btn" type="button" data-i18n="selectAllVisible">Select All</button>
                   <button id="select-none-btn" class="secondary-btn" type="button" data-i18n="selectNoneVisible">Select None</button>
