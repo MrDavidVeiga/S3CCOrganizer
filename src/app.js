@@ -467,6 +467,20 @@ const I18N = {
     clearReviewSelection: "Clear Review Selection",
     prioritizeSelectedConflicts: "Prioritize Selected Review",
     conflictReviewSelectedCount: "Conflicts selected for review",
+    organizerAdvancedFilters: "CAS filters and sorting",
+    organizerSort: "Sort by",
+    organizerSortOriginal: "Scan order",
+    organizerSortNameAsc: "Name A–Z",
+    organizerSortNameDesc: "Name Z–A",
+    organizerSortSizeDesc: "Largest first",
+    organizerSortResourcesDesc: "Most resources first",
+    organizerResetFilters: "Reset CAS filters",
+    organizerAllCategories: "All categories",
+    organizerAllSubcategories: "All subcategories",
+    organizerAllGenders: "All genders",
+    organizerAllAges: "All ages",
+    organizerAllOutfits: "All outfit categories",
+    organizerFilterCount: "Visible packages",
     conflictBatchActions: "More actions",
     selectConflictsForReview: "Select for Review",
     reviewSelectedConflicts: "Review Selected",
@@ -1031,6 +1045,20 @@ const I18N = {
     clearReviewSelection: "Limpar seleção de revisão",
     prioritizeSelectedConflicts: "Priorizar revisão dos selecionados",
     conflictReviewSelectedCount: "Conflitos selecionados para revisão",
+    organizerAdvancedFilters: "Filtros CAS e ordenação",
+    organizerSort: "Ordenar por",
+    organizerSortOriginal: "Ordem da análise",
+    organizerSortNameAsc: "Nome A–Z",
+    organizerSortNameDesc: "Nome Z–A",
+    organizerSortSizeDesc: "Maiores primeiro",
+    organizerSortResourcesDesc: "Mais recursos primeiro",
+    organizerResetFilters: "Limpar filtros CAS",
+    organizerAllCategories: "Todas as categorias",
+    organizerAllSubcategories: "Todas as subcategorias",
+    organizerAllGenders: "Todos os gêneros",
+    organizerAllAges: "Todas as idades",
+    organizerAllOutfits: "Todas as categorias de roupa",
+    organizerFilterCount: "Packages visíveis",
     conflictBatchActions: "Mais ações",
     selectConflictsForReview: "Selecionar para revisão",
     reviewSelectedConflicts: "Revisar selecionados",
@@ -1594,6 +1622,20 @@ const I18N = {
     clearReviewSelection: "Limpiar selección de revisión",
     prioritizeSelectedConflicts: "Priorizar revisión de los seleccionados",
     conflictReviewSelectedCount: "Conflictos seleccionados para revisión",
+    organizerAdvancedFilters: "Filtros CAS y ordenación",
+    organizerSort: "Ordenar por",
+    organizerSortOriginal: "Orden del análisis",
+    organizerSortNameAsc: "Nombre A–Z",
+    organizerSortNameDesc: "Nombre Z–A",
+    organizerSortSizeDesc: "Más grandes primero",
+    organizerSortResourcesDesc: "Más recursos primero",
+    organizerResetFilters: "Limpiar filtros CAS",
+    organizerAllCategories: "Todas las categorías",
+    organizerAllSubcategories: "Todas las subcategorías",
+    organizerAllGenders: "Todos los géneros",
+    organizerAllAges: "Todas las edades",
+    organizerAllOutfits: "Todas las categorías de ropa",
+    organizerFilterCount: "Packages visibles",
     conflictBatchActions: "Más acciones",
     selectConflictsForReview: "Seleccionar para revisión",
     reviewSelectedConflicts: "Revisar seleccionados",
@@ -1725,6 +1767,12 @@ const state = {
   selectedForPlan: new Set(),
   search: typeof preferences.search === "string" ? preferences.search : "",
   status: typeof preferences.status === "string" ? preferences.status : "all",
+  organizerFilters: Object.fromEntries(
+    ["category", "subcategory", "gender", "age", "outfit", "sort"].map(key => {
+      const value = preferences.organizerFilters?.[key];
+      return [key, typeof value === "string" ? value : (key === "sort" ? "original" : "")];
+    })
+  ),
   isStatusFilterOpen: false,
   scanning: false,
   planning: false,
@@ -1843,7 +1891,8 @@ const VIRTUAL_OVERSCAN = 10;
 const SEARCH_DEBOUNCE_MS = 100;
 
 const managerSearchIndex = new WeakMap();
-const managerVisibleMemo = { items: null, status: "", search: "", result: [] };
+const managerVisibleMemo = { items: null, status: "", search: "", filters: "", result: [] };
+const organizerFilterOptionsMemo = { items: null, language: "" };
 const duplicateVisibleMemo = { analysis: null, filter: "", search: "", result: [] };
 const conflictVisibleMemo = { analysis: null, filter: "", search: "", marksVersion: 0, result: [] };
 const virtualViews = {
@@ -1962,6 +2011,15 @@ const el = {
   previewCard: document.querySelector("#preview-card"),
   searchInput: document.querySelector("#search-input"),
   statusFilter: document.querySelector("#status-filter"),
+  organizerAdvancedFilters: document.querySelector("#organizer-advanced-filters"),
+  organizerCategory: document.querySelector("#organizer-cas-category"),
+  organizerSubcategory: document.querySelector("#organizer-cas-subcategory"),
+  organizerGender: document.querySelector("#organizer-cas-gender"),
+  organizerAge: document.querySelector("#organizer-cas-age"),
+  organizerOutfit: document.querySelector("#organizer-cas-outfit"),
+  organizerSort: document.querySelector("#organizer-sort"),
+  organizerResetFilters: document.querySelector("#organizer-reset-advanced-filters"),
+  organizerFilterSummary: document.querySelector("#organizer-filter-result-summary"),
   statusFilterLabel: document.querySelector("#status-filter-label"),
   statusFilterDropdown: document.querySelector("#status-filter-dropdown"),
   statusFilterToggleBtn: document.querySelector("#status-filter-toggle-btn"),
@@ -2222,6 +2280,7 @@ function persistPreferences() {
     folder: state.folder,
     search: state.search,
     status: state.status,
+    organizerFilters: { ...state.organizerFilters },
     duplicatesSearch: state.duplicatesSearch,
     duplicatesFilter: state.duplicatesFilter,
     conflictsSearch: state.conflictsSearch,
@@ -7011,24 +7070,100 @@ function metadataForItem(item) {
   ) || null;
 }
 
+const ORGANIZER_CAS_KEYS = ["category", "subcategory", "gender", "age", "outfit"];
+const ORGANIZER_SORT_MODES = new Set(["original", "name_asc", "name_desc", "size_desc", "resources_desc"]);
+
+function organizerCaspClassifications(item) {
+  return (item?.classifications || []).filter(classification =>
+    classification.source === "CASP" && classification.kind === "cas");
+}
+
+function matchesOrganizerCasFilters(item, filters = state.organizerFilters) {
+  if (!ORGANIZER_CAS_KEYS.some(key => !!filters[key])) return true;
+  // All predicates must match ONE CASP. Matching gender and age across
+  // different CASPs would wrongly include merged/mixed packages.
+  return organizerCaspClassifications(item).some(c =>
+    (!filters.category || c.mainCategory === filters.category) &&
+    (!filters.subcategory || c.subCategory === filters.subcategory) &&
+    (!filters.gender || c.gender === filters.gender) &&
+    (!filters.age || c.age === filters.age) &&
+    (!filters.outfit || (c.usageCategories || []).includes(filters.outfit))
+  );
+}
+
+function organizerAdvancedActive() {
+  return ORGANIZER_CAS_KEYS.some(key => !!state.organizerFilters[key]);
+}
+
+function renderOrganizerAdvancedFilters() {
+  if (!el.organizerCategory || !state.stats) return;
+  const specs = [
+    [el.organizerCategory, "category", "mainCategory", "organizerAllCategories"],
+    [el.organizerSubcategory, "subcategory", "subCategory", "organizerAllSubcategories"],
+    [el.organizerGender, "gender", "gender", "organizerAllGenders"],
+    [el.organizerAge, "age", "age", "organizerAllAges"],
+    [el.organizerOutfit, "outfit", "usageCategories", "organizerAllOutfits"],
+  ];
+  if (organizerFilterOptionsMemo.items !== state.items ||
+      organizerFilterOptionsMemo.language !== state.language) {
+    const catalog = state.items.flatMap(organizerCaspClassifications);
+    for (const [select, key, field, allKey] of specs) {
+      const values = [...new Set(catalog.flatMap(c => {
+        const fieldValue = c[field];
+        return Array.isArray(fieldValue) ? fieldValue : fieldValue ? [fieldValue] : [];
+      }))].sort((a,b) => a.localeCompare(b, state.language === "pt" ? "pt-BR" : state.language));
+      select.replaceChildren();
+      select.add(new Option(t(allKey), ""));
+      values.forEach(value => select.add(new Option(value, value)));
+      if (state.organizerFilters[key] && !values.includes(state.organizerFilters[key])) {
+        state.organizerFilters[key] = "";
+      }
+    }
+    organizerFilterOptionsMemo.items = state.items;
+    organizerFilterOptionsMemo.language = state.language;
+  }
+  for (const [select, key,, allKey] of specs) {
+    if (select.options.length) select.options[0].textContent = t(allKey);
+    select.value = state.organizerFilters[key] || "";
+  }
+  if (!ORGANIZER_SORT_MODES.has(state.organizerFilters.sort)) state.organizerFilters.sort = "original";
+  el.organizerSort.value = state.organizerFilters.sort;
+  el.organizerAdvancedFilters.classList.toggle("filters-active", organizerAdvancedActive());
+}
+
 function visibleItems() {
   const search = state.search.trim().toLocaleLowerCase();
+  const filters = JSON.stringify(state.organizerFilters);
   if (
     managerVisibleMemo.items === state.items &&
     managerVisibleMemo.status === state.status &&
-    managerVisibleMemo.search === search
+    managerVisibleMemo.search === search &&
+    managerVisibleMemo.filters === filters
   ) {
     return managerVisibleMemo.result;
   }
 
-  const result = state.items.filter((item) => {
-    if (state.status !== "all" && item.status !== state.status) return false;
-    return itemMatchesManagerSearch(item, search);
-  });
+  const result = state.items.filter(item =>
+    (state.status === "all" || item.status === state.status) &&
+    itemMatchesManagerSearch(item, search) &&
+    matchesOrganizerCasFilters(item)
+  );
+  switch (state.organizerFilters.sort) {
+    case "name_asc":
+      result.sort((a,b) => a.name.localeCompare(b.name, state.language)); break;
+    case "name_desc":
+      result.sort((a,b) => b.name.localeCompare(a.name, state.language)); break;
+    case "size_desc":
+      result.sort((a,b) => b.fileSize - a.fileSize); break;
+    case "resources_desc":
+      result.sort((a,b) => b.resourceCount - a.resourceCount); break;
+    default: break;
+  }
 
   managerVisibleMemo.items = state.items;
   managerVisibleMemo.status = state.status;
   managerVisibleMemo.search = search;
+  managerVisibleMemo.filters = filters;
   managerVisibleMemo.result = result;
   return result;
 }
@@ -7385,7 +7520,12 @@ function renderResults(forceRows = false) {
     return;
   }
 
+  renderOrganizerAdvancedFilters();
   const items = visibleItems();
+  if (el.organizerFilterSummary) {
+    el.organizerFilterSummary.textContent =
+      `${t("organizerFilterCount")}: ${integerLabel(items.length)} / ${integerLabel(state.items.length)}`;
+  }
   if (!items.some((item) => item.id === state.selectedId)) {
     state.selectedId = items[0]?.id || "";
   }
@@ -7981,6 +8121,8 @@ function clearLoadedLibrary() {
   state.selectedForPlan.clear();
   state.search = "";
   state.status = "all";
+  state.organizerFilters = { category:"", subcategory:"", gender:"", age:"", outfit:"", sort:"original" };
+  organizerFilterOptionsMemo.items = null;
   state.plan = null;
   state.planError = "";
   state.notice = "";
@@ -8676,6 +8818,10 @@ for (const button of el.languageMenuItems) {
     }
 
     state.language = nextLanguage;
+    // CASP labels are localized by Rust: invalidate options from the old
+    // language instead of silently hiding every item behind obsolete values.
+    state.organizerFilters = { category:"", subcategory:"", gender:"", age:"", outfit:"", sort: state.organizerFilters.sort };
+    organizerFilterOptionsMemo.items = null;
     localStorage.setItem("s3cc-organizer-language", state.language);
     persistPreferences();
     render();
@@ -9026,6 +9172,22 @@ const applyManagerSearch = debounce((value) => {
 });
 el.searchInput.addEventListener("input", (event) => {
   applyManagerSearch(event.currentTarget.value);
+});
+for (const [key, control] of [
+  ["category", el.organizerCategory], ["subcategory", el.organizerSubcategory],
+  ["gender", el.organizerGender], ["age", el.organizerAge],
+  ["outfit", el.organizerOutfit], ["sort", el.organizerSort]
+]) {
+  control.addEventListener("change", () => {
+    state.organizerFilters[key] = control.value;
+    persistPreferences();
+    renderResults();
+  });
+}
+el.organizerResetFilters.addEventListener("click", () => {
+  state.organizerFilters = { category:"", subcategory:"", gender:"", age:"", outfit:"", sort:state.organizerFilters.sort };
+  persistPreferences();
+  renderResults();
 });
 
 el.statusFilterToggleBtn.addEventListener("click", (event) => {
