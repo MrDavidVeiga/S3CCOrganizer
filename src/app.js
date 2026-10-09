@@ -4158,6 +4158,7 @@ function selectAllDetectedConflicts() {
 function clearConflictReviewSelection() {
   state.conflictReviewSelected.clear();
   state.conflictsSelectedOnly = false;
+  state.conflictsReviewWalkthrough = false;
   conflictVisibleMemo.analysis = null;
   renderConflicts();
   renderConflictVirtualRows(visibleConflictFindings(), true);
@@ -4935,7 +4936,7 @@ function renderConflictBatchControls() {
   el.conflictsSelectAllBtn.disabled = !state.conflictsAnalysis || busy ||
     !visibleConflictFindings().length;
   el.conflictsSelectDetectedBtn.disabled = !state.conflictsAnalysis || busy ||
-    !(state.conflictsAnalysis.findings || []).some(pendingConflictNeedsReview);
+    !(state.conflictsAnalysis.findings || []).some(finding => pendingConflictNeedsReview(finding));
   el.conflictsClearReviewBtn.disabled = busy || !state.conflictReviewSelected.size;
   el.conflictsPrioritizeSelectedBtn.disabled = busy || !state.conflictReviewSelected.size;
   for (const button of [el.conflictsMarkIntentionalBtn, el.conflictsMarkReviewedBtn,
@@ -7942,6 +7943,7 @@ function clearConflictList() {
   state.conflictQuarantinePlan = null;
   state.conflictReviewSelected.clear();
   state.conflictsSelectedOnly = false;
+  state.conflictsReviewWalkthrough = false;
   conflictVisibleMemo.analysis = null;
   closeConflictDetails();
   state.conflictsAnalysis = null;
@@ -8004,6 +8006,7 @@ function clearLoadedLibrary() {
   state.conflictQuarantinePlan = null;
   state.conflictReviewSelected.clear();
   state.conflictsSelectedOnly = false;
+  state.conflictsReviewWalkthrough = false;
   conflictVisibleMemo.analysis = null;
   state.packagePreviews = {};
   state.packagePreviewLoading = {};
@@ -8044,6 +8047,7 @@ async function chooseFolder() {
   state.lastConflictReviewAnchor = null;
   state.conflictReviewSelected.clear();
   state.conflictsSelectedOnly = false;
+  state.conflictsReviewWalkthrough = false;
   conflictVisibleMemo.analysis = null;
   state.updateResourceCfg = false;
   persistPreferences();
@@ -8318,6 +8322,7 @@ function reflectCompletedOrganization(moves) {
   state.analysisStatus.conflicts = "not_run";
   state.conflictReviewSelected.clear();
   state.conflictsSelectedOnly = false;
+  state.conflictsReviewWalkthrough = false;
   conflictVisibleMemo.analysis = null;
   state.quarantineSelected.clear();
   state.quarantinePlan = null;
@@ -8575,6 +8580,7 @@ async function analyzeConflicts({ automated = false, folder = state.folder, runI
   state.conflictQuarantinePlan = null;
   state.conflictReviewSelected.clear();
   state.conflictsSelectedOnly = false;
+  state.conflictsReviewWalkthrough = false;
   conflictVisibleMemo.analysis = null;
   state.analysisStatus.conflicts = "running";
   state.conflictsNotice = "";
@@ -8680,6 +8686,9 @@ document.addEventListener("click", (event) => {
   if (el.duplicatesMoreActions?.open && !el.duplicatesMoreActions.contains(event.target)) {
     el.duplicatesMoreActions.open = false;
   }
+  if (el.conflictsMoreActions?.open && !el.conflictsMoreActions.contains(event.target)) {
+    el.conflictsMoreActions.open = false;
+  }
   let changed = false;
 
   if (!event.target.closest("#lang-dropdown") && !el.languageMenu?.classList.contains("hidden")) {
@@ -8718,6 +8727,11 @@ document.addEventListener("keydown", (event) => {
   if (el.duplicatesMoreActions?.open) {
     el.duplicatesMoreActions.open = false;
     el.duplicatesMoreActions.querySelector("summary")?.focus();
+    return;
+  }
+  if (el.conflictsMoreActions?.open) {
+    el.conflictsMoreActions.open = false;
+    el.conflictsMoreActions.querySelector("summary")?.focus();
     return;
   }
   if (state.isStatusFilterOpen) {
@@ -8775,6 +8789,11 @@ el.duplicatesClearSelectionBtn.addEventListener("click", () => {
   renderDuplicates();
   renderDuplicatesPreview();
 });
+el.conflictsMoreActions.addEventListener("click", event => {
+  if (event.target.closest("button")) el.conflictsMoreActions.open = false;
+});
+el.conflictReviewPrevBtn.addEventListener("click", () => navigateSelectedConflict(-1));
+el.conflictReviewNextBtn.addEventListener("click", () => navigateSelectedConflict(1));
 el.conflictsClearListBtn.addEventListener("click", clearConflictList);
 el.conflictsSelectAllBtn.addEventListener("click", selectAllVisibleConflicts);
 el.conflictsSelectDetectedBtn.addEventListener("click", selectAllDetectedConflicts);
@@ -8897,6 +8916,17 @@ el.conflictDetailsCloseBtn.addEventListener("click", closeConflictDetails);
 el.conflictDetailsCloseFooterBtn.addEventListener("click", closeConflictDetails);
 el.conflictDetailsModal.addEventListener("click", (event) => {
   if (event.target === el.conflictDetailsModal) closeConflictDetails();
+});
+el.conflictDetailsModal.addEventListener("keydown", event => {
+  if (!state.conflictsReviewWalkthrough || event.altKey || event.ctrlKey || event.metaKey ||
+      ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName)) return;
+  if (event.key === "ArrowRight") {
+    event.preventDefault();
+    navigateSelectedConflict(1);
+  } else if (event.key === "ArrowLeft") {
+    event.preventDefault();
+    navigateSelectedConflict(-1);
+  }
 });
 el.collisionReviewCloseBtn.addEventListener("click", closeCollisionReview);
 el.collisionReviewCloseFooterBtn.addEventListener("click", closeCollisionReview);
