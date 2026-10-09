@@ -361,6 +361,9 @@ const I18N = {
     readOnlyDisabled: "Read-only mode disabled",
     profileSaved: "Profile saved",
     metadataSaved: "Metadata saved",
+    organizerFavoriteAdd: "Add favorite",
+    organizerFavoriteRemove: "Remove favorite",
+    organizerEditMetadata: "Edit tags and status",
     groupSaved: "Group saved",
     exportSaved: "Export saved",
     noData: "No data.",
@@ -939,6 +942,9 @@ const I18N = {
     readOnlyDisabled: "Modo somente leitura desativado",
     profileSaved: "Perfil salvo",
     metadataSaved: "Metadados salvos",
+    organizerFavoriteAdd: "Adicionar favorito",
+    organizerFavoriteRemove: "Remover favorito",
+    organizerEditMetadata: "Editar tags e status",
     groupSaved: "Grupo salvo",
     exportSaved: "Exportação salva",
     noData: "Sem dados.",
@@ -1516,6 +1522,9 @@ const I18N = {
     readOnlyDisabled: "Modo de solo lectura desactivado",
     profileSaved: "Perfil guardado",
     metadataSaved: "Metadatos guardados",
+    organizerFavoriteAdd: "Añadir favorito",
+    organizerFavoriteRemove: "Quitar favorito",
+    organizerEditMetadata: "Editar etiquetas y estado",
     groupSaved: "Grupo guardado",
     exportSaved: "Exportación guardada",
     noData: "Sin datos.",
@@ -7300,6 +7309,43 @@ async function saveManualReview(item, destination) {
   }
 }
 
+async function toggleOrganizerFavorite(item) {
+  if (!item || !state.folder || workspaceReadOnly() || toolsOperationLocked()) return;
+  const folder = state.folder;
+  const meta = metadataForItem(item);
+  state.toolsBusy = true;
+  renderPreview();
+  try {
+    const updated = await invoke("set_package_metadata", {
+      folder,
+      packagePath: item.path,
+      tags: [...(meta?.tags || [])],
+      testStatus: meta?.testStatus || "",
+      favorite: !meta?.favorite,
+    });
+    if (state.folder === folder) {
+      state.workspaceStore = updated;
+      state.notice = t("metadataSaved");
+      renderResults(true);
+    }
+  } catch (error) {
+    if (state.folder === folder) state.error = String(error);
+  } finally {
+    state.toolsBusy = false;
+    render();
+  }
+}
+
+async function openOrganizerMetadataEditor(item) {
+  if (!item || !state.folder) return;
+  state.tab = "tools";
+  state.toolsTab = "metadata";
+  persistPreferences();
+  render();
+  el.toolsMetadataPackage.value = item.path;
+  await loadMetadataSelection();
+}
+
 function renderPreview() {
   const item = state.items.find((candidate) => candidate.id === state.selectedId);
   el.previewCard.innerHTML = "";
@@ -7374,7 +7420,24 @@ function renderPreview() {
     thumbWrap.appendChild(empty);
   }
 
-  el.previewCard.append(thumbWrap, header, meta);
+  const quickActions = document.createElement("div");
+  quickActions.className = "organizer-preview-quick-actions";
+  const favorite = document.createElement("button");
+  favorite.type = "button";
+  favorite.className = "secondary-btn organizer-quick-favorite";
+  favorite.textContent = localMetadata?.favorite ? t("organizerFavoriteRemove") : t("organizerFavoriteAdd");
+  favorite.setAttribute("aria-pressed", String(!!localMetadata?.favorite));
+  favorite.disabled = workspaceReadOnly() || toolsOperationLocked() || !state.folder;
+  favorite.addEventListener("click", () => void toggleOrganizerFavorite(item));
+  const edit = document.createElement("button");
+  edit.type = "button";
+  edit.className = "secondary-btn";
+  edit.textContent = t("organizerEditMetadata");
+  edit.disabled = !state.folder || toolsOperationLocked();
+  edit.addEventListener("click", () => void openOrganizerMetadataEditor(item));
+  quickActions.append(favorite, edit);
+
+  el.previewCard.append(thumbWrap, header, meta, quickActions);
 
   if (!(item.path in state.packagePreviews)
       && !state.packagePreviewLoading[item.path]
