@@ -65,17 +65,9 @@ fn resource_cfg_context(root: &Path) -> Option<ResourceCfgContext> {
     Some(ResourceCfgContext { info, directory })
 }
 
-// Test and backup copies of a Mods directory are still real Mods trees.
-// Identifying only the literal name "Mods" caused "Mods - Copia" to be
-// handled as an arbitrary staging folder, losing Packages/Overrides routing.
+// All modules must use the same loading-root detection, including backup copies.
 fn is_mods_root(root: &Path) -> bool {
-    let Some(name) = root.file_name() else { return false };
-    let name = name.to_string_lossy().to_ascii_lowercase();
-    if name == "mods" { return true; }
-    let copy_name = name.starts_with("mods ") || name.starts_with("mods-")
-        || name.starts_with("mods_") || name.starts_with("mods (");
-    copy_name && root.join("Packages").is_dir()
-        && (root.join("Overrides").is_dir() || root.join("Resource.cfg").is_file())
+    crate::resource_cfg::is_mods_layout_root(root)
 }
 
 fn is_packages_root(root: &Path) -> bool {
