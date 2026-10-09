@@ -1109,6 +1109,39 @@ pub fn build_organization_plan_with_cfg(
         if item.status == "unknown" && !source_uses_overrides(&root, &source_canonical) {
             let (fallback_relative, fallback_parts) =
                 fallback_relative_path(&root, language, &item.relative_path, &source_hash)?;
+            // The fallback may choose a unique SHA-named file if its normal
+            // destination exists. Never create that extra copy when the
+            // existing destination is already byte-identical.
+            if let Some(parent) = fallback_relative.parent() {
+                let original_target = root.join(parent).join(&item.name);
+                if !same_path_case_insensitive(&original_target, &source_canonical)
+                    && original_target.is_file()
+                {
+                    let (existing_hash, _) = sha256_file(&original_target)
+                        .map_err(|error| format!(
+                            "Could not verify existing Not Categorized package: {error}"
+                        ))?;
+                    if existing_hash.eq_ignore_ascii_case(&source_hash) {
+                        stats.duplicate_skipped += 1;
+                        items.push(PlanItem {
+                            id: item.id.clone(),
+                            name: item.name.clone(),
+                            source_path: source_canonical.to_string_lossy().to_string(),
+                            source_relative_path: item.relative_path.clone(),
+                            destination_path: Some(original_target.to_string_lossy().to_string()),
+                            destination_relative_path: original_target.strip_prefix(&root)
+                                .map(relative_key).ok(),
+                            classification_status: item.status.clone(),
+                            classification_reason: item.classification_reason.clone(),
+                            plan_status: "duplicate_skipped".to_string(),
+                            sha256: Some(source_hash),
+                            size: item.file_size,
+                            warnings: vec!["An identical package already exists in Not Categorized. This extra source copy remains for Duplicates/Quarantine review.".to_string()],
+                        });
+                        continue;
+                    }
+                }
+            }
             if let Err(error) = validate_destination_parts(&fallback_parts) {
                 stats.blocked += 1;
                 items.push(make_blocked(item, error));
@@ -1157,15 +1190,23 @@ pub fn build_organization_plan_with_cfg(
                 .map_err(|_| "Not Categorized destination escaped selected root.".to_string())?;
             let already = same_path_case_insensitive(&source_canonical, &destination);
             let collision = !already && destination.exists();
+            let collision_identical = if collision {
+                let (existing_hash, _) = sha256_file(&destination)
+                    .map_err(|error| format!("Cannot inspect fallback collision: {error}"))?;
+                existing_hash.eq_ignore_ascii_case(&source_hash)
+            } else { false };
             let destination_status = if already {
                 "already_organized"
+            } else if collision_identical {
+                "duplicate_skipped"
             } else if collision {
                 "collision_different_content"
             } else {
                 "ready_uncategorized"
             };
             if already { stats.already_organized += 1; }
-            if collision { stats.collision_different_content += 1; }
+            if collision_identical { stats.duplicate_skipped += 1; }
+            else if collision { stats.collision_different_content += 1; }
             if !already && !collision {
                 add_missing_directories(&root, &destination_parts, &mut directories);
                 stats.ready += 1;
@@ -1185,7 +1226,9 @@ pub fn build_organization_plan_with_cfg(
                 plan_status: destination_status.to_string(),
                 sha256: Some(source_hash),
                 size: item.file_size,
-                warnings: vec![if collision {
+                warnings: vec![if collision_identical {
+                    "Not Categorized already contains byte-identical data. Extra copy kept for Duplicates/Quarantine.".to_string()
+                } else if collision {
                     "The Not Categorized destination already exists. No file will be overwritten; review this collision.".to_string()
                 } else if already {
                     "Already in its safe Not Categorized destination.".to_string()
