@@ -91,6 +91,19 @@ fn wildcard_path_match(pattern: &str, value: &str) -> bool {
         .all(|(pattern, value)| wildcard_match_component(pattern, value))
 }
 
+/// Recognize an actual Mods tree even if the user scans a copied Mods folder.
+/// A root with the literal name Mods is always eligible (including synthetic
+/// test paths). Backup names require evidence of the Packages loading tree.
+pub fn is_mods_layout_root(root: &Path) -> bool {
+    let Some(name) = root.file_name() else { return false };
+    let name = name.to_string_lossy().to_ascii_lowercase();
+    if name == "mods" { return true; }
+    let copy_name = name.starts_with("mods ") || name.starts_with("mods-")
+        || name.starts_with("mods_") || name.starts_with("mods (");
+    copy_name && root.join("Packages").is_dir()
+        && (root.join("Overrides").is_dir() || root.join("Resource.cfg").is_file())
+}
+
 pub fn find_resource_cfg(selected_root: &Path) -> Option<PathBuf> {
     // A deeply selected Packages/Overrides subfolder must still honor the
     // Resource.cfg of its ancestor Mods directory. Do not stop at one parent.
@@ -101,9 +114,7 @@ pub fn find_resource_cfg(selected_root: &Path) -> Option<PathBuf> {
         if candidate.is_file() {
             return Some(candidate);
         }
-        if directory.file_name().is_some_and(|name| {
-            name.to_string_lossy().eq_ignore_ascii_case("Mods")
-        }) {
+        if is_mods_layout_root(directory) {
             break;
         }
     }
