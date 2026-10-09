@@ -5425,3 +5425,33 @@ body.release-v1 #page-organizer .organizer-filter-result-summary {
   body.release-v1 #page-organizer .organizer-advanced-filters { grid-column: 1 / -1; grid-row: 3; }
   body.release-v1 #page-organizer .results-actions { grid-template-columns: minmax(0, 1fr); }
 }
+
+
+/* Fast, reversible Organizer metadata actions. */
+body.release-v1 #page-organizer .organizer-preview-quick-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
+  margin-top: 10px;
+}
+body.release-v1 #page-organizer .organizer-preview-quick-actions > button {
+  min-width: 0;
+  width: 100%;
+  height: auto;
+  min-height: 36px;
+  padding: 8px 10px;
+  white-space: normal;
+  overflow-wrap: break-word;
+  text-align: center;
+}
+body.release-v1 #page-organizer .organizer-quick-favorite[aria-pressed="true"] {
+  border-color: var(--winui-accent, var(--green));
+  color: var(--winui-text-primary, var(--text));
+}
+@media (max-width: 480px) {
+  body.release-v1 #page-organizer .organizer-preview-quick-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
