@@ -334,6 +334,8 @@ const I18N = {
     healthKind_resource_cfg_uncovered: "Not loaded by Resource.cfg",
     healthKind_disabled_package: "Disabled package (excluded)",
     healthKind_dbc_not_scanned: "DBC file (not analyzed)",
+    healthKind_empty_folder: "Empty folder",
+    healthKind_outside_packages: "Package outside Mods root",
     healthDisabledCount: "Disabled packages",
     healthDbcCount: "DBC not analyzed",
     createSnapshot: "Create Snapshot",
@@ -941,6 +943,8 @@ const I18N = {
     healthKind_resource_cfg_uncovered: "Não carregado pelo Resource.cfg",
     healthKind_disabled_package: "Package desativado (excluído da análise)",
     healthKind_dbc_not_scanned: "Arquivo DBC (não analisado)",
+    healthKind_empty_folder: "Pasta vazia",
+    healthKind_outside_packages: "Package fora da pasta Mods",
     healthDisabledCount: "Packages desativados",
     healthDbcCount: "DBC não analisados",
     createSnapshot: "Criar Snapshot",
@@ -1548,6 +1552,8 @@ const I18N = {
     healthKind_resource_cfg_uncovered: "No cargado por Resource.cfg",
     healthKind_disabled_package: "Package desactivado (excluido)",
     healthKind_dbc_not_scanned: "Archivo DBC (no analizado)",
+    healthKind_empty_folder: "Carpeta vacía",
+    healthKind_outside_packages: "Package fuera de la carpeta Mods",
     healthDisabledCount: "Packages desactivados",
     healthDbcCount: "DBC no analizados",
     createSnapshot: "Crear Snapshot",
@@ -6446,6 +6452,71 @@ function renderProfileTools() {
   }
 }
 
+function visibleHealthFindings() {
+  const findings = state.healthReport?.findings || [];
+  return state.healthFilter === "all" ? findings
+    : findings.filter(finding => finding.kind === state.healthFilter);
+}
+
+function renderHealthSelectionControls() {
+  const all = state.healthReport?.findings || [];
+  const kinds = [...new Set(all.map(finding => finding.kind))].sort();
+  const options = ["all", ...kinds];
+  if (el.toolsHealthKindFilter.options.length !== options.length ||
+      options.some((kind,index) => el.toolsHealthKindFilter.options[index]?.value !== kind)) {
+    el.toolsHealthKindFilter.replaceChildren();
+    el.toolsHealthKindFilter.add(new Option(t("healthFilterAll"), "all"));
+    kinds.forEach(kind => el.toolsHealthKindFilter.add(
+      new Option(t("healthKind_" + kind), kind)));
+  } else {
+    el.toolsHealthKindFilter.options[0].textContent = t("healthFilterAll");
+    kinds.forEach((kind, index) => {
+      el.toolsHealthKindFilter.options[index + 1].textContent = t("healthKind_" + kind);
+    });
+  }
+  if (!options.includes(state.healthFilter)) state.healthFilter = "all";
+  el.toolsHealthKindFilter.setAttribute("aria-label", t("healthFilterKind"));
+  el.toolsHealthKindFilter.value = state.healthFilter;
+  const visible = visibleHealthFindings();
+  // Selection is global across filters, but never performs a file operation.
+  const aliveIds = new Set(all.map(finding => finding.id));
+  for (const id of state.healthSelected) {
+    if (!aliveIds.has(id)) state.healthSelected.delete(id);
+  }
+  el.toolsHealthSelectVisible.disabled = !visible.length || state.toolsBusy;
+  el.toolsHealthClearSelection.disabled = !state.healthSelected.size || state.toolsBusy;
+  el.toolsHealthExportSelected.disabled = !state.healthSelected.size || state.toolsBusy || state.healthExporting;
+  el.toolsHealthSelectionSummary.textContent =
+    `${t("healthVisibleCount")}: ${integerLabel(visible.length)} / ${integerLabel(all.length)} · ${t("healthSelectionCount")}: ${integerLabel(state.healthSelected.size)}. ${t("healthNotAnAutoFix")}`;
+}
+
+async function exportSelectedHealthFindings() {
+  if (!state.folder || !state.healthReport || !state.healthSelected.size || state.healthExporting) return;
+  const folder = state.folder;
+  const findings = (state.healthReport.findings || []).filter(
+    finding => state.healthSelected.has(finding.id));
+  if (!findings.length) return;
+  state.healthExporting = true;
+  renderHealthSelectionControls();
+  try {
+    const content = JSON.stringify({
+      source: "Veiga's S3CC Manager Health",
+      generatedAt: new Date().toISOString(),
+      folder,
+      totalFindings: state.healthReport.findings?.length || 0,
+      selectedFindings: findings.length,
+      findings,
+    }, null, 2);
+    const result = await invoke("save_selection_export", { folder, format: "json", content });
+    if (state.folder === folder) state.toolsNotice = `${t("healthExported")}: ${result.path}`;
+  } catch (error) {
+    if (state.folder === folder) state.toolsError = String(error);
+  } finally {
+    state.healthExporting = false;
+    renderTools();
+  }
+}
+
 function renderHealthTools() {
   const report = state.healthReport;
   el.toolsHealthSummary.innerHTML = "";
@@ -6455,6 +6526,8 @@ function renderHealthTools() {
       [t("packages"), stats.packages],
       [t("readablePackages"), stats.readable],
       [t("invalid"), stats.unreadable],
+      [t("healthDisabledCount"), stats.disabledPackages ?? 0],
+      [t("healthDbcCount"), stats.dbcFilesNotScanned ?? 0],
       [t("needsReview"), state.stats?.needsReview ?? 0],
       [t("emptyFolders"), stats.emptyFolders],
       [t("uncoveredPackages"), stats.resourceCfgUncovered],
@@ -6503,31 +6576,46 @@ function renderHealthTools() {
     el.toolsResourcecfg.appendChild(toolListItem("Resource.cfg", t("missingResourceCfg"), "tools-health-bad"));
   }
 
-  el.toolsHealthFindings.innerHTML = "";
-  if (report) {
-    for (const folder of report.emptyFolders || []) {
-      const row = toolListItem(t("emptyFolders"), folder);
+  renderHealthSelectionControls();
+  el.toolsHealthFindings.replaceChildren();
+  if (!report) return;
+  const visible = visibleHealthFindings();
+  const limit = 500;
+  for (const finding of visible.slice(0, limit)) {
+    const row = toolListItem(t("healthKind_" + finding.kind),
+      `${finding.relativePath} · ${finding.detail || ""}`,
+      finding.severity === "error" || finding.severity === "warning"
+        ? "tools-health-bad" : "");
+    row.classList.add("health-finding-row");
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = state.healthSelected.has(finding.id);
+    checkbox.setAttribute("aria-label",
+      `${t("healthSelectionCount")}: ${t("healthKind_" + finding.kind)} — ${finding.relativePath}`);
+    checkbox.disabled = state.toolsBusy;
+    checkbox.addEventListener("change", () => {
+      if (checkbox.checked) state.healthSelected.add(finding.id);
+      else state.healthSelected.delete(finding.id);
+      renderHealthSelectionControls();
+    });
+    row.prepend(checkbox);
+    if (finding.kind === "empty_folder") {
       const remove = document.createElement("button");
       remove.type = "button";
       remove.className = "secondary-btn compact-btn";
       remove.textContent = t("removeEmptyFolder");
       remove.disabled = workspaceReadOnly() || state.toolsBusy;
       remove.addEventListener("click", () => {
-        state.pendingEmptyFolder = folder;
+        state.pendingEmptyFolder = finding.relativePath;
         openConfirm("remove_empty_folder");
       });
       row.appendChild(remove);
-      el.toolsHealthFindings.appendChild(row);
     }
-    for (const path of report.unreadablePackages || []) {
-      el.toolsHealthFindings.appendChild(toolListItem(t("invalid"), path, "tools-health-bad"));
-    }
-    for (const path of report.outsidePackages || []) {
-      el.toolsHealthFindings.appendChild(toolListItem(t("outsidePackages"), path, "tools-health-bad"));
-    }
-    for (const item of (report.coverage || []).filter((item) => !item.covered)) {
-      el.toolsHealthFindings.appendChild(toolListItem(t("uncoveredPackages"), item.relativePath, "tools-health-bad"));
-    }
+    el.toolsHealthFindings.appendChild(row);
+  }
+  if (visible.length > limit) {
+    el.toolsHealthFindings.appendChild(toolListItem(
+      t("healthDisplayedCount"), `${integerLabel(limit)} / ${integerLabel(visible.length)}`));
   }
 }
 
@@ -7056,12 +7144,21 @@ async function addCustomRule() {
 
 async function analyzeHealth() {
   if (!state.folder || toolsOperationLocked()) return;
+  const folder = state.folder;
   state.toolsBusy = true; state.toolsError = "";
   renderTools();
   try {
-    state.healthReport = await invoke("analyze_mods_health", { folder: state.folder });
-  } catch (error) { state.toolsError = String(error); }
-  finally { state.toolsBusy = false; renderTools(); }
+    const report = await invoke("analyze_mods_health", { folder });
+    if (state.folder !== folder) return;
+    state.healthReport = report;
+    state.healthFilter = "all";
+    state.healthSelected.clear();
+  } catch (error) {
+    if (state.folder === folder) state.toolsError = String(error);
+  } finally {
+    state.toolsBusy = false;
+    renderTools();
+  }
 }
 
 async function createSnapshotTool() {
@@ -8523,6 +8620,8 @@ async function chooseFolder() {
   // while the new root is still loading.
   state.workspaceStore = null;
   state.healthReport = null;
+  state.healthFilter = "all";
+  state.healthSelected.clear();
   clearPackagePreviewCache();
   state.postQuarantineNotice = null;
   state.lastExactGroupAnchor = null;
@@ -9345,6 +9444,19 @@ el.toolsDeleteProfile.addEventListener("click", deleteActiveProfile);
 el.toolsAddProtected.addEventListener("click", addProtectedFolder);
 el.toolsAddRule.addEventListener("click", addCustomRule);
 el.toolsHealthRun.addEventListener("click", analyzeHealth);
+el.toolsHealthKindFilter.addEventListener("change", () => {
+  state.healthFilter = el.toolsHealthKindFilter.value;
+  renderHealthTools();
+});
+el.toolsHealthSelectVisible.addEventListener("click", () => {
+  for (const finding of visibleHealthFindings()) state.healthSelected.add(finding.id);
+  renderHealthTools();
+});
+el.toolsHealthClearSelection.addEventListener("click", () => {
+  state.healthSelected.clear();
+  renderHealthTools();
+});
+el.toolsHealthExportSelected.addEventListener("click", () => void exportSelectedHealthFindings());
 el.toolsCreateSnapshot.addEventListener("click", createSnapshotTool);
 el.toolsRefreshSnapshots.addEventListener("click", refreshSnapshots);
 el.toolsChooseCompareRoot.addEventListener("click", chooseCompareRoot);
