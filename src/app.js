@@ -7443,7 +7443,7 @@ async function saveManualReview(item, destination) {
 }
 
 async function toggleOrganizerFavorite(item) {
-  if (!item || !state.folder || workspaceReadOnly() || toolsOperationLocked()) return;
+  if (!item || !/\.package$/i.test(item.path || "") || !state.folder || workspaceReadOnly() || toolsOperationLocked()) return;
   const folder = state.folder;
   state.toolsBusy = true;
   renderPreview();
@@ -7468,7 +7468,7 @@ async function toggleOrganizerFavorite(item) {
 }
 
 async function openOrganizerMetadataEditor(item) {
-  if (!item || !state.folder) return;
+  if (!item || !/\.package$/i.test(item.path || "") || !state.folder) return;
   state.tab = "tools";
   state.toolsTab = "metadata";
   persistPreferences();
@@ -7558,13 +7558,13 @@ function renderPreview() {
   favorite.className = "secondary-btn organizer-quick-favorite";
   favorite.textContent = localMetadata?.favorite ? t("organizerFavoriteRemove") : t("organizerFavoriteAdd");
   favorite.setAttribute("aria-pressed", String(!!localMetadata?.favorite));
-  favorite.disabled = workspaceReadOnly() || toolsOperationLocked() || !state.folder;
+  favorite.disabled = !/\.package$/i.test(item.path || "") || workspaceReadOnly() || toolsOperationLocked() || !state.folder;
   favorite.addEventListener("click", () => void toggleOrganizerFavorite(item));
   const edit = document.createElement("button");
   edit.type = "button";
   edit.className = "secondary-btn";
   edit.textContent = t("organizerEditMetadata");
-  edit.disabled = !state.folder || toolsOperationLocked();
+  edit.disabled = !/\.package$/i.test(item.path || "") || !state.folder || toolsOperationLocked();
   edit.addEventListener("click", () => void openOrganizerMetadataEditor(item));
   quickActions.append(favorite, edit);
 
