@@ -484,6 +484,10 @@ const I18N = {
     organizerAllAges: "All ages",
     organizerAllOutfits: "All outfit categories",
     organizerFilterCount: "Visible packages",
+    conflictRelatedPairs: "Related conflict pairs",
+    conflictRelatedMembers: "Different packages",
+    conflictRelatedInfo: "Linked by a package; not every pair in this group necessarily conflicts directly.",
+    conflictRelatedOverflow: "Showing the first 16 pairs. Use the list to review the others.",
     conflictBatchActions: "More actions",
     selectConflictsForReview: "Select for Review",
     reviewSelectedConflicts: "Review Selected",
@@ -1065,6 +1069,10 @@ const I18N = {
     organizerAllAges: "Todas as idades",
     organizerAllOutfits: "Todas as categorias de roupa",
     organizerFilterCount: "Packages visíveis",
+    conflictRelatedPairs: "Pares de conflitos relacionados",
+    conflictRelatedMembers: "Packages diferentes",
+    conflictRelatedInfo: "Ligados por algum package; nem todos os arquivos do grupo necessariamente conflitam entre si.",
+    conflictRelatedOverflow: "Exibindo os primeiros 16 pares. Use a lista para revisar os demais.",
     conflictBatchActions: "Mais ações",
     selectConflictsForReview: "Selecionar para revisão",
     reviewSelectedConflicts: "Revisar selecionados",
@@ -1645,6 +1653,10 @@ const I18N = {
     organizerAllAges: "Todas las edades",
     organizerAllOutfits: "Todas las categorías de ropa",
     organizerFilterCount: "Packages visibles",
+    conflictRelatedPairs: "Pares de conflictos relacionados",
+    conflictRelatedMembers: "Packages distintos",
+    conflictRelatedInfo: "Relacionados por algún package; no todos los archivos del grupo necesariamente entran en conflicto entre sí.",
+    conflictRelatedOverflow: "Se muestran los primeros 16 pares. Usa la lista para revisar los demás.",
     conflictBatchActions: "Más acciones",
     selectConflictsForReview: "Seleccionar para revisión",
     reviewSelectedConflicts: "Revisar seleccionados",
@@ -4614,6 +4626,88 @@ function closeConflictDetails() {
   el.conflictDetailsModal.setAttribute("aria-hidden", "true");
 }
 
+// Presentation-only connected components: every edge is a verified finding,
+// but connectivity is NOT a claim that all members conflict pairwise.
+// Partition by finding kind and active/inactive load status.
+const conflictConnectionMemo = { findings: null, byId: new Map() };
+function connectedVisibleConflictGroups(findings = visibleConflictFindings()) {
+  if (conflictConnectionMemo.findings === findings) return conflictConnectionMemo.byId;
+  const parent = findings.map((_, index) => index);
+  const find = index => {
+    while (parent[index] !== index) {
+      parent[index] = parent[parent[index]];
+      index = parent[index];
+    }
+    return index;
+  };
+  const union = (left,right) => {
+    const l = find(left), r = find(right);
+    if (l !== r) parent[r] = l;
+  };
+  const firstByPackageKind = new Map();
+  for (let index = 0; index < findings.length; index += 1) {
+    const finding = findings[index];
+    const kind = `${finding.kind}|${isInactiveConflictFinding(finding) ? "inactive" : "active"}`;
+    for (const member of [finding.left, finding.right]) {
+      if (!member?.path) continue;
+      const lookup = `${kind}|${member.path.replaceAll("/", "\\").toLocaleLowerCase()}`;
+      if (firstByPackageKind.has(lookup)) union(index, firstByPackageKind.get(lookup));
+      else firstByPackageKind.set(lookup, index);
+    }
+  }
+  const roots = new Map(), byId = new Map();
+  for (let index = 0; index < findings.length; index += 1) {
+    const root = find(index);
+    if (!roots.has(root)) roots.set(root, { pairs: [], members: new Map() });
+    const group = roots.get(root);
+    const finding = findings[index];
+    group.pairs.push(finding);
+    for (const member of [finding.left, finding.right]) {
+      if (member?.path) group.members.set(member.path, member);
+    }
+  }
+  for (const group of roots.values()) {
+    for (const pair of group.pairs) byId.set(pair.id, group);
+  }
+  conflictConnectionMemo.findings = findings;
+  conflictConnectionMemo.byId = byId;
+  return byId;
+}
+
+function appendRelatedConflictPairs(finding) {
+  const group = connectedVisibleConflictGroups().get(finding.id);
+  if (!group || group.pairs.length < 2) return;
+  const section = document.createElement("details");
+  section.className = "conflict-related-section";
+  const summary = document.createElement("summary");
+  summary.textContent = `${t("conflictRelatedPairs")}: ${integerLabel(group.pairs.length)} · ${t("conflictRelatedMembers")}: ${integerLabel(group.members.size)}`;
+  const explanation = document.createElement("p");
+  explanation.textContent = t("conflictRelatedInfo");
+  const links = document.createElement("div");
+  links.className = "conflict-related-links";
+  for (const pair of group.pairs.slice(0,16)) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "secondary-btn";
+    button.textContent = `${pair.left?.name || "—"} ↔ ${pair.right?.name || "—"}`;
+    button.disabled = pair.id === state.conflictSelectedId;
+    button.addEventListener("click", () => {
+      state.conflictSelectedId = pair.id;
+      el.conflictDetailsContent?.scrollTo({ top:0, behavior:"auto" });
+      updateActiveVirtualRow(el.conflictsList, "conflictId", pair.id, "active");
+      renderConflictsPreview();
+    });
+    links.appendChild(button);
+  }
+  section.append(summary, explanation, links);
+  if (group.pairs.length > 16) {
+    const note = document.createElement("small");
+    note.textContent = t("conflictRelatedOverflow");
+    section.appendChild(note);
+  }
+  el.conflictsPreview.appendChild(section);
+}
+
 function renderConflictsPreview() {
   if (!el.conflictsPreview || el.conflictDetailsModal?.classList.contains("hidden")) return;
   const finding = (state.conflictsAnalysis?.findings || []).find(
@@ -4796,6 +4890,7 @@ function renderConflictsPreview() {
   }
 
   el.conflictsPreview.append(header, reason, pair, metrics);
+  appendRelatedConflictPairs(finding);
 
   const loadOrder = document.createElement("div");
   loadOrder.className = "conflict-load-order";
