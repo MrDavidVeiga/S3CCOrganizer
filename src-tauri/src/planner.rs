@@ -465,6 +465,7 @@ fn is_not_categorized_root(value: &str) -> bool {
     matches!(
         value.to_ascii_lowercase().as_str(),
         "not categorized"
+            | "uncategorized"
             | "sem categoria"
             | "não categorizado"
             | "nao categorizado"
@@ -1101,9 +1102,107 @@ pub fn build_organization_plan_with_cfg(
             continue;
         }
 
+        // Unknown is a classification result, not an instruction to leave the
+        // original folder forever. Move safely selected unknowns to a review
+        // area (with their source hierarchy intact). Do not redirect Overrides
+        // or invalid/mixed packages without a manual decision.
+        if item.status == "unknown" && !source_uses_overrides(&root, &source_canonical) {
+            let (fallback_relative, fallback_parts) =
+                fallback_relative_path(&root, language, &item.relative_path, &source_hash)?;
+            if let Err(error) = validate_destination_parts(&fallback_parts) {
+                stats.blocked += 1;
+                items.push(make_blocked(item, error));
+                continue;
+            }
+            let target_name = fallback_relative.file_name()
+                .ok_or_else(|| "Uncategorized fallback has no filename.".to_string())?;
+            let inactive = item.name.to_ascii_lowercase().ends_with(".package.disabled");
+            let cfg_opt_in = update_resource_cfg
+                && (is_mods_root(&root) || is_within_packages(&root) || is_within_overrides(&root));
+            let adjusted = if cfg_opt_in || inactive {
+                Ok((ensure_source_loading_branch(
+                    &root, &source_canonical, &fallback_parts), None))
+            } else {
+                fit_destination_to_resource_cfg(
+                    &root, &source_canonical, target_name,
+                    &fallback_parts, resource_cfg.as_ref(),
+                )
+            };
+            let (destination_parts, note) = match adjusted {
+                Ok(ok) => ok,
+                Err(reason) => {
+                    stats.blocked += 1;
+                    items.push(make_blocked(item, format!(
+                        "Cannot move Unknown package into a loadable Not Categorized folder: {reason}"
+                    )));
+                    continue;
+                }
+            };
+            if let Err(reason) = validate_destination_parts(&destination_parts) {
+                stats.blocked += 1;
+                items.push(make_blocked(item, reason));
+                continue;
+            }
+            let destination = destination_path(&root, &destination_parts, target_name);
+            if !path_is_within_root(&root, &destination)
+                || (is_mods_root(&root) && !destination.starts_with(root.join("Packages")))
+            {
+                stats.blocked += 1;
+                items.push(make_blocked(item,
+                    "Not Categorized fallback escaped the Packages loading branch.".to_string()));
+                continue;
+            }
+            let destination_relative = destination.strip_prefix(&root)
+                .map(relative_key)
+                .map_err(|_| "Not Categorized destination escaped selected root.".to_string())?;
+            let already = same_path_case_insensitive(&source_canonical, &destination);
+            let collision = !already && destination.exists();
+            let destination_status = if already {
+                "already_organized"
+            } else if collision {
+                "collision_different_content"
+            } else {
+                "ready_uncategorized"
+            };
+            if already { stats.already_organized += 1; }
+            if collision { stats.collision_different_content += 1; }
+            if !already && !collision {
+                add_missing_directories(&root, &destination_parts, &mut directories);
+                stats.ready += 1;
+            }
+            items.push(PlanItem {
+                id: item.id.clone(),
+                name: item.name.clone(),
+                source_path: source_canonical.to_string_lossy().to_string(),
+                source_relative_path: item.relative_path.clone(),
+                destination_path: Some(destination.to_string_lossy().to_string()),
+                destination_relative_path: Some(destination_relative),
+                classification_status: item.status.clone(),
+                classification_reason: Some(format!(
+                    "No safe CASP/OBJD/family classification; moved to Not Categorized for review.{}",
+                    note.map(|n| format!(" {n}")).unwrap_or_default()
+                )),
+                plan_status: destination_status.to_string(),
+                sha256: Some(source_hash),
+                size: item.file_size,
+                warnings: vec![if collision {
+                    "The Not Categorized destination already exists. No file will be overwritten; review this collision.".to_string()
+                } else if already {
+                    "Already in its safe Not Categorized destination.".to_string()
+                } else {
+                    "Classification is unknown; this is a reviewed fallback destination, NOT a verified semantic category. The package is never deleted.".to_string()
+                }],
+            });
+            continue;
+        }
+
+        let verified_companion = item.status == "classified"
+            && item.classification_confidence == "medium"
+            && item.detected_from.iter().any(|source| source == "ModFolderCompanion");
         if item.status != "classified"
             || item.destination_parts.is_empty()
-            || !matches!(item.classification_confidence.as_str(), "high" | "manual")
+            || (!matches!(item.classification_confidence.as_str(), "high" | "manual")
+                && !verified_companion)
         {
             let source_size = fs::metadata(&source)
                 .map_err(|error| format!("Could not stat {}: {error}", source.display()))?
@@ -1478,6 +1577,30 @@ mod tests {
             vec!["Overrides", "Acessórios"]
         );
         std::fs::remove_dir_all(root.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn unknown_fallback_moves_out_of_legacy_folders_without_losing_source_context() {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let nonce = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let base = std::env::temp_dir().join(format!("s3cc-unknown-fallback-{}-{nonce}",std::process::id()));
+        let mods = base.join("Mods - Copia");
+        std::fs::create_dir_all(mods.join("Packages")).unwrap();
+        std::fs::create_dir_all(mods.join("Overrides")).unwrap();
+        let (path, parts) = fallback_relative_path(
+            &mods, AppLanguage::Pt,
+            "#+18\\Pns (TS3)\\Rigged\\PenisButtBones.package", "AABBCCDD"
+        ).unwrap();
+        assert!(path.starts_with("Packages"));
+        assert!(path.to_string_lossy().contains("Pns (TS3)"));
+        assert!(path.to_string_lossy().contains("Rigged"));
+        assert!(parts.iter().any(|part| part == "Não Categorizado" || part == "Nao Categorizado"));
+        let (override_path, override_parts) = fallback_relative_path(
+            &mods, AppLanguage::Pt, "Overrides\\Overhaul\\unknown.package", "AABBCCDD"
+        ).unwrap();
+        assert_eq!(override_path, PathBuf::from("Overrides\\Overhaul\\unknown.package"));
+        assert!(override_parts.is_empty());
+        std::fs::remove_dir_all(base).unwrap();
     }
 
     #[test]
