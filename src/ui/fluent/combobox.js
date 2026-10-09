@@ -43,6 +43,10 @@ function displayedLabel(select) {
 function updateButton(item) {
   const {select, trigger, caption} = item;
   caption.textContent = displayedLabel(select);
+  const accessibleLabel = select.getAttribute("aria-label")?.trim() ||
+    select.labels?.[0]?.querySelector("span")?.textContent?.trim() ||
+    select.labels?.[0]?.textContent?.trim() || select.id || "Options";
+  trigger.setAttribute("aria-label", accessibleLabel);
   const disabled = select.disabled || select.options.length === 0;
   trigger.disabled = disabled;
   trigger.setAttribute("aria-disabled", String(disabled));
@@ -298,7 +302,7 @@ function enhanceSelect(select,sequence) {
   trigger.setAttribute("aria-controls",flyout.id);
   trigger.setAttribute("aria-autocomplete","none");
   const associated=select.labels?.[0];
-  const label=(associated?.textContent || select.getAttribute("aria-label") || select.id || "Options").trim();
+  const label=(select.getAttribute("aria-label") || associated?.querySelector("span")?.textContent || associated?.textContent || select.id || "Options").trim();
   trigger.setAttribute("aria-label",label);
   const caption=document.createElement("span");
   caption.className="fluent-combobox-caption";
@@ -324,7 +328,7 @@ function enhanceSelect(select,sequence) {
     item.queued=true;
     queueMicrotask(()=>{item.queued=false;updateButton(item);});
   });
-  observer.observe(select,{subtree:true,childList:true,attributes:true,characterData:true,attributeFilter:["value","label","selected","disabled"]});
+  observer.observe(select,{subtree:true,childList:true,attributes:true,characterData:true,attributeFilter:["value","label","selected","disabled","aria-label"]});
   item.observer=observer;
   updateButton(item);
 }
