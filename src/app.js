@@ -4484,6 +4484,8 @@ function openConflictDetails() {
 
 function closeConflictDetails() {
   if (!el.conflictDetailsModal) return;
+  state.conflictsReviewWalkthrough = false;
+  el.conflictReviewNavigation?.classList.add("hidden");
   el.conflictDetailsModal.classList.add("hidden");
   el.conflictDetailsModal.setAttribute("aria-hidden", "true");
 }
@@ -4503,6 +4505,7 @@ function renderConflictsPreview() {
     return;
   }
 
+  renderConflictReviewNavigation();
   const sessionMark = effectiveConflictMark(finding);
   const isInactive = isInactiveConflictFinding(finding);
   const header = document.createElement("div");
@@ -4561,7 +4564,13 @@ function renderConflictsPreview() {
   ignoreButton.disabled = sessionMark === "ignored" || state.reviewBusy;
   ignoreButton.addEventListener("click", () => setConflictMark(finding, "ignored"));
 
-  markActions.append(intentionalButton, ignoreButton);
+  const reviewedButton = document.createElement("button");
+  reviewedButton.type = "button";
+  reviewedButton.className = "secondary-btn";
+  reviewedButton.textContent = t("markReviewedSingle");
+  reviewedButton.disabled = sessionMark === "reviewed" || state.reviewBusy;
+  reviewedButton.addEventListener("click", () => setConflictMark(finding, "reviewed"));
+  markActions.append(reviewedButton, intentionalButton, ignoreButton);
   if (sessionMark) {
     const clearButton = document.createElement("button");
     clearButton.type = "button";
@@ -4926,16 +4935,18 @@ function renderConflictBatchControls() {
   el.conflictsSelectAllBtn.disabled = !state.conflictsAnalysis || busy ||
     !visibleConflictFindings().length;
   el.conflictsSelectDetectedBtn.disabled = !state.conflictsAnalysis || busy ||
-    !(state.conflictsAnalysis.findings || []).some(finding =>
-      finding.kind !== "shared_identical" && finding.differentPayloadCount > 0);
+    !(state.conflictsAnalysis.findings || []).some(pendingConflictNeedsReview);
   el.conflictsClearReviewBtn.disabled = busy || !state.conflictReviewSelected.size;
   el.conflictsPrioritizeSelectedBtn.disabled = busy || !state.conflictReviewSelected.size;
   for (const button of [el.conflictsMarkIntentionalBtn, el.conflictsMarkReviewedBtn,
                         el.conflictsMarkIgnoredBtn, el.conflictsClearMarksBtn]) {
     button.disabled = busy || !state.conflictReviewSelected.size;
   }
+  const selectedPairs = selectedConflictReviewQueue();
+  const uniquePackages = new Set(selectedPairs.flatMap(finding =>
+    [finding.left?.path, finding.right?.path].filter(Boolean)));
   el.conflictsReviewSelectionCount.textContent = state.conflictsAnalysis
-    ? `${t("conflictReviewSelectedCount")}: ${state.conflictReviewSelected.size}`
+    ? `${t("conflictReviewSelectedCount")}: ${selectedPairs.length} · ${t("packagesInSelection")}: ${uniquePackages.size}`
     : "";
   el.conflictsPreviewQuarantineBtn.disabled =
     !state.conflictsAnalysis || !state.conflictQuarantineSelected.size ||
@@ -4962,9 +4973,8 @@ function renderConflicts() {
   const stats = analysis?.stats || {};
   // Resource overlap is not an actionable override when neither (or only
   // one) of the files is loaded under the current Resource.cfg rules.
-  const needsReview = (analysis?.findings || []).filter(
-    (finding) => finding.kind !== "shared_identical" && finding.severity !== "info"
-  );
+  const needsReview = (analysis?.findings || []).filter(finding =>
+    pendingConflictNeedsReview(finding, analysis));
   el.confStatPairs.textContent = stats.packagePairs ?? 0;
   el.confStatReal.textContent = needsReview.length;
   el.confStatScript.textContent = needsReview.filter(
