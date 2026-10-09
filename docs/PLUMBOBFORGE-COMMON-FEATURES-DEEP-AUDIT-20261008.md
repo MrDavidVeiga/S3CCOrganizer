@@ -78,7 +78,7 @@ Auditoria estática pré-correção registrada. As conclusões de superioridade 
 ## Resultados da primeira etapa de correções (após a auditoria)
 
 **Escopo implementado na branch, não necessariamente lançado:**
-- **C-01 / C-05:** expansão de filtros da aba Organizer por categoria CASP, subcategoria, gênero, idade e uso/roupa, com ordenação por nome/tamanho/recursos e persistência no `localStorage`. Os cinco filtros CASP correlacionam seus predicados no **mesmo** `CatalogClassification` e não alteram `destinationPath`, `plan`, `executor` ou `Resource.cfg`. Opções geradas dos valores retornados pelo scanner; valores localizados são apagados ao trocar idioma. A faixa de idade, nesta primeira etapa, ainda é filtrada pelo rótulo **exato do conjunto de idades declarado por um CASP** (ex.: `YA-A`) e não por bit etário isolado: isso evita falsos positivos; filtros por cada idade individual exigiriam expor flags estáveis do Rust.
+- **C-01 / C-05:** expansão de filtros da aba Organizer por categoria CASP, subcategoria, gênero, idade e uso/roupa, com ordenação por nome/tamanho/recursos e persistência no `localStorage`. Os cinco filtros CASP correlacionam seus predicados no **mesmo** `CatalogClassification` e não alteram `destinationPath`, `plan`, `executor` ou `Resource.cfg`. Opções geradas dos valores retornados pelo scanner; valores localizados são apagados ao trocar idioma. **Atualização da segunda etapa:** o scanner também fornece `ageFlags`, permitindo filtrar individualmente Bebê, Criança, Adolescente, Jovem Adulto, Adulto e Idoso pelos bits do CASP, preservando a correlação de cada recurso. O texto combinado permanece como metadado e categoria de organização.
 - **C-02:** cache visual compartilhado e limitado a 80 entradas / 16 MiB de Base64, guardando no máximo 8 MiB por thumbnail individual. Prévia acima de 8 MiB é exibida como não disponível em vez de exceder esse limite; otimizar/downsample do payload **ainda é pendente**. Fila compartilhada com máximo de 3 `get_package_preview` concorrentes; pedidos pendentes são abandonados quando muda a análise/pasta; retornos de sessões anteriores não contaminam a próxima raiz. Cache de fingerprints DBPF não foi alterado.
 - **C-03 (parcial e seguro):** painel expansível `Pares de conflitos relacionados` no detalhe, computado na UI a partir de conexões de packages **do mesmo tipo de conflito e mesmo estado ativo/inativo**, respeitando a lista atualmente visível (filtro/pesquisa). Preserva lista virtualizada de pares e seleção/revisão/quarentena existentes, não infere que todos os arquivos do componente conflitam diretamente. Exibe total de pares e paths normalizados distintos e links para até 16 pares. **Não** substitui a lista principal por cabeçalhos agrupados: isso exigiria revisão da altura fixa/virtualização e testes visuais antes de alterar.
 - **C-04:** ação contextual de favoritar no Organizer e botão para abrir o editor de tags/status na aba Tools. Para impedir perda de tags em UI desatualizada, a ação Favorito usa a nova função Rust `toggle_package_favorite`: carrega o store atual, calcula o SHA-256 do package, modifica **somente** `favorite`/data/localização e salva. Enforce `ensure_writable(&root)` em `set_package_metadata` e no novo toggle. Foi adicionado teste Rust de regressão para preservação de tags e status; **não executado**.
@@ -103,3 +103,26 @@ Auditoria estática pré-correção registrada. As conclusões de superioridade 
 6. Ordenação, filtros e navegação dos conflitos com truncamento `MAX_FINDINGS` e grupo extenso; UX da seção expansível após clicar em outro par.
 
 **Nota de integridade:** nenhuma build/workflow foi disparada; os testes Rust foram apenas acrescentados ao código. Não foi feita alteração no diretório Mods real do usuário.
+
+## Segunda auditoria e correções motivadas pelo Sims 3 Dashboard — 2026-10-08
+
+**Reparos feitos na branch de trabalho:**
+- Teste do pipeline atualizado para não exigir o botão Open Current Folder, removido por decisão do usuário.
+- Leitura de workspace, leitura de metadados e Health desprezam respostas de pastas anteriores; troca de pasta limpa imediatamente o workspace e o Health antigos.
+- JSON de workspace: temporário único, escrita e sync, substituição via ReplaceFileW no Windows sem apagar o original antes. Ainda precisa de validação Rust/Windows.
+- ComboBox Fluent atualiza aria-label quando o idioma muda e reflete resets programáticos dos novos filtros CAS/Health.
+- CASP ageFlags (serde default) agora permite selecionar cada idade real; o mesmo recurso precisa satisfazer os demais filtros. Não altera a categorização física.
+- Health classifica mensagens reais de falha de DBPF (cabeçalho, versão, índice, demais erros), sinaliza packages sem recursos, TGIs repetidos como informação, pacotes desativados e DBCs não analisados.
+- Health não considera Overrides nem pacotes externos à pasta selecionada como legados incorretos: só identifica categorias antigas reconhecidas ao lado de Packages, dentro da raiz Mods.
+- Health UI: filtro por categoria, seleção geral visível, seleção individual, limpeza e exportação JSON de selecionados; nenhuma ação automática de mover, excluir ou desativar arquivos.
+- Rótulos novos PT-BR/EN/ES; aviso de Resource.cfg avançado em PT-BR adicionado.
+- Regressões adicionadas ao script source-level para CASP individual, filtros, Health, workspace assíncrono e atomicidade do salvamento.
+
+**Verificações sem build:** parse de fonte JavaScript da aplicação, ComboBox e regressões; controles DOM e referências JS; simulações isoladas de filtros CASP, seleção Health e resposta antiga de workspace. Não rodamos workflow, build, cargo test, ou o aplicativo Windows.
+
+**Limitações que permanecem:**
+- TXTC problemático, identificação conclusiva de packages de outros jogos e semântica específica de CASP não são diagnosticados sem validação real do formato; uma sobreposição/TGI repetido não prova corrupção.
+- DBC é identificado mas não inspecionado pelos analisadores atuais. Não alegar paridade integral com o Dashboard.
+- Thumbnails têm limite de memória e concorrência, mas ainda não são redimensionados no Rust; falta benchmark com o acervo real.
+- Agrupamento de conflitos aparece na prévia, mantendo a lista principal de pares virtualizados, não em grupos completos na lista.
+- Troca Windows via ReplaceFileW, código Rust, funcionamento real da interface, temas, filtros e benchmark exigem compilação e testes autorizados antes de qualquer lançamento.
