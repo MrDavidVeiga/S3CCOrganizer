@@ -65,9 +65,17 @@ fn resource_cfg_context(root: &Path) -> Option<ResourceCfgContext> {
     Some(ResourceCfgContext { info, directory })
 }
 
+// Test and backup copies of a Mods directory are still real Mods trees.
+// Identifying only the literal name "Mods" caused "Mods - Copia" to be
+// handled as an arbitrary staging folder, losing Packages/Overrides routing.
 fn is_mods_root(root: &Path) -> bool {
-    root.file_name()
-        .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("mods"))
+    let Some(name) = root.file_name() else { return false };
+    let name = name.to_string_lossy().to_ascii_lowercase();
+    if name == "mods" { return true; }
+    let copy_name = name.starts_with("mods ") || name.starts_with("mods-")
+        || name.starts_with("mods_") || name.starts_with("mods (");
+    copy_name && root.join("Packages").is_dir()
+        && (root.join("Overrides").is_dir() || root.join("Resource.cfg").is_file())
 }
 
 fn is_packages_root(root: &Path) -> bool {
@@ -1433,6 +1441,32 @@ pub fn build_organization_plan_with_cfg(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn copied_mods_root_preserves_packages_overrides_and_safe_destinations() {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let nonce = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let root = std::env::temp_dir().join(format!("s3cc-copied-{}-{nonce}", std::process::id()))
+            .join("Mods - Copia");
+        std::fs::create_dir_all(root.join("Packages")).unwrap();
+        std::fs::create_dir_all(root.join("Overrides")).unwrap();
+        assert!(is_mods_root(&root));
+        let packages = root.join("Packages").join("Legacy").join("hair.package");
+        let overrides = root.join("Overrides").join("Mods").join("fix.package");
+        assert!(is_within_packages(&packages.parent().unwrap()));
+        assert!(is_within_overrides(&overrides.parent().unwrap()));
+        assert!(source_uses_overrides(&root, &overrides));
+        assert!(!source_uses_overrides(&root, &packages));
+        assert_eq!(
+            ensure_packages_destination(&root, &["Cabelos".into(), "Feminino".into()]),
+            vec!["Packages", "Cabelos", "Feminino"]
+        );
+        assert_eq!(
+            ensure_source_loading_branch(&root, &overrides, &["Acessórios".into()]),
+            vec!["Overrides", "Acessórios"]
+        );
+        std::fs::remove_dir_all(root.parent().unwrap()).unwrap();
+    }
+
     #[test]
     fn selected_exact_duplicates_choose_one_keeper_without_reactivating_disabled() {
         let mut hashes = HashMap::new();
