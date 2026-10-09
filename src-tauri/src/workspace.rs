@@ -400,6 +400,64 @@ pub fn set_package_metadata(
     Ok(store)
 }
 
+// A favorite toggle must preserve tags and test status from the current
+// on-disk store, even when the frontend has no workspace metadata loaded.
+fn apply_favorite_toggle(store: &mut WorkspaceStore, sha256: &str, relative: &str) {
+    let entry = store.package_metadata.entry(sha256.to_string()).or_default();
+    entry.sha256 = sha256.to_string();
+    entry.last_path = relative.to_string();
+    entry.favorite = !entry.favorite;
+    entry.updated_at = Local::now().to_rfc3339();
+}
+
+#[tauri::command]
+pub fn toggle_package_favorite(
+    folder: String,
+    package_path: String,
+) -> Result<WorkspaceStore, String> {
+    let root = canonical_root(&folder)?;
+    ensure_writable(&root)?;
+    let path = PathBuf::from(package_path.trim())
+        .canonicalize()
+        .map_err(|error| format!("Could not resolve package: {error}"))?;
+    if !path.starts_with(&root) || !path.is_file() || !is_package(&path) {
+        return Err("Package is outside the selected root or is not a .package file.".to_string());
+    }
+    let (sha256, _) = sha256_file(&path)
+        .map_err(|error| format!("Could not hash package: {error}"))?;
+    let relative = path.strip_prefix(&root).unwrap_or(&path)
+        .to_string_lossy().replace('/', "\\");
+    let mut store = load_from_root(&root);
+    apply_favorite_toggle(&mut store, &sha256, &relative);
+    save_to_root(&root, &store)?;
+    Ok(store)
+}
+
+#[cfg(test)]
+mod favorite_tests {
+    use super::*;
+    #[test]
+    fn toggling_favorite_preserves_existing_tags_and_test_status() {
+        let mut store = WorkspaceStore::default();
+        store.package_metadata.insert("SHA".into(), PackageMetadata {
+            sha256: "SHA".into(),
+            last_path: "Packages\\Original.package".into(),
+            tags: vec!["trusted".into(), "alpha".into()],
+            test_status: "working".into(),
+            favorite: false,
+            updated_at: "old".into(),
+        });
+        apply_favorite_toggle(&mut store, "SHA", "Packages\\Moved.package");
+        let meta = &store.package_metadata["SHA"];
+        assert!(meta.favorite);
+        assert_eq!(meta.tags, vec!["trusted", "alpha"]);
+        assert_eq!(meta.test_status, "working");
+        assert_eq!(meta.last_path, "Packages\\Moved.package");
+        apply_favorite_toggle(&mut store, "SHA", "Packages\\Moved.package");
+        assert!(!store.package_metadata["SHA"].favorite);
+    }
+}
+
 #[tauri::command]
 pub fn set_manual_classification(
     folder: String,
