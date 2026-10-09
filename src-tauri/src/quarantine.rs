@@ -85,11 +85,7 @@ fn workspace_base(root: &Path) -> PathBuf {
         ancestor.file_name().is_some_and(|name| {
             name.to_string_lossy().eq_ignore_ascii_case("Packages")
                 || name.to_string_lossy().eq_ignore_ascii_case("Overrides")
-        }) && ancestor.parent().is_some_and(|parent| {
-            parent.file_name().is_some_and(|name| {
-                name.to_string_lossy().eq_ignore_ascii_case("Mods")
-            })
-        })
+        }) && ancestor.parent().is_some_and(crate::resource_cfg::is_mods_layout_root)
     }) {
         return branch.parent().unwrap().join("S3CC Organizer");
     }
@@ -984,6 +980,20 @@ pub fn remove_quarantine_history(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn copied_mods_subtree_quarantine_stays_outside_loading_branches() {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let nonce = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let base = std::env::temp_dir().join(format!("s3cc-quarantine-copy-{}-{nonce}",std::process::id()));
+        let mods = base.join("Mods - Copia");
+        std::fs::create_dir_all(mods.join("Packages/Legacy")).unwrap();
+        std::fs::create_dir_all(mods.join("Overrides")).unwrap();
+        let selected = mods.join("Packages/Legacy");
+        assert_eq!(workspace_base(&selected), mods.join("S3CC Organizer"));
+        assert!(!workspace_base(&selected).starts_with(mods.join("Packages")));
+        std::fs::remove_dir_all(base).unwrap();
+    }
+
     use super::*;
 
     #[test]
