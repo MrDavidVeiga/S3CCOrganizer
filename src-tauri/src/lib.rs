@@ -14,6 +14,7 @@ pub mod mesh_info;
 pub mod mods_layout;
 pub mod navigation;
 pub mod operation;
+pub mod package_discovery;
 pub mod package_family;
 pub mod package_details;
 pub mod planner;
