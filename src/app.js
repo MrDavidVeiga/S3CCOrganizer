@@ -459,6 +459,8 @@ const I18N = {
     noDuplicateFindings: "No findings match the current search and filter.",
     duplicatesNext: "Duplicate analysis is read-only. Confirmed duplicates may be moved to reversible Quarantine; nothing is deleted automatically.",
     selectExactDuplicates: "Select ALL Exact Duplicates (Keep One Each)",
+    selectExactDuplicatesCompact: "Select Exact Duplicates",
+    duplicateBatchActions: "More actions",
     selectCurrentDuplicateGroup: "Select Current Exact Group (Keep One)",
     selectAllVisibleConflicts: "Select Visible Conflicts",
     selectAllDetectedConflicts: "Select All Detected Conflicts",
@@ -1013,6 +1015,8 @@ const I18N = {
     noDuplicateFindings: "Nenhum resultado corresponde à pesquisa e ao filtro atuais.",
     duplicatesNext: "A análise de duplicados é somente leitura. Duplicados confirmados podem ser movidos para uma Quarentena reversível; nada é apagado automaticamente.",
     selectExactDuplicates: "Selecionar TODOS os duplicados exatos",
+    selectExactDuplicatesCompact: "Selecionar duplicados exatos",
+    duplicateBatchActions: "Mais ações",
     selectCurrentDuplicateGroup: "Selecionar somente este grupo (manter um)",
     selectAllVisibleConflicts: "Selecionar conflitos visíveis",
     selectAllDetectedConflicts: "Selecionar TODOS os conflitos detectados",
@@ -1566,6 +1570,8 @@ const I18N = {
     noDuplicateFindings: "Ningún resultado coincide con la búsqueda y el filtro actuales.",
     duplicatesNext: "El análisis de duplicados es de solo lectura. Los duplicados confirmados pueden moverse a una Cuarentena reversible; nada se elimina automáticamente.",
     selectExactDuplicates: "Seleccionar TODOS los duplicados exactos",
+    selectExactDuplicatesCompact: "Seleccionar duplicados exactos",
+    duplicateBatchActions: "Más acciones",
     selectCurrentDuplicateGroup: "Seleccionar solo este grupo (conservar uno)",
     selectAllVisibleConflicts: "Seleccionar conflictos visibles",
     selectAllDetectedConflicts: "Seleccionar TODOS los conflictos detectados",
@@ -2076,6 +2082,7 @@ const el = {
   duplicatesClearSelectionBtn: document.querySelector("#duplicates-clear-selection-btn"),
   duplicatesBatchSummary: document.querySelector("#duplicates-batch-summary"),
   duplicatesBatchPreview: document.querySelector("#duplicates-batch-preview"),
+  duplicatesMoreActions: document.querySelector("#duplicates-more-actions"),
   conflictsClearListBtn: document.querySelector("#conflicts-clear-list-btn"),
   conflictsSelectAllBtn: document.querySelector("#conflicts-select-all-btn"),
   conflictsSelectDetectedBtn: document.querySelector("#conflicts-select-detected-btn"),
@@ -8588,6 +8595,10 @@ for (const button of el.languageMenuItems) {
 }
 
 document.addEventListener("click", (event) => {
+  // An open Fluent-style review menu closes on outside clicks.
+  if (el.duplicatesMoreActions?.open && !el.duplicatesMoreActions.contains(event.target)) {
+    el.duplicatesMoreActions.open = false;
+  }
   let changed = false;
 
   if (!event.target.closest("#lang-dropdown") && !el.languageMenu?.classList.contains("hidden")) {
@@ -8623,6 +8634,11 @@ document.addEventListener("keydown", (event) => {
     closeCollisionReview();
     return;
   }
+  if (el.duplicatesMoreActions?.open) {
+    el.duplicatesMoreActions.open = false;
+    el.duplicatesMoreActions.querySelector("summary")?.focus();
+    return;
+  }
   if (state.isStatusFilterOpen) {
     state.isStatusFilterOpen = false;
     renderStatusFilter();
@@ -8653,6 +8669,13 @@ for (const button of el.openReportFolderButtons) {
     openDirectorySafe(state.auditReports[button.dataset.openReportFolder]?.directory)
   );
 }
+// Close the secondary menu after an action; original button handlers remain
+// attached to the same elements and run before this bubbling listener.
+el.duplicatesMoreActions.addEventListener("click", (event) => {
+  if (event.target.closest("button")) {
+    el.duplicatesMoreActions.open = false;
+  }
+});
 el.duplicatesClearListBtn.addEventListener("click", clearDuplicateList);
 el.duplicatesSelectExactBtn.addEventListener("click", selectExactCopiesForQuarantine);
 el.duplicatesSelectCurrentBtn.addEventListener("click", selectOnlyCurrentExactDuplicateGroup);
