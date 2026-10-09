@@ -221,6 +221,15 @@ pub fn analyze_mods_health(folder:String)->Result<ModsHealthReport,String>{
     findings.sort_by(|a,b| a.kind.cmp(&b.kind).then_with(||a.relative_path.to_ascii_lowercase().cmp(&b.relative_path.to_ascii_lowercase())));
     let empty=empty_dirs(&root);stats.empty_folders=empty.len();
     let outside=outside_packages(&root);stats.packages_outside_root=outside.len();
+    for folder in &empty {
+        findings.push(health_finding(folder.clone(), "empty_folder", "info",
+            "Empty folder; removal requires a separate explicit confirmation.".into()));
+    }
+    for path in &outside {
+        findings.push(health_finding(path.clone(), "outside_packages", "warning",
+            "Package is outside the selected Mods root. No automatic relocation will occur.".into()));
+    }
+    findings.sort_by(|a,b|a.kind.cmp(&b.kind).then_with(||a.relative_path.cmp(&b.relative_path)));
     Ok(ModsHealthReport{
         root:root.to_string_lossy().to_string(),stats,empty_folders:empty,
         unreadable_packages:unreadable,findings,outside_packages:outside,coverage,resource_cfg
