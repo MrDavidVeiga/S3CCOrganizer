@@ -136,3 +136,80 @@ assert.equal(localState.analysisRunId,4);
 console.log("Incremental organizer and folder navigation regressions: PASS");
 
 console.log("Manager batch selection and safe duplicate survivor regressions: PASS");
+
+// Dashboard / PlumbobForge integration regressions.
+// These remain source-level tests and do not open the game or modify Mods.
+for (const id of [
+  "tools-health-kind-filter", "tools-health-select-visible",
+  "tools-health-clear-selection", "tools-health-export-selected",
+  "organizer-cas-age", "organizer-cas-category",
+]) assert(html.includes(`id="${id}"`), `Missing feature control: ${id}`);
+const healthBackend = read("src-tauri/src/health.rs");
+const catalogBackend = read("src-tauri/src/catalog.rs");
+const workspaceBackend = read("src-tauri/src/workspace.rs");
+assert.match(healthBackend, /fn dbpf_failure_kind/);
+assert.match(healthBackend, /"dbc_not_scanned"/);
+assert.match(healthBackend, /"disabled_package"/);
+assert.match(healthBackend, /legacy_manager_source/);
+assert.match(catalogBackend, /age_flags: Some\(core\.age_species_gender & 0x7F\)/);
+assert.match(workspaceBackend, /ReplaceFileW/);
+assert.doesNotMatch(workspaceBackend, /fs::remove_file\(&path\)/,
+  "Workspace save must not delete the original JSON before replacing it");
+
+const casContext = vm.createContext({state:{organizerFilters:{}}});
+vm.runInContext(
+  get("const ORGANIZER_CAS_KEYS = ", "function renderOrganizerAdvancedFilters() {"),
+  casContext
+);
+const casp = (gender, ageFlags) => ({
+  source:"CASP", kind:"cas", mainCategory:"Clothing", subCategory:"Top",
+  gender, ageFlags, usageCategories:["Everyday"],
+});
+const mixed = {classifications:[casp("Male",0x30),casp("Female",0x08)]};
+const acceptsAge = (gender, age) => vm.runInContext(
+  "matchesOrganizerCasFilters(item, filters)",
+  Object.assign(casContext,{item:mixed,filters:{gender,age}})
+);
+assert.equal(acceptsAge("Male","young_adult"),true);
+assert.equal(acceptsAge("Male","adult"),true);
+assert.equal(acceptsAge("Male","elder"),false);
+assert.equal(acceptsAge("Female","adult"),false,
+  "Age and gender cannot be joined across two different CASP records");
+assert.equal(acceptsAge("Female","teen"),true);
+
+const healthState = {healthReport:{findings:[
+  {id:"1",kind:"invalid_header"},
+  {id:"2",kind:"invalid_dbpf_index"},
+  {id:"3",kind:"dbc_not_scanned"},
+]},healthFilter:"invalid_header"};
+const healthContext = vm.createContext({state:healthState});
+vm.runInContext(
+  get("function visibleHealthFindings() {", "function renderHealthSelectionControls() {"),
+  healthContext
+);
+assert.equal(vm.runInContext("visibleHealthFindings().length", healthContext),1);
+healthState.healthFilter="all";
+assert.equal(vm.runInContext("visibleHealthFindings().length", healthContext),3);
+
+const storeState = {folder:"Old",workspaceStore:null,toolsError:""};
+const loaded = {};
+let renderCount=0;
+const storeContext = vm.createContext({
+  state:storeState,
+  invoke:(_,args)=>new Promise(resolve=>{loaded[args.folder]=resolve;}),
+  renderTools:()=>{renderCount++;},
+});
+vm.runInContext(
+  get("async function loadWorkspaceTools() {", "async function persistWorkspaceStore() {"),
+  storeContext
+);
+const olderRequest=vm.runInContext("loadWorkspaceTools()",storeContext);
+storeState.folder="New";
+const newerRequest=vm.runInContext("loadWorkspaceTools()",storeContext);
+loaded.New({root:"New"});await newerRequest;
+loaded.Old({root:"Old"});await olderRequest;
+assert.equal(storeState.workspaceStore.root,"New",
+  "Stale workspace response must not replace the currently selected Mods root");
+assert.equal(renderCount,1,"Stale workspace response must not repaint the new root");
+console.log("Health diagnostics, CASP ages and root-isolation regressions: PASS");
+
