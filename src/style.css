@@ -4947,3 +4947,12 @@ body.release-v1 .conflicts-results {
   flex: 0 1 auto;
   min-width: 0;
 }
+
+.health-review-toolbar {display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:10px 0}
+.health-review-toolbar .secondary-btn {width:auto}
+.health-review-toolbar select {min-width:120px;max-width:240px}
+.health-review-item {display:grid;grid-template-columns:auto minmax(0,1fr);align-items:start;gap:8px;cursor:pointer}
+.health-review-item input {accent-color:var(--green);margin-top:3px}
+.health-review-item span {min-width:0;display:grid;gap:4px;overflow-wrap:anywhere}
+.health-review-item:focus-within {outline:2px solid var(--green);outline-offset:1px}
+@media(max-width:640px){.health-review-toolbar .secondary-btn{flex:1 1 130px}}
