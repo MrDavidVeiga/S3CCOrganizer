@@ -1446,6 +1446,56 @@ fn apply_manual_classifications(root: &Path, items: &mut [ScanPackageItem]) {
     }
 }
 
+// A number of CASPs deliberately use the arm-band accessory slot for
+// custom headwear. The raw slot is technically correct but is not the user's
+// intended browsing category. Apply a narrow, auditable filename refinement
+// only when that CASP was otherwise mapped to Arm Band; never relabel other
+// accessory slots or override explicit catalog families.
+fn filename_indicates_headwear(filename: &str) -> bool {
+    let lower = filename.to_ascii_lowercase();
+    let normalized = lower.replace(['_', '-', '.', ' ', '[', ']'], " ");
+    let tokens = normalized.split_whitespace().collect::<Vec<_>>();
+    tokens.iter().any(|part| matches!(*part,
+        "hat" | "hats" | "helmet" | "cap" | "crown" | "veil"
+        | "beanie" | "headband" | "hairband" | "braidband"
+        | "cowboyhat" | "strawhat" | "ridinghat" | "hatsun"
+        | "papercrown" | "graduationcap" | "bikehelmet"
+        | "triangleveil" | "bachveil" | "braidband"
+    ))
+}
+
+fn refine_headwear_accessory(
+    item: &mut CatalogClassification,
+    filename: &str,
+    language: AppLanguage,
+) {
+    let armband = match language {
+        AppLanguage::En => "Arm Band",
+        AppLanguage::Pt => "Braçadeira",
+        AppLanguage::Es => "Brazalete",
+    };
+    if item.source != "CASP" || item.sub_category.as_deref() != Some(armband)
+        || !filename_indicates_headwear(filename) {
+        return;
+    }
+    let headwear = match language {
+        AppLanguage::En => "Headwear",
+        AppLanguage::Pt => "Acessórios de Cabeça",
+        AppLanguage::Es => "Accesorios para la Cabeza",
+    };
+    item.sub_category = Some(headwear.to_string());
+    if let Some(last) = item.folder_parts.last_mut() { *last = headwear.to_string(); }
+    for candidate in &mut item.candidate_folder_parts {
+        if let Some(last) = candidate.last_mut() {
+            if last == armband { *last = headwear.to_string(); }
+        }
+    }
+    item.technical_reason.push_str(&format!(
+        " | Filename headwear evidence '{}' refines the accessory-slot Arm Band label; original CASP slot retained in evidence.",
+        filename
+    ));
+}
+
 fn resource_type_label(type_id: u32) -> String {
     match type_id {
         TYPE_CASP => "CASP".to_string(),
@@ -1701,7 +1751,10 @@ fn scan_one(
 
         match package.data(entry) {
             Ok(data) => match classify_resource(entry.type_id, &data, language) {
-                Some(classification) => classifications.push(classification),
+                Some(mut classification) => {
+                    refine_headwear_accessory(&mut classification, &name, language);
+                    classifications.push(classification);
+                },
                 None => warnings.push(format!(
                     "{} {}",
                     localized_warning(language, "parse"),
@@ -2208,6 +2261,33 @@ pub async fn scan_packages(folder: String, language: AppLanguage) -> Result<Scan
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn named_headwear_refines_only_the_armband_slot_in_all_languages() {
+        let mk = |sub: &str| CatalogClassification {
+            source: "CASP".into(), kind: "cas".into(),
+            main_category: "Acessórios".into(), sub_category: Some(sub.into()),
+            gender: None, age: None, species: None, usage_categories: vec![],
+            folder_parts: vec!["CAS".into(), "Acessórios".into(), "Unissex".into(), sub.into()],
+            candidate_folder_parts: vec![vec!["CAS".into(), "Acessórios".into(), "Unissex".into(), sub.into()]],
+            ambiguous: false, technical_reason: "CASP clothingType=0x00000020".into(),
+        };
+        let mut hat = mk("Braçadeira");
+        refine_headwear_accessory(&mut hat, "CARVER_acc_EP5-cowboyhat-CU.package", AppLanguage::Pt);
+        assert_eq!(hat.sub_category.as_deref(), Some("Acessórios de Cabeça"));
+        assert_eq!(hat.folder_parts.last().map(String::as_str), Some("Acessórios de Cabeça"));
+        assert_eq!(hat.candidate_folder_parts[0].last().map(String::as_str), Some("Acessórios de Cabeça"));
+        assert!(hat.technical_reason.contains("original CASP slot"));
+        let mut bracelet = mk("Braçadeira");
+        refine_headwear_accessory(&mut bracelet, "CARVER_acc_armband-CU.package", AppLanguage::Pt);
+        assert_eq!(bracelet.sub_category.as_deref(), Some("Braçadeira"));
+        let mut glasses = mk("Óculos");
+        refine_headwear_accessory(&mut glasses, "Hat_glasses.package", AppLanguage::Pt);
+        assert_eq!(glasses.sub_category.as_deref(), Some("Óculos"));
+        assert!(filename_indicates_headwear("CARVER_acc_graduationcap-AU.package"));
+        assert!(filename_indicates_headwear("CARVER_acc_EP5-cowboyhat-CU.package"));
+        assert!(!filename_indicates_headwear("CARVER_acc_armband-AU.package"));
+    }
 
     #[test]
     fn copied_mods_root_scanner_keeps_packages_and_overrides_distinct() {
