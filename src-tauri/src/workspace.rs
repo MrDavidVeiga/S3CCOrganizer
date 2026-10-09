@@ -211,27 +211,76 @@ fn load_from_root(root: &Path) -> WorkspaceStore {
     store
 }
 
+// ReplaceFileW swaps an existing Windows file without removing the original
+// first. On failure, the existing workspace JSON stays available.
+#[cfg(windows)]
+fn replace_workspace_windows(destination: &Path, replacement: &Path) -> Result<(), String> {
+    use std::os::windows::ffi::OsStrExt;
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn ReplaceFileW(
+            replaced: *const u16,
+            replacement: *const u16,
+            backup: *const u16,
+            flags: u32,
+            exclude: *mut std::ffi::c_void,
+            reserved: *mut std::ffi::c_void,
+        ) -> i32;
+    }
+    let wide = |path: &Path| path.as_os_str().encode_wide()
+        .chain(std::iter::once(0)).collect::<Vec<u16>>();
+    let original = wide(destination);
+    let updated = wide(replacement);
+    // REPLACEFILE_IGNORE_MERGE_ERRORS: metadata/ACL merge failure must not
+    // silently prevent saving user edits. The replacement is on the same volume.
+    let ok = unsafe {
+        ReplaceFileW(original.as_ptr(), updated.as_ptr(), std::ptr::null(),
+            0x2, std::ptr::null_mut(), std::ptr::null_mut())
+    };
+    if ok == 0 {
+        return Err(format!("Could not atomically replace workspace store: {}",
+            std::io::Error::last_os_error()));
+    }
+    Ok(())
+}
+
+static WORKSPACE_TEMP_SEQUENCE: std::sync::atomic::AtomicU64 =
+    std::sync::atomic::AtomicU64::new(0);
+
 fn save_to_root(root: &Path, store: &WorkspaceStore) -> Result<(), String> {
+    use std::io::Write;
+    use std::sync::atomic::Ordering;
     let path = store_path(root);
     let parent = path
         .parent()
         .ok_or_else(|| "Workspace store has no parent.".to_string())?;
     fs::create_dir_all(parent)
         .map_err(|error| format!("Could not create workspace directory: {error}"))?;
-    let temp = parent.join(".workspace-v1.json.tmp");
+    let sequence = WORKSPACE_TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    let temp = parent.join(format!(".workspace-v1.{}.{}.tmp", std::process::id(), sequence));
     let data = serde_json::to_vec_pretty(store)
         .map_err(|error| format!("Could not serialize workspace: {error}"))?;
-    fs::write(&temp, data)
-        .map_err(|error| format!("Could not write workspace temp file: {error}"))?;
-    #[cfg(windows)]
-    {
-        if path.exists() {
-            fs::remove_file(&path)
-                .map_err(|error| format!("Could not replace workspace store: {error}"))?;
-        }
+    let mut file = fs::OpenOptions::new().create_new(true).write(true).open(&temp)
+        .map_err(|error| format!("Could not create workspace temp file: {error}"))?;
+    if let Err(error) = file.write_all(&data).and_then(|_| file.sync_all()) {
+        drop(file);
+        let _ = fs::remove_file(&temp);
+        return Err(format!("Could not write workspace temp file: {error}"));
     }
-    fs::rename(&temp, &path)
-        .map_err(|error| format!("Could not commit workspace store: {error}"))
+    drop(file);
+    #[cfg(windows)]
+    let commit = if path.exists() {
+        replace_workspace_windows(&path, &temp)
+    } else {
+        fs::rename(&temp, &path).map_err(|error| error.to_string())
+    };
+    #[cfg(not(windows))]
+    let commit = fs::rename(&temp, &path).map_err(|error| error.to_string());
+    if let Err(error) = commit {
+        let _ = fs::remove_file(&temp);
+        return Err(format!("Could not commit workspace store: {error}"));
+    }
+    Ok(())
 }
 
 pub fn load_workspace_for_root(root: &Path) -> WorkspaceStore {
