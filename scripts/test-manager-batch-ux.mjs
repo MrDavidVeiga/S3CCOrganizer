@@ -87,7 +87,10 @@ reviewState.lastConflictReviewAnchor="second";
 vm.runInContext("selectConflictReviewRange('third', false)", reviewContext);
 assert.deepEqual([...reviewState.conflictReviewSelected], ["first"],
   "Range deselection must affect just the requested interval");
-for (const control of ["open-current-folder-btn", "open-organized-folder-btn"]) {
+// The user intentionally removed "Open Current Folder" from the toolbar.
+// Do not resurrect or require it in the regression suite.
+assert(!html.includes('id="open-current-folder-btn"'), "Removed folder button must stay removed");
+for (const control of ["open-organized-folder-btn"]) {
   assert(html.includes(`id="${control}"`), `Missing working folder navigation: ${control}`);
 }
 assert(!get("async function executeOrganization() {", "async function chooseManifest() {")
