@@ -2,21 +2,14 @@
 //! backup copies (e.g. "Mods - Copia"), rather than relying on the folder name.
 use std::path::Path;
 
-/// The exact name "Mods" also supports unit tests and incomplete installations.
-/// A renamed copy is a Mods root when Packages exists along with Resource.cfg
-/// or Overrides. A random directory with a child named Packages is not enough.
+/// The loading layout is identified by the actual Packages directory.
+/// Its parent can be called Mods, Mods - Copia, Backup, Library, or anything
+/// else. A folder named Mods with no Packages remains recognizable so the
+/// planner can report the missing loading branch explicitly.
 pub fn is_mods_root(path: &Path) -> bool {
-    if path.file_name().is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("Mods")) {
-        return true;
-    }
-    let name = path.file_name().map(|name| name.to_string_lossy().to_ascii_lowercase())
-        .unwrap_or_default();
-    let renamed_mods = name.strip_prefix("mods").is_some_and(|suffix|
-        suffix.starts_with(' ') || suffix.starts_with('-')
-            || suffix.starts_with('_') || suffix.starts_with('('));
     path.join("Packages").is_dir()
-        && (renamed_mods || path.join("Resource.cfg").is_file()
-            || path.join("Overrides").is_dir())
+        || path.file_name().is_some_and(|name|
+            name.to_string_lossy().eq_ignore_ascii_case("Mods"))
 }
 
 /// Used by scanning, planning and Resource.cfg updates. Never match an
@@ -35,24 +28,32 @@ pub fn validate_organization_destination(
     if !source.starts_with(selected_root) || !destination.starts_with(selected_root) {
         return Err("Organization source/destination escaped the selected root.".into());
     }
-    let Some(mods) = mods_ancestor(selected_root) else {
-        return Ok(()); // Standalone CC staging folder, not a Mods layout.
-    };
-    let packages = mods.join("Packages");
-    let overrides = mods.join("Overrides");
-    let branch = if source.starts_with(&overrides) {
-        &overrides
-    } else {
-        // The planner explicitly admits recognized legacy categories beside
-        // Packages and routes them back into Packages. Never move a package
-        // into or out of Overrides as part of ordinary organization.
-        &packages
-    };
-    if !destination.starts_with(branch) {
-        return Err(format!(
-            "Unsafe organization destination '{}': expected a path inside '{}'.",
-            destination.display(), branch.display()
-        ));
+    // Source-path invariant: an existing Packages/Overrides ancestor is
+    // authoritative, even if the parent has an arbitrary name, the user
+    // selected Packages itself, or the selected root is farther above Mods.
+    // Never infer the loading branch from the user's chosen scan-root name.
+    let source_branch = source.ancestors().find(|ancestor| {
+        ancestor.file_name().is_some_and(|name|
+            name.to_string_lossy().eq_ignore_ascii_case("Packages")
+                || name.to_string_lossy().eq_ignore_ascii_case("Overrides"))
+    });
+    if let Some(branch) = source_branch {
+        if !destination.starts_with(branch) {
+            return Err(format!(
+                "Unsafe organization destination '{}': source is inside '{}', and may not leave that loading branch.",
+                destination.display(), branch.display()
+            ));
+        }
+    } else if let Some(mods) = mods_ancestor(selected_root) {
+        // Recognized legacy categories beside Packages can be migrated into
+        // Packages, never into a new sibling category or Overrides.
+        let packages = mods.join("Packages");
+        if !destination.starts_with(&packages) {
+            return Err(format!(
+                "Unsafe legacy migration destination '{}': expected '{}'.",
+                destination.display(), packages.display()
+            ));
+        }
     }
     if source.file_name().is_some_and(|name| name.to_string_lossy().to_ascii_lowercase().ends_with(".package.disabled"))
         && !destination.file_name().is_some_and(|name| name.to_string_lossy().to_ascii_lowercase().ends_with(".package.disabled"))
@@ -116,14 +117,44 @@ mod tests {
     }
 
     #[test]
-    fn refuses_guessing_mods_from_unrelated_directory() {
+    fn arbitrary_parent_name_does_not_change_packages_containment() {
         let base = std::env::temp_dir().join(format!(
-            "s3cc-plain-folder-{}-{}",
+            "s3cc-folder-independent-{}-{}",
             std::process::id(),
             std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
         ));
-        fs::create_dir_all(base.join("Packages")).unwrap();
-        assert!(!is_mods_root(&base));
+        let library = base.join("My Custom CC Library");
+        fs::create_dir_all(library.join("Packages/Old/More")).unwrap();
+        fs::create_dir_all(library.join("Overrides")).unwrap();
+        // Neither Resource.cfg nor a parent directory named Mods is needed.
+        assert!(is_mods_root(&library));
+        let source = library.join("Packages/Old/More/test.package");
+        assert!(validate_organization_destination(&library, &source,
+            &library.join("Packages/Sliders/Corpo/test.package")).is_ok());
+        assert!(validate_organization_destination(&library, &source,
+            &library.join("Sliders/Corpo/test.package")).is_err());
+        assert!(validate_organization_destination(&library, &source,
+            &library.join("Overrides/test.package")).is_err());
+
+        // The same invariant applies when Packages itself is the scan root.
+        let packages = library.join("Packages");
+        assert!(validate_organization_destination(&packages, &source,
+            &packages.join("Cabelos/test.package")).is_ok());
+        assert!(validate_organization_destination(&packages, &source,
+            &library.join("Cabelos/test.package")).is_err());
+
+        // Selecting a higher parent still cannot change the branch identity.
+        assert!(validate_organization_destination(&base, &source,
+            &library.join("Cabelos/test.package")).is_err());
+        assert!(validate_organization_destination(&base, &source,
+            &library.join("Packages/Cabelos/test.package")).is_ok());
+
+        // Overrides also retains its original branch.
+        let overridden = library.join("Overrides/old.package");
+        assert!(validate_organization_destination(&library, &overridden,
+            &library.join("Overrides/Patches/old.package")).is_ok());
+        assert!(validate_organization_destination(&library, &overridden,
+            &library.join("Packages/old.package")).is_err());
         fs::remove_dir_all(base).unwrap();
     }
 }
