@@ -1734,6 +1734,7 @@ const state = {
   conflictsBusy: false,
   analysisRunId: 0,
   analysisPipelineBusy: false,
+  analysisRefreshQueued: false,
   analysisStatus: { manager: "not_run", duplicates: "not_run", conflicts: "not_run" },
   conflictsError: "",
   conflictsNotice: "",
@@ -8093,6 +8094,7 @@ async function scanFolder(preserveSelection = false, preserveNotice = false) {
 
   const folder = state.folder;
   const runId = ++state.analysisRunId;
+  state.analysisRefreshQueued = false;
   const oldStatus = { ...state.analysisStatus };
   const oldDuplicates = state.duplicatesAnalysis;
   const oldConflicts = state.conflictsAnalysis;
@@ -8201,17 +8203,24 @@ async function runAutomaticAnalyses(folder, runId) {
       await analyzeConflicts({ automated: true, folder, runId });
     }
   } finally {
-    if (analysisSessionMatches(folder, runId)) {
-      state.analysisPipelineBusy = false;
-      if (state.postQuarantineNotice) {
-        const { tab, text } = state.postQuarantineNotice;
-        state.tab = tab;
-        if (tab === "duplicates") state.duplicatesNotice = text;
-        else if (tab === "conflicts") state.conflictsNotice = text;
-        state.postQuarantineNotice = null;
-      }
-      render();
+    // Release the lock even if moving packages invalidated this run.
+    // Previously a stale run could leave analysisPipelineBusy locked forever.
+    state.analysisPipelineBusy = false;
+    if (analysisSessionMatches(folder, runId) && state.postQuarantineNotice) {
+      const { tab, text } = state.postQuarantineNotice;
+      state.tab = tab;
+      if (tab === "duplicates") state.duplicatesNotice = text;
+      else if (tab === "conflicts") state.conflictsNotice = text;
+      state.postQuarantineNotice = null;
     }
+    if (state.analysisRefreshQueued && state.folder) {
+      state.analysisRefreshQueued = false;
+      const currentFolder = state.folder, currentRun = state.analysisRunId;
+      // Rebuild Duplicates and Conflicts after the verified file moves,
+      // never using stale quarantine paths from the old analysis.
+      void runAutomaticAnalyses(currentFolder, currentRun);
+    }
+    render();
   }
 }
 
@@ -8320,6 +8329,7 @@ async function executeOrganization() {
   if (!planCanExecute(state.plan) || state.executing || state.structureBusy) return;
 
   const completedPlan = state.plan;
+  let refreshAnalyses = false;
   const completedStats = completedPlan?.stats || {};
   const collisionItems = (completedPlan?.items || []).filter((item) =>
     String(item.planStatus || "").includes("collision")
@@ -8355,7 +8365,10 @@ async function executeOrganization() {
 
     if (result.status === "COMPLETE" || result.status === "NO_CHANGES") {
       state.lastOrganizedDirectory = result.organizedDirectory || state.folder;
-      if (result.status === "COMPLETE") reconcileSuccessfulOrganization(result);
+      if (result.status === "COMPLETE") {
+        reconcileSuccessfulOrganization(result);
+        refreshAnalyses = (result.moved ?? 0) > 0;
+      }
       state.organizationReview = {
         moved: result.moved ?? 0,
         duplicates: completedStats.duplicateSkipped ?? 0,
@@ -8394,10 +8407,17 @@ async function executeOrganization() {
   }
 
   if (!state.planError) {
-    // The new paths, counts and selection were reconciled locally.
-    // Refreshing restore history is cheap; do not run scan_packages or
-    // duplicates/conflicts until the user explicitly asks for analysis.
     await loadRestoreHistory();
+    if (refreshAnalyses && state.folder) {
+      state.analysisStatus.duplicates = "queued";
+      state.analysisStatus.conflicts = "queued";
+      state.analysisRefreshQueued = true;
+      if (!state.analysisPipelineBusy) {
+        state.analysisRefreshQueued = false;
+        void runAutomaticAnalyses(state.folder, state.analysisRunId);
+      }
+      render();
+    }
   }
 }
 
