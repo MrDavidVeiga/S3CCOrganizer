@@ -5,7 +5,7 @@ use crate::{
     workspace::ensure_writable,
 };
 use serde::Serialize;
-use std::{fs, path::{Path, PathBuf}};
+use std::{collections::HashSet, fs, path::{Path, PathBuf}};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all="camelCase")]
@@ -18,6 +18,27 @@ pub struct CoverageEntry {
     pub depth:usize,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all="camelCase")]
+pub struct HealthFinding {
+    pub id: String,
+    pub category: String,
+    pub severity: String,
+    pub relative_path: String,
+    pub detail: String,
+}
+
+fn finding(category: &str, severity: &str, path: &str, detail: impl Into<String>) -> HealthFinding {
+    let detail = detail.into();
+    HealthFinding {
+        id: format!("{category}|{path}|{detail}"),
+        category: category.to_string(),
+        severity: severity.to_string(),
+        relative_path: path.to_string(),
+        detail,
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Default)]
 #[serde(rename_all="camelCase")]
 pub struct HealthStats {
@@ -27,6 +48,14 @@ pub struct HealthStats {
     pub empty_folders:usize,
     pub resource_cfg_uncovered:usize,
     pub packages_outside_root:usize,
+    pub invalid_headers:usize,
+    pub unsupported_versions:usize,
+    pub damaged_indices:usize,
+    pub empty_packages:usize,
+    pub repeated_tgis:usize,
+    pub disabled_files:usize,
+    pub dbc_not_analyzed:usize,
+    pub scan_errors:usize,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -39,6 +68,7 @@ pub struct ModsHealthReport {
     pub outside_packages:Vec<String>,
     pub coverage:Vec<CoverageEntry>,
     pub resource_cfg:Option<ResourceCfgInfo>,
+    pub findings:Vec<HealthFinding>,
 }
 
 fn canonical_root(folder:&str)->Result<PathBuf,String>{
@@ -100,6 +130,39 @@ pub fn remove_empty_folder(folder:String,relative_path:String)->Result<bool,Stri
     Ok(true)
 }
 
+// Error classification is intentionally conservative. A failed read is not
+// automatically proof of a corrupt DBPF, and a valid empty package is not corrupt.
+fn dbpf_error_category(message: &str) -> &'static str {
+    if message.contains("file header is smaller than 96 bytes")
+        || message.contains("file magic does not match DBPF") {
+        "invalid_header"
+    } else if message.contains("unsupported DBPF major version")
+        || message.contains("unsupported DBPF index version") {
+        "unsupported_version"
+    } else if message.contains("corrupted DBPF index length")
+        || message.contains("DBPF index points outside the file")
+        || message.contains("DBPF has entries but no index position")
+        || message.contains("DBPF index range overflow")
+        || message.contains("resource range overflow")
+        || (message.starts_with("resource ") && message.contains("points outside the file")) {
+        "damaged_index"
+    } else {
+        "unreadable_package"
+    }
+}
+
+fn is_disabled_file(name: &str) -> bool {
+    let name = name.to_ascii_lowercase();
+    name.ends_with(".package.disabled")
+        || name.ends_with(".package.off")
+        || name.ends_with(".dbc.disabled")
+}
+
+fn is_unanalyzed_cache(name: &str) -> bool {
+    let name = name.to_ascii_lowercase();
+    name.ends_with(".dbc") || name.ends_with(".ebc")
+}
+
 #[tauri::command]
 pub fn analyze_mods_health(folder:String)->Result<ModsHealthReport,String>{
     let root=canonical_root(&folder)?;
@@ -109,19 +172,89 @@ pub fn analyze_mods_health(folder:String)->Result<ModsHealthReport,String>{
 
     let mut coverage=Vec::new();
     let mut unreadable=Vec::new();
+    let mut findings=Vec::new();
     let mut stats=HealthStats::default();
 
-    for e in walkdir::WalkDir::new(&root).follow_links(false).into_iter().filter_map(Result::ok){
-        if !e.file_type().is_file() || !is_package(e.path()){continue;}
+    if let Some(cfg)=resource_cfg.as_ref() {
+        for warning in &cfg.warnings {
+            findings.push(finding("resource_cfg_warning","warning","Resource.cfg",warning.clone()));
+        }
+    } else {
+        findings.push(finding(
+            "missing_resource_cfg","warning","Resource.cfg",
+            "No Resource.cfg found; package load coverage cannot be verified.",
+        ));
+    }
+
+    for item in walkdir::WalkDir::new(&root).follow_links(false).into_iter() {
+        let e=match item {
+            Ok(entry)=>entry,
+            Err(error)=>{
+                stats.scan_errors+=1;
+                let path=error.path().map(|p|rel(&root,p)).unwrap_or_default();
+                findings.push(finding("scan_error","warning",&path,error.to_string()));
+                continue;
+            }
+        };
+        if !e.file_type().is_file(){continue;}
+        let name=e.file_name().to_string_lossy();
+        let relative=rel(&root,e.path());
+        if is_disabled_file(&name) {
+            stats.disabled_files+=1;
+            findings.push(finding("disabled_file","info",&relative,
+                "File is disabled and is not loaded as an active package."));
+            continue;
+        }
+        if is_unanalyzed_cache(&name) {
+            stats.dbc_not_analyzed+=1;
+            findings.push(finding("dbc_not_analyzed","info",&relative,
+                "DBC/EBC cache file found but not inspected as a DBPF package by Health."));
+            continue;
+        }
+        if !is_package(e.path()){continue;}
         stats.packages+=1;
-        match Package::load(e.path()){Ok(_)=>stats.readable+=1,Err(_)=>{stats.unreadable+=1;unreadable.push(rel(&root,e.path()));}}
+        match Package::load(e.path()) {
+            Ok(package)=>{
+                stats.readable+=1;
+                if package.entries.is_empty() {
+                    stats.empty_packages+=1;
+                    findings.push(finding("empty_package","info",&relative,
+                        "Valid DBPF package with zero indexed resources."));
+                }
+                let mut seen=HashSet::new();
+                for entry in &package.entries {
+                    if !seen.insert((entry.type_id,entry.group,entry.instance)) {
+                        stats.repeated_tgis+=1;
+                        findings.push(finding("repeated_tgi","warning",&relative,
+                            format!("Repeated TGI within this package: {}",entry.key_string())));
+                    }
+                }
+            }
+            Err(error)=>{
+                stats.unreadable+=1;
+                unreadable.push(relative.clone());
+                let message=error.to_string();
+                let category=dbpf_error_category(&message);
+                match category {
+                    "invalid_header"=>stats.invalid_headers+=1,
+                    "unsupported_version"=>stats.unsupported_versions+=1,
+                    "damaged_index"=>stats.damaged_indices+=1,
+                    _=>{},
+                }
+                findings.push(finding(category,"error",&relative,message));
+            }
+        }
         let priority=match (&resource_cfg,&cfg_dir){
             (Some(cfg),Some(dir))=>package_priority(cfg,dir,e.path()),
             _=>None
         };
+        // Missing Resource.cfg is a separate warning; unknown != uncovered.
         let covered=resource_cfg.is_none() || priority.is_some();
-        if !covered{stats.resource_cfg_uncovered+=1;}
-        let relative=rel(&root,e.path());
+        if !covered {
+            stats.resource_cfg_uncovered+=1;
+            findings.push(finding("uncovered_resource_cfg","warning",&relative,
+                "No PackedFile rule covers this package."));
+        }
         coverage.push(CoverageEntry{
             path:e.path().to_string_lossy().to_string(),
             depth:Path::new(&relative).components().count().saturating_sub(1),
@@ -132,10 +265,59 @@ pub fn analyze_mods_health(folder:String)->Result<ModsHealthReport,String>{
         });
     }
     coverage.sort_by_key(|e|e.relative_path.to_ascii_lowercase());
-    let empty=empty_dirs(&root);stats.empty_folders=empty.len();
-    let outside=outside_packages(&root);stats.packages_outside_root=outside.len();
+    let empty=empty_dirs(&root);
+    stats.empty_folders=empty.len();
+    for path in &empty {
+        findings.push(finding("empty_folder","info",path,
+            "Directory is empty; removal requires explicit confirmation."));
+    }
+    let outside=outside_packages(&root);
+    stats.packages_outside_root=outside.len();
+    for path in &outside {
+        findings.push(finding("outside_packages","info",path,
+            "Package is outside the selected root; no corruption was inferred."));
+    }
+    findings.sort_by(|a,b|a.relative_path.to_ascii_lowercase()
+        .cmp(&b.relative_path.to_ascii_lowercase())
+        .then_with(||a.category.cmp(&b.category))
+        .then_with(||a.detail.cmp(&b.detail)));
     Ok(ModsHealthReport{
         root:root.to_string_lossy().to_string(),stats,empty_folders:empty,
-        unreadable_packages:unreadable,outside_packages:outside,coverage,resource_cfg
+        unreadable_packages:unreadable,outside_packages:outside,coverage,resource_cfg,
+        findings,
     })
+}
+
+#[cfg(test)]
+mod health_diagnostic_tests {
+    use super::*;
+
+    #[test]
+    fn structural_failures_are_classified_conservatively() {
+        assert_eq!(dbpf_error_category("file magic does not match DBPF"),"invalid_header");
+        assert_eq!(dbpf_error_category("file header is smaller than 96 bytes"),"invalid_header");
+        assert_eq!(dbpf_error_category("unsupported DBPF major version 4"),"unsupported_version");
+        assert_eq!(dbpf_error_category("unsupported DBPF index version 5"),"unsupported_version");
+        assert_eq!(dbpf_error_category("DBPF index points outside the file"),"damaged_index");
+        assert_eq!(dbpf_error_category("corrupted DBPF index length 8 (expected 36)"),"damaged_index");
+        assert_eq!(dbpf_error_category("permission denied"),"unreadable_package");
+        assert_eq!(dbpf_error_category("failed to fill whole buffer"),"unreadable_package");
+    }
+
+    #[test]
+    fn disabled_and_dbc_are_not_mistaken_for_corrupted_packages() {
+        assert!(is_disabled_file("MyMod.PACKAGE.DISABLED"));
+        assert!(is_disabled_file("MyMod.package.off"));
+        assert!(!is_disabled_file("MyMod.package"));
+        assert!(is_unanalyzed_cache("dcdb0.dbc"));
+        assert!(is_unanalyzed_cache("dcdb0.EBC"));
+        assert!(!is_unanalyzed_cache("MyMod.package"));
+    }
+
+    #[test]
+    fn finding_ids_do_not_merge_different_repeated_tgis() {
+        let a=finding("repeated_tgi","warning","a.package","0x0001");
+        let b=finding("repeated_tgi","warning","a.package","0x0002");
+        assert_ne!(a.id,b.id);
+    }
 }
