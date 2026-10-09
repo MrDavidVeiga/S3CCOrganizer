@@ -4663,7 +4663,7 @@ function connectedVisibleConflictGroups(findings = visibleConflictFindings()) {
     const finding = findings[index];
     group.pairs.push(finding);
     for (const member of [finding.left, finding.right]) {
-      if (member?.path) group.members.set(member.path, member);
+      if (member?.path) group.members.set(member.path.replaceAll("/", "\\").toLocaleLowerCase(), member);
     }
   }
   for (const group of roots.values()) {
