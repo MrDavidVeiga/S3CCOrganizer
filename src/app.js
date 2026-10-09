@@ -6498,6 +6498,7 @@ function renderHealthSelectionControls() {
   if (!options.includes(state.healthFilter)) state.healthFilter = "all";
   el.toolsHealthKindFilter.setAttribute("aria-label", t("healthFilterKind"));
   el.toolsHealthKindFilter.value = state.healthFilter;
+  el.toolsHealthKindFilter.dispatchEvent(new Event("input"));
   const visible = visibleHealthFindings();
   // Selection is global across filters, but never performs a file operation.
   const aliveIds = new Set(all.map(finding => finding.id));
@@ -7537,6 +7538,10 @@ function renderOrganizerAdvancedFilters() {
   if (!ORGANIZER_SORT_MODES.has(state.organizerFilters.sort)) state.organizerFilters.sort = "original";
   el.organizerSort.setAttribute("aria-label", t("organizerSort"));
   el.organizerSort.value = state.organizerFilters.sort;
+  // Native <select> is the source of truth; the custom Fluent ComboBox
+  // mirrors it on input, including programmatic resets and language updates.
+  for (const [select] of specs) select.dispatchEvent(new Event("input"));
+  el.organizerSort.dispatchEvent(new Event("input"));
   el.organizerAdvancedFilters.classList.toggle("filters-active", organizerAdvancedActive());
 }
 
