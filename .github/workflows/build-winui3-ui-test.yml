@@ -12,6 +12,7 @@ on:
       - fix/organize-incremental-open-folder-ui-20261008
       - fix/health-diagnostics-review-20261008
       - fix/organizer-report-root-classification-20261009
+      - fix/organizer-full-reconciliation-20261009
     paths:
       - ".github/workflows/build-winui3-ui-test.yml"
       - "src/**"
