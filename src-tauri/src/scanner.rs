@@ -1453,14 +1453,14 @@ fn apply_manual_classifications(root: &Path, items: &mut [ScanPackageItem]) {
 // accessory slots or override explicit catalog families.
 fn filename_indicates_headwear(filename: &str) -> bool {
     let lower = filename.to_ascii_lowercase();
-    let normalized = lower.replace(['_', '-', '.', ' ', '[', ']'], " ");
+    let normalized = lower.replace(&['_', '-', '.', ' ', '[', ']'][..], " ");
     let tokens = normalized.split_whitespace().collect::<Vec<_>>();
     tokens.iter().any(|part| matches!(*part,
         "hat" | "hats" | "helmet" | "cap" | "crown" | "veil"
         | "beanie" | "headband" | "hairband" | "braidband"
         | "cowboyhat" | "strawhat" | "ridinghat" | "hatsun"
         | "papercrown" | "graduationcap" | "bikehelmet"
-        | "triangleveil" | "bachveil" | "braidband"
+        | "triangleveil" | "bachveil"
     ))
 }
 
