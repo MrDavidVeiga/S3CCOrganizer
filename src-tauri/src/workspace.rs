@@ -364,6 +364,7 @@ pub fn set_package_metadata(
     favorite: bool,
 ) -> Result<WorkspaceStore, String> {
     let root = canonical_root(&folder)?;
+    ensure_writable(&root)?;
     let path = PathBuf::from(package_path.trim())
         .canonicalize()
         .map_err(|error| format!("Could not resolve package: {error}"))?;
