@@ -2485,6 +2485,11 @@ function analysisReportStatus(kind) {
 }
 
 function buildAuditSnapshot() {
+  const plannedBySource = new Map(
+    (state.plan?.items || []).map((item) => [
+      String(item.sourcePath || "").replaceAll("\\\\", "/").toLocaleLowerCase(), item
+    ])
+  );
   const conflicts = state.conflictsAnalysis
     ? {
         ...state.conflictsAnalysis,
@@ -2512,12 +2517,33 @@ function buildAuditSnapshot() {
     organizer: state.stats
       ? {
           stats: state.stats,
+          planStatus: state.plan ? "preview_available" : "not_generated",
+          planStats: state.plan?.stats ?? null,
+          lastExecution: state.organizationReview ?? null,
+          // A scanner classification is NOT proof of a physical move.
           packages: state.items.map((item) => ({
+            plannedAction: plannedBySource.get(
+              String(item.path || "").replaceAll("\\\\", "/").toLocaleLowerCase()
+            )?.planStatus ?? "not_planned",
+            planDestination: plannedBySource.get(
+              String(item.path || "").replaceAll("\\\\", "/").toLocaleLowerCase()
+            )?.destinationRelativePath ?? null,
+            planWarnings: plannedBySource.get(
+              String(item.path || "").replaceAll("\\\\", "/").toLocaleLowerCase()
+            )?.warnings ?? [],
             name: item.name,
             path: item.path,
             relativePath: item.relativePath,
             status: item.status,
             classificationConfidence: item.classificationConfidence,
+            resourceTypes: item.resourceTypes || [],
+            catalogResourceCount: item.catalogResourceCount ?? 0,
+            resourceCount: item.resourceCount ?? 0,
+            detectedFrom: item.detectedFrom || [],
+            candidateDestinations: item.candidateDestinations || [],
+            fileSize: item.fileSize ?? 0,
+            scripted: !!item.scripted,
+            selectableForPlan: eligibleForPlan(item),
             creator: item.creator,
             modName: item.modName,
             gameplayCategory: item.gameplayCategory,
@@ -2761,15 +2787,19 @@ function buildScopedAuditMarkdown(snapshot) {
     const organizer = snapshot.organizer;
     const stats = organizer?.stats || {};
     lines.push("## Organizer", "");
+    lines.push("IMPORTANT: Classification destinations are suggestions, not proof of moved files. A move only occurs after an executable plan and confirmed transaction.");
+    lines.push("Plan: " + (organizer?.planStatus || "not_generated") +
+      " · Ready: " + (organizer?.planStats?.ready ?? "not_calculated") +
+      " · Blocked: " + (organizer?.planStats?.blocked ?? "not_calculated"), "");
     lines.push(
       `Packages: ${stats.packages ?? organizer?.packages?.length ?? 0} · ${t("classified")}: ${stats.classified ?? 0} · ${t("mixed")}: ${stats.mixed ?? 0} · ${t("needsReview")}: ${stats.needsReview ?? 0} · ${t("invalid")}: ${stats.invalid ?? 0}`,
       "",
-      "| Package | Status | Confidence | Creator / Mod | Category | Destination | Evidence | Warnings |",
-      "| --- | --- | --- | --- | --- | --- | --- | --- |"
+      "| Package | Status | Confidence | Creator / Mod | Category | Classification Destination | Planned Action | Actual Plan Destination | Evidence | Warnings |",
+      "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"
     );
     for (const item of organizer?.packages || []) {
       lines.push(
-        `| ${reportCell(item.relativePath || item.name)} | ${reportCell(item.status)} | ${reportCell(item.classificationConfidence)} | ${reportCell([item.creator, item.modName].filter(Boolean).join(" / "))} | ${reportCell([item.gameplayCategory, item.category, item.subCategory].filter(Boolean).join(" / "))} | ${reportCell(item.destinationPath)} | ${reportCell(item.classificationReason)} | ${reportCell((item.warnings || []).join("; "))} |`
+        `| ${reportCell(item.relativePath || item.name)} | ${reportCell(item.status)} | ${reportCell(item.classificationConfidence)} | ${reportCell([item.creator, item.modName].filter(Boolean).join(" / "))} | ${reportCell([item.gameplayCategory, item.category, item.subCategory].filter(Boolean).join(" / "))} | ${reportCell(item.destinationPath)} | ${reportCell(item.plannedAction)} | ${reportCell(item.planDestination)} | ${reportCell(item.classificationReason)} | ${reportCell([...(item.warnings || []), ...(item.planWarnings || [])].join("; "))} |`
       );
     }
     lines.push("");
