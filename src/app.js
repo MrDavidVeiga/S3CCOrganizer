@@ -2488,7 +2488,7 @@ function analysisReportStatus(kind) {
 function buildAuditSnapshot() {
   const plannedBySource = new Map(
     (state.plan?.items || []).map((item) => [
-      String(item.sourcePath || "").replaceAll("\\\\", "/").toLocaleLowerCase(), item
+      String(item.sourcePath || "").replaceAll(String.fromCharCode(92), "/").toLocaleLowerCase(), item
     ])
   );
   const conflicts = state.conflictsAnalysis
@@ -2524,13 +2524,13 @@ function buildAuditSnapshot() {
           // A scanner classification is NOT proof of a physical move.
           packages: state.items.map((item) => ({
             plannedAction: plannedBySource.get(
-              String(item.path || "").replaceAll("\\\\", "/").toLocaleLowerCase()
+              String(item.path || "").replaceAll(String.fromCharCode(92), "/").toLocaleLowerCase()
             )?.planStatus ?? "not_planned",
             planDestination: plannedBySource.get(
-              String(item.path || "").replaceAll("\\\\", "/").toLocaleLowerCase()
+              String(item.path || "").replaceAll(String.fromCharCode(92), "/").toLocaleLowerCase()
             )?.destinationRelativePath ?? null,
             planWarnings: plannedBySource.get(
-              String(item.path || "").replaceAll("\\\\", "/").toLocaleLowerCase()
+              String(item.path || "").replaceAll(String.fromCharCode(92), "/").toLocaleLowerCase()
             )?.warnings ?? [],
             name: item.name,
             path: item.path,
@@ -2971,7 +2971,7 @@ function statusLabel(status) {
 }
 
 function supportsResourceCfgUpdate(folder) {
-  const parts = String(folder || "").replaceAll("\\\\", "/").split("/").filter(Boolean);
+  const parts = String(folder || "").replaceAll(String.fromCharCode(92), "/").split("/").filter(Boolean);
   const mods = parts.findLastIndex((part, index) =>
     /^mods(?:[ _-].+| \\(.+\\))?$/i.test(part) &&
     (index === parts.length - 1 || /^(packages|overrides)$/i.test(parts[index + 1]))
