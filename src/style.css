@@ -5455,3 +5455,56 @@ body.release-v1 #page-organizer .organizer-quick-favorite[aria-pressed="true"] {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+
+/* Related Conflict group: compact expansion inside the existing detail modal.
+   Keep original virtual pair list and its checkbox semantics unchanged. */
+body.release-v1 .conflict-related-section {
+  min-width: 0;
+  margin-top: 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--winui-control-stroke, var(--panel-border));
+  border-radius: var(--winui-control-radius, 8px);
+  background: var(--winui-card-fill-alt, var(--surface));
+  color: var(--winui-text-primary, var(--text));
+}
+body.release-v1 .conflict-related-section > summary {
+  cursor: pointer;
+  font-weight: 650;
+  font-size: .82rem;
+  line-height: 1.5;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+body.release-v1 .conflict-related-section > summary:focus-visible {
+  outline: 2px solid var(--winui-accent, var(--green));
+  outline-offset: 3px;
+}
+body.release-v1 .conflict-related-section > p,
+body.release-v1 .conflict-related-section > small {
+  display: block;
+  color: var(--winui-text-secondary, var(--muted));
+  font-size: .75rem;
+  margin: 8px 0;
+  line-height: 1.45;
+}
+body.release-v1 .conflict-related-links {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 5px;
+  min-width: 0;
+  max-height: 280px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+body.release-v1 .conflict-related-links > button {
+  display: block;
+  width: 100%;
+  min-height: 34px;
+  height: auto;
+  min-width: 0;
+  padding: 7px 10px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
