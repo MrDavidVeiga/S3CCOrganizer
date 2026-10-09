@@ -39,7 +39,7 @@ fn hash_text(text: &str) -> String {
 }
 
 fn mods_ancestor(root: &Path) -> Option<&Path> {
-    root.ancestors().find(|p| p.file_name().is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("Mods")))
+    root.ancestors().find(|p| crate::resource_cfg::is_mods_layout_root(p))
 }
 
 fn inspect_cfg(path: &Path) -> Result<(String, ResourceCfgInfo), String> {
