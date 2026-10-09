@@ -7407,16 +7407,14 @@ async function saveManualReview(item, destination) {
 async function toggleOrganizerFavorite(item) {
   if (!item || !state.folder || workspaceReadOnly() || toolsOperationLocked()) return;
   const folder = state.folder;
-  const meta = metadataForItem(item);
   state.toolsBusy = true;
   renderPreview();
   try {
-    const updated = await invoke("set_package_metadata", {
+    // Backend reloads the latest metadata and toggles only favorite.
+    // Never overwrite tags/status based on an incomplete frontend snapshot.
+    const updated = await invoke("toggle_package_favorite", {
       folder,
       packagePath: item.path,
-      tags: [...(meta?.tags || [])],
-      testStatus: meta?.testStatus || "",
-      favorite: !meta?.favorite,
     });
     if (state.folder === folder) {
       state.workspaceStore = updated;
