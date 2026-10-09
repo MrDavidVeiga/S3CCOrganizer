@@ -6251,12 +6251,18 @@ async function loadWorkspaceTools() {
     renderTools();
     return;
   }
+  const folder = state.folder;
   try {
-    state.workspaceStore = await invoke("load_workspace", { folder: state.folder });
+    const workspace = await invoke("load_workspace", { folder });
+    // A slower response from a previous folder must never change the
+    // read-only state, active profile or metadata of the current folder.
+    if (state.folder !== folder) return;
+    state.workspaceStore = workspace;
   } catch (error) {
+    if (state.folder !== folder) return;
     state.toolsError = String(error);
   }
-  renderTools();
+  if (state.folder === folder) renderTools();
 }
 
 async function persistWorkspaceStore() {
@@ -6530,15 +6536,18 @@ function renderInboxTools() {
 async function loadMetadataSelection() {
   const path = el.toolsMetadataPackage.value;
   if (!path || !state.folder) return;
+  const folder = state.folder;
   try {
     const details = await invoke("get_package_technical_details", {
-      folder: state.folder, packagePath: path,
+      folder, packagePath: path,
     });
+    if (folder !== state.folder || path !== el.toolsMetadataPackage.value) return;
     const meta = state.workspaceStore?.packageMetadata?.[details.fileSha256] || null;
     el.toolsTags.value = (meta?.tags || []).join(", ");
     el.toolsTestStatus.value = meta?.testStatus || "";
     el.toolsFavorite.checked = !!meta?.favorite;
   } catch (_) {
+    if (folder !== state.folder || path !== el.toolsMetadataPackage.value) return;
     el.toolsTags.value = ""; el.toolsTestStatus.value = ""; el.toolsFavorite.checked = false;
   }
 }
@@ -8435,6 +8444,10 @@ async function chooseFolder() {
   state.analysisRunId += 1;
   state.analysisStatus = { manager: "not_run", duplicates: "not_run", conflicts: "not_run" };
   state.folder = selected;
+  // Never expose the previous root's profiles, read-only flag or metadata
+  // while the new root is still loading.
+  state.workspaceStore = null;
+  state.healthReport = null;
   clearPackagePreviewCache();
   state.postQuarantineNotice = null;
   state.lastExactGroupAnchor = null;
