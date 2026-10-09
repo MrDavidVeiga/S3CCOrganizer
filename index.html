@@ -448,7 +448,7 @@
 
             <div class="tools-subtabs" role="tablist">
               <button class="secondary-btn tools-subtab hidden" data-tools-tab="profiles" data-i18n="profilesRules" type="button">Profiles</button>
-              <button class="secondary-btn tools-subtab hidden" data-tools-tab="health" data-i18n="healthResourceCfg" type="button">Health</button>
+              <button class="secondary-btn tools-subtab" data-tools-tab="health" data-i18n="healthResourceCfg" type="button">Health</button>
               <button class="secondary-btn tools-subtab hidden" data-tools-tab="snapshots" data-i18n="snapshotsCompare" type="button">Snapshots</button>
               <button class="secondary-btn tools-subtab hidden" data-tools-tab="inbox" data-i18n="inboxNewCc" type="button">Inbox</button>
               <button class="secondary-btn tools-subtab hidden" data-tools-tab="metadata" data-i18n="metadataGroups" type="button">Metadata</button>
@@ -496,7 +496,7 @@
 
             <div id="tools-health" class="tools-panel hidden">
               <div class="tool-actions"><button id="tools-health-run" class="primary-btn" type="button" data-i18n="analyzeHealth">Analyze Health</button></div>
-              <div id="tools-health-summary" class="stats tools-stats"></div>
+              <div class="health-review-toolbar"><select class="text-input" id="tools-health-filter"><option value="all">All / Todos / Todos</option><option value="error">Errors</option><option value="warning">Warnings</option><option value="info">Information</option></select><button class="secondary-btn" id="tools-health-select-visible" type="button">Select visible</button><button class="secondary-btn" id="tools-health-clear-selection" type="button">Clear selection</button><button class="secondary-btn" id="tools-health-export" type="button">Export selected (JSON)</button><span id="tools-health-selection-status" role="status"></span></div><div id="tools-health-summary" class="stats tools-stats"></div>
               <div class="tools-grid two">
                 <section class="tools-card"><h3 data-i18n="resourceCfgViewer">Resource.cfg Viewer / Load Order</h3><div id="tools-resourcecfg"></div></section>
                 <section class="tools-card"><h3 data-i18n="healthFindings">Health Findings</h3><div id="tools-health-findings" class="tools-list"></div></section>
