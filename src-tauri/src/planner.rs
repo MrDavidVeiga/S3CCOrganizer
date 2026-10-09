@@ -1594,7 +1594,7 @@ mod tests {
         assert!(path.starts_with("Packages"));
         assert!(path.to_string_lossy().contains("Pns (TS3)"));
         assert!(path.to_string_lossy().contains("Rigged"));
-        assert!(parts.iter().any(|part| part == "Não Categorizado" || part == "Nao Categorizado"));
+        assert!(parts.iter().any(|part| part == "Sem Categoria"));
         let (override_path, override_parts) = fallback_relative_path(
             &mods, AppLanguage::Pt, "Overrides\\Overhaul\\unknown.package", "AABBCCDD"
         ).unwrap();
