@@ -157,6 +157,23 @@ fn ensure_source_loading_branch(root: &Path, source: &Path, parts: &[String]) ->
     parts
 }
 
+// A package explicitly selected in a copied Mods tree may belong to an
+// arbitrary old source folder (e.g. "#+18" or "Careers"). Do not strand it
+// just because that folder is not a Manager-generated category. However,
+// never reorganize the game's cache, downloads, backups or recovery trees.
+fn is_mods_system_source(root: &Path, source: &Path) -> bool {
+    if !is_mods_root(root) { return false; }
+    let Some(Component::Normal(top)) = source.strip_prefix(root).ok()
+        .and_then(|relative| relative.components().next()) else { return false; };
+    let top = top.to_string_lossy().to_ascii_lowercase();
+    matches!(top.as_str(),
+        "dccache" | "dcbackup" | "downloads" | "savedsims" | "library"
+        | "saves" | "installedworlds" | "exports" | "screenshots"
+        | "collections" | "thumbnails" | "cache" | "caches"
+        | "quarantine" | "restore manifests" | "s3cc manager"
+        | "s3cc organizer" | "backups" | "backup")
+}
+
 // Older versions created their category trees beside Packages inside Mods.
 // Migrate only those recognizable legacy category roots. Never treat
 // Overrides, DCCache or unrelated custom folders as organizer-owned.
@@ -1010,19 +1027,19 @@ pub fn build_organization_plan_with_cfg(
             .cloned()
             .ok_or_else(|| format!("Missing selected package hash: {}", source.display()))?;
 
-        if packages_root
-            .as_ref()
-            .is_some_and(|packages| !path_is_within_root(packages, &source_canonical))
-            && !legacy_manager_source(&root, &source_canonical)
-            && !source_uses_overrides(&root, &source_canonical)
-        {
+        // A user's explicit selection authorizes migration of categorized
+        // packages from legacy source folders. Never select from system caches
+        // or recovery trees, and keep Overrides in Overrides.
+        if is_mods_system_source(&root, &source_canonical) {
             stats.blocked += 1;
-            items.push(make_blocked(
-                item,
-                "The package is outside Mods/Packages. It will not be moved into the organized Packages library.".to_string(),
-            ));
+            items.push(make_blocked(item,
+                "System/cache/recovery folder is protected: this package will not be moved.".to_string()));
             continue;
         }
+        let outside_active_branch = packages_root
+            .as_ref()
+            .is_some_and(|packages| !path_is_within_root(packages, &source_canonical))
+            && !source_uses_overrides(&root, &source_canonical);
 
         let duplicates = duplicate_peers.get(&source_hash.to_ascii_uppercase());
         if let Some(peers) = duplicates.filter(|peers| peers.len() > 1)
@@ -1338,7 +1355,11 @@ pub fn build_organization_plan_with_cfg(
             plan_status: "ready".to_string(),
             sha256: Some(source_hash),
             size: source_size,
-            warnings: Vec::new(),
+            warnings: if outside_active_branch {
+                vec!["Migrating a selected legacy file from outside Packages/Overrides into Packages. It may become active in-game after organization; review the plan.".to_string()]
+            } else {
+                Vec::new()
+            },
         });
     }
 
@@ -1457,6 +1478,22 @@ mod tests {
             vec!["Overrides", "Acessórios"]
         );
         std::fs::remove_dir_all(root.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn legacy_user_folders_are_migratable_but_sims_caches_are_protected() {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let nonce = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let base = std::env::temp_dir().join(format!("s3cc-migrate-source-{}-{nonce}",std::process::id()));
+        let mods = base.join("Mods - Copia");
+        std::fs::create_dir_all(mods.join("Packages")).unwrap();
+        std::fs::create_dir_all(mods.join("Overrides")).unwrap();
+        assert!(!is_mods_system_source(&mods,&mods.join("#+18").join("AnimatedWoohoo.package")));
+        assert!(!is_mods_system_source(&mods,&mods.join("Careers").join("Modeling.package")));
+        assert!(is_mods_system_source(&mods,&mods.join("DCCache").join("dcdb0.dbc")));
+        assert!(is_mods_system_source(&mods,&mods.join("Downloads").join("download.package")));
+        assert!(is_mods_system_source(&mods,&mods.join("S3CC Manager").join("Restore Manifests").join("x.package")));
+        std::fs::remove_dir_all(base).unwrap();
     }
 
     #[test]
