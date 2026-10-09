@@ -6,6 +6,9 @@ const I18N = {
   en: {
       openOrganizedFolder: "Open Organized Folder",
     packagesAnalyzed: "Packages analyzed",
+    filesFound: "Files found",
+    disabledExcluded: "Disabled packages excluded",
+    otherFilesExcluded: "Other file types excluded",
     analysisNeedsRefresh: "Package list updated. Reanalyze duplicates and conflicts when needed.",
     someMovesNeedRefresh: "Some moved files are not in the current list. Run Analyze CCs to refresh.",
     remainingLegacyFiles: "files still in original folders",
@@ -555,6 +558,9 @@ const I18N = {
   pt: {
       openOrganizedFolder: "Abrir Pasta Organizada",
     packagesAnalyzed: "Packages analisados",
+    filesFound: "Arquivos encontrados",
+    disabledExcluded: "Packages desativados excluídos",
+    otherFilesExcluded: "Arquivos de outros formatos",
     analysisNeedsRefresh: "Lista atualizada. Reanalise duplicatas e conflitos quando necessário.",
     someMovesNeedRefresh: "Alguns arquivos movimentados não estavam na lista atual. Use Analisar CCs para atualizar.",
     remainingLegacyFiles: "arquivos ainda nas pastas originais",
@@ -1103,6 +1109,9 @@ const I18N = {
   es: {
       openOrganizedFolder: "Abrir Carpeta Organizada",
     packagesAnalyzed: "Packages analizados",
+    filesFound: "Archivos encontrados",
+    disabledExcluded: "Packages desactivados excluidos",
+    otherFilesExcluded: "Archivos de otros formatos",
     analysisNeedsRefresh: "Lista actualizada. Vuelve a analizar duplicados y conflictos cuando sea necesario.",
     someMovesNeedRefresh: "Algunos archivos movidos no estaban en la lista actual. Usa Analizar CCs para actualizar.",
     remainingLegacyFiles: "archivos aún en las carpetas originales",
@@ -3913,7 +3922,17 @@ function renderDuplicates() {
     el.duplicatesState.className = "scan-state";
   } else if (state.duplicatesAnalysis) {
     const unreadable = stats.unreadablePackages ?? 0;
-    const parts = [t("duplicatesReady"), `${t("packagesAnalyzed")}: ${stats.packagesScanned ?? 0}`];
+    const parts = [
+      t("duplicatesReady"),
+      `${t("filesFound")}: ${stats.filesDiscovered ?? 0}`,
+      `${t("packagesAnalyzed")}: ${stats.packagesScanned ?? 0}`,
+    ];
+    if (stats.disabledPackagesExcluded) {
+      parts.push(`${t("disabledExcluded")}: ${stats.disabledPackagesExcluded}`);
+    }
+    if (stats.otherFilesExcluded) {
+      parts.push(`${t("otherFilesExcluded")}: ${stats.otherFilesExcluded}`);
+    }
     if (unreadable) parts.push(`${t("unreadablePackages")}: ${unreadable}`);
     if (stats.cacheHits) parts.push(`${t("cacheReused")}: ${stats.cacheHits}`);
     if (stats.cacheMisses) parts.push(`${t("cacheUpdated")}: ${stats.cacheMisses}`);
@@ -4876,7 +4895,17 @@ function renderConflicts() {
     el.conflictsState.textContent = state.conflictsNotice;
     el.conflictsState.className = "scan-state";
   } else if (analysis) {
-    const parts = [t("conflictsReady"), `${t("packagesAnalyzed")}: ${stats.packagesScanned ?? 0}`];
+    const parts = [
+      t("conflictsReady"),
+      `${t("filesFound")}: ${stats.filesDiscovered ?? 0}`,
+      `${t("packagesAnalyzed")}: ${stats.packagesScanned ?? 0}`,
+    ];
+    if (stats.disabledPackagesExcluded) {
+      parts.push(`${t("disabledExcluded")}: ${stats.disabledPackagesExcluded}`);
+    }
+    if (stats.otherFilesExcluded) {
+      parts.push(`${t("otherFilesExcluded")}: ${stats.otherFilesExcluded}`);
+    }
     if (stats.unreadablePackages) parts.push(`${t("unreadablePackages")}: ${stats.unreadablePackages}`);
     if (stats.cacheHits) parts.push(`${t("cacheReused")}: ${stats.cacheHits}`);
     if (stats.cacheMisses) parts.push(`${t("cacheUpdated")}: ${stats.cacheMisses}`);
