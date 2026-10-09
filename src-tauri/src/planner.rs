@@ -1695,6 +1695,46 @@ mod tests {
     }
 
     #[test]
+    fn arbitrary_library_name_still_forces_packages_destinations() {
+        let base = std::env::temp_dir().join(format!(
+            "s3cc-arbitrary-plan-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
+        ));
+        let root = base.join("A Completely Different Library Name");
+        fs::create_dir_all(root.join("Packages/Old")).unwrap();
+        assert!(is_mods_root(&root));
+        assert_eq!(
+            ensure_source_loading_branch(
+                &root, &root.join("Packages/Old/test.package"),
+                &["Sliders".into(), "Corpo".into()]
+            ),
+            vec!["Packages", "Sliders", "Corpo"]
+        );
+        assert_eq!(
+            ensure_source_loading_branch(
+                &root, &root.join("Cabelos/old.package"),
+                &["Cabelos".into(), "Masculino".into()]
+            ),
+            vec!["Packages", "Cabelos", "Masculino"]
+        );
+        assert!(validate_organization_destination(
+            &root, &root.join("Packages/Old/test.package"),
+            &root.join("Sliders/test.package")
+        ).is_err());
+        assert!(validate_organization_destination(
+            &root, &root.join("Packages/Old/test.package"),
+            &root.join("Packages/Sliders/Corpo/test.package")
+        ).is_ok());
+        let selected_packages = root.join("Packages");
+        assert!(is_within_packages(&selected_packages));
+        assert_eq!(ensure_packages_destination(
+            &selected_packages, &["Packages".into(), "Cabelos".into()]
+        ), vec!["Cabelos"]);
+        fs::remove_dir_all(base).unwrap();
+    }
+
+    #[test]
     fn mods_root_always_routes_categories_into_packages() {
         let mods_base = Path::new("The Sims 3").join("Mods");
         let mods = mods_base.as_path();
