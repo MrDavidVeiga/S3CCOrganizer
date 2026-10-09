@@ -539,6 +539,18 @@
 
             <div id="tools-health" class="tools-panel hidden">
               <div class="tool-actions"><button id="tools-health-run" class="primary-btn" type="button" data-i18n="analyzeHealth">Analyze Health</button></div>
+              <div class="tools-health-filters" role="group" aria-label="Health findings controls">
+                <label class="organizer-filter-field" for="tools-health-kind-filter">
+                  <span data-i18n="healthFilterKind">Tipo de problema</span>
+                  <select id="tools-health-kind-filter" class="text-input" aria-label="Health finding type">
+                    <option value="all" data-i18n="healthFilterAll">Todos os problemas</option>
+                  </select>
+                </label>
+                <button id="tools-health-select-visible" class="secondary-btn" type="button" data-i18n="healthSelectVisible">Selecionar visíveis</button>
+                <button id="tools-health-clear-selection" class="secondary-btn" type="button" data-i18n="healthClearSelection">Limpar seleção</button>
+                <button id="tools-health-export-selected" class="secondary-btn" type="button" data-i18n="healthExportSelected">Exportar selecionados</button>
+                <span id="tools-health-selection-summary" role="status" aria-live="polite"></span>
+              </div>
               <div id="tools-health-summary" class="stats tools-stats"></div>
               <div class="tools-grid two">
                 <section class="tools-card"><h3 data-i18n="resourceCfgViewer">Resource.cfg Viewer / Load Order</h3><div id="tools-resourcecfg"></div></section>
