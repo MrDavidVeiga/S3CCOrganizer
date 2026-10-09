@@ -1821,6 +1821,7 @@ const state = {
   packagePreviews: {},
   packagePreviewLoading: {},
   packagePreviewErrors: {},
+  previewSession: 0,
   restoreHistory: [],
   restoreHistoryLoading: false,
   restoreHistoryError: "",
@@ -1893,6 +1894,51 @@ const SEARCH_DEBOUNCE_MS = 100;
 const managerSearchIndex = new WeakMap();
 const managerVisibleMemo = { items: null, status: "", search: "", filters: "", result: [] };
 const organizerFilterOptionsMemo = { items: null, language: "" };
+
+// Budget for Base64 image strings; the separate DBPF fingerprint cache is not
+// an image cache. Each preview is shared among Organizer/Duplicates/Conflicts.
+const PREVIEW_CACHE_ENTRIES = 80;
+const PREVIEW_CACHE_BASE64_BUDGET = 16 * 1024 * 1024;
+const PREVIEW_CACHE_MAX_SINGLE = 8 * 1024 * 1024;
+const previewCacheLru = new Map();
+
+function clearPackagePreviewCache() {
+  state.previewSession += 1;
+  state.packagePreviews = {};
+  state.packagePreviewLoading = {};
+  state.packagePreviewErrors = {};
+  previewCacheLru.clear();
+}
+
+function cachedPackagePreview(path) {
+  const preview = state.packagePreviews[path];
+  if (preview && previewCacheLru.has(path)) {
+    const bytes = previewCacheLru.get(path);
+    previewCacheLru.delete(path);
+    previewCacheLru.set(path, bytes);
+  }
+  return preview;
+}
+
+function rememberPackagePreview(path, preview) {
+  const bytes = preview?.thumbnailBase64?.length || 0;
+  // Oversized or malformed previews must not exhaust the UI heap.
+  const stored = bytes > PREVIEW_CACHE_MAX_SINGLE
+    ? { thumbnailBase64: null, mimeType: null } : preview;
+  state.packagePreviews[path] = stored;
+  previewCacheLru.delete(path);
+  previewCacheLru.set(path, bytes > PREVIEW_CACHE_MAX_SINGLE ? 0 : bytes);
+  let totalBytes = [...previewCacheLru.values()].reduce((a,b) => a+b, 0);
+  while (previewCacheLru.size > PREVIEW_CACHE_ENTRIES ||
+         totalBytes > PREVIEW_CACHE_BASE64_BUDGET) {
+    const oldest = previewCacheLru.keys().next().value;
+    if (oldest === undefined) break;
+    totalBytes -= previewCacheLru.get(oldest);
+    previewCacheLru.delete(oldest);
+    delete state.packagePreviews[oldest];
+    delete state.packagePreviewErrors[oldest];
+  }
+}
 const duplicateVisibleMemo = { analysis: null, filter: "", search: "", result: [] };
 const conflictVisibleMemo = { analysis: null, filter: "", search: "", marksVersion: 0, result: [] };
 const virtualViews = {
@@ -3533,16 +3579,21 @@ async function loadDuplicateMemberPreview(member) {
     return;
   }
 
+  const folder = state.folder;
+  const session = state.previewSession;
   state.packagePreviewLoading[path] = true;
   try {
-    state.packagePreviews[path] = await invoke("get_package_preview", {
-      folder: state.folder,
-      packagePath: path,
-    });
+    const preview = await invoke("get_package_preview", { folder, packagePath: path });
+    if (state.folder === folder && state.previewSession === session) {
+      rememberPackagePreview(path, preview);
+    }
   } catch (error) {
-    state.packagePreviewErrors[path] = String(error);
-    state.packagePreviews[path] = { thumbnailBase64: null, mimeType: null };
+    if (state.folder === folder && state.previewSession === session) {
+      state.packagePreviewErrors[path] = String(error);
+      rememberPackagePreview(path, { thumbnailBase64: null, mimeType: null });
+    }
   } finally {
+    if (state.folder !== folder || state.previewSession !== session) return;
     delete state.packagePreviewLoading[path];
     if (el.duplicateDetailsModal && !el.duplicateDetailsModal.classList.contains("hidden")) {
       renderDuplicatesPreview();
@@ -3552,7 +3603,7 @@ async function loadDuplicateMemberPreview(member) {
     if (state.tab === "conflicts" &&
         el.conflictDetailsModal && !el.conflictDetailsModal.classList.contains("hidden") &&
         (state.conflictsAnalysis?.findings || []).some(
-      (finding) => finding.id === state.conflictSelectedId &&
+      finding => finding.id === state.conflictSelectedId &&
         (finding.left?.path === path || finding.right?.path === path)
     )) renderConflictsPreview();
   }
@@ -3562,7 +3613,7 @@ function appendDuplicateMemberDetails(card, member, label = "") {
   const visual = document.createElement("div");
   visual.className = "duplicate-member-visual";
 
-  const preview = state.packagePreviews[member?.path];
+  const preview = cachedPackagePreview(member?.path);
   if (preview?.thumbnailBase64) {
     const image = document.createElement("img");
     image.className = "duplicate-member-thumb";
@@ -4653,7 +4704,7 @@ function renderConflictsPreview() {
     mark.textContent = label;
     const visual = document.createElement("div");
     visual.className = "conflict-member-visual";
-    const preview = state.packagePreviews[member?.path];
+    const preview = cachedPackagePreview(member?.path);
     if (preview?.thumbnailBase64) {
       const image = document.createElement("img");
       image.className = "conflict-member-thumb";
@@ -5699,9 +5750,7 @@ function invalidateAnalysesAfterStructureChange() {
   state.technicalDetails = {};
   state.technicalDetailsErrors = {};
   state.technicalDetailsOpen.clear();
-  state.packagePreviews = {};
-  state.packagePreviewLoading = {};
-  state.packagePreviewErrors = {};
+  clearPackagePreviewCache();
   state.restorePlan = null;
   state.quarantineSelected.clear();
   state.quarantinePlan = null;
@@ -7194,19 +7243,25 @@ function appendMeta(container, label, value) {
 }
 
 async function loadPackagePreview(item) {
-  if (!item || !state.folder || state.packagePreviewLoading[item.path]) return;
-  state.packagePreviewLoading[item.path] = true;
-  delete state.packagePreviewErrors[item.path];
+  const path = item?.path;
+  if (!path || !state.folder || state.packagePreviewLoading[path] || path in state.packagePreviews) return;
+  const folder = state.folder;
+  const session = state.previewSession;
+  state.packagePreviewLoading[path] = true;
+  delete state.packagePreviewErrors[path];
   renderPreview();
   try {
-    state.packagePreviews[item.path] = await invoke("get_package_preview", {
-      folder: state.folder,
-      packagePath: item.path,
-    });
+    const preview = await invoke("get_package_preview", { folder, packagePath: path });
+    if (state.folder === folder && state.previewSession === session) {
+      rememberPackagePreview(path, preview);
+    }
   } catch (error) {
-    state.packagePreviewErrors[item.path] = String(error);
+    if (state.folder === folder && state.previewSession === session) {
+      state.packagePreviewErrors[path] = String(error);
+    }
   } finally {
-    delete state.packagePreviewLoading[item.path];
+    if (state.folder !== folder || state.previewSession !== session) return;
+    delete state.packagePreviewLoading[path];
     renderPreview();
   }
 }
@@ -7300,7 +7355,7 @@ function renderPreview() {
   thumbWrap.className = "package-preview-thumb-wrap";
   thumbWrap.title = t("previewOpenLocation");
   thumbWrap.addEventListener("click", () => revealSafe(item.path));
-  const preview = state.packagePreviews[item.path];
+  const preview = cachedPackagePreview(item.path);
   if (preview?.thumbnailBase64) {
     const image = document.createElement("img");
     image.className = "package-preview-thumb";
@@ -8154,9 +8209,7 @@ function clearLoadedLibrary() {
   state.conflictsSelectedOnly = false;
   state.conflictsReviewWalkthrough = false;
   conflictVisibleMemo.analysis = null;
-  state.packagePreviews = {};
-  state.packagePreviewLoading = {};
-  state.packagePreviewErrors = {};
+  clearPackagePreviewCache();
   state.technicalDetails = {};
   state.technicalDetailsErrors = {};
   state.technicalDetailsOpen.clear();
@@ -8188,6 +8241,7 @@ async function chooseFolder() {
   state.analysisRunId += 1;
   state.analysisStatus = { manager: "not_run", duplicates: "not_run", conflicts: "not_run" };
   state.folder = selected;
+  clearPackagePreviewCache();
   state.postQuarantineNotice = null;
   state.lastExactGroupAnchor = null;
   state.lastConflictReviewAnchor = null;
@@ -8284,6 +8338,7 @@ async function scanFolder(preserveSelection = false, preserveNotice = false) {
     const result = await invoke("scan_packages", { folder, language: state.language });
     if (!analysisSessionMatches(folder, runId)) return;
     state.items = result.items || [];
+    clearPackagePreviewCache();
     state.stats = result.stats || null;
     virtualViews.manager.items = null;
 
