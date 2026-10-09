@@ -308,6 +308,15 @@ const I18N = {
     analyzeHealth: "Analyze Health",
     resourceCfgViewer: "Resource.cfg Viewer / Load Order",
     healthFindings: "Health Findings",
+    healthCategoryFilter: "Category",
+    healthSeverityFilter: "Severity",
+    healthSelectVisible: "Select visible",
+    healthClearSelection: "Clear selection",
+    healthExportSelected: "Export selected (JSON)",
+    healthSelectedCount: "selected",
+    healthAll: "All",
+    healthNoFindings: "No findings for this filter.",
+    healthExported: "Health report saved",
     healthSelectVisible: "Select visible", healthClearSelection: "Clear selection", healthExport: "Export selected (JSON)", healthAll: "All findings", healthErrors: "Errors", healthWarnings: "Warnings", healthInformation: "Information", healthSelectedCount: "selected",
     createSnapshot: "Create Snapshot",
     snapshots: "Snapshots",
@@ -856,6 +865,15 @@ const I18N = {
     analyzeHealth: "Analisar Saúde",
     resourceCfgViewer: "Resource.cfg / Ordem de Carregamento",
     healthFindings: "Resultados de Saúde",
+    healthCategoryFilter: "Categoria",
+    healthSeverityFilter: "Gravidade",
+    healthSelectVisible: "Selecionar visíveis",
+    healthClearSelection: "Limpar seleção",
+    healthExportSelected: "Exportar selecionados (JSON)",
+    healthSelectedCount: "selecionados",
+    healthAll: "Todos",
+    healthNoFindings: "Nenhum resultado neste filtro.",
+    healthExported: "Relatório de saúde salvo",
     healthSelectVisible: "Selecionar visíveis", healthClearSelection: "Limpar seleção", healthExport: "Exportar selecionados (JSON)", healthAll: "Todos os resultados", healthErrors: "Erros", healthWarnings: "Avisos", healthInformation: "Informações", healthSelectedCount: "selecionados",
     createSnapshot: "Criar Snapshot",
     snapshots: "Snapshots",
@@ -1403,6 +1421,15 @@ const I18N = {
     analyzeHealth: "Analizar Salud",
     resourceCfgViewer: "Resource.cfg / Orden de Carga",
     healthFindings: "Resultados de Salud",
+    healthCategoryFilter: "Categoría",
+    healthSeverityFilter: "Gravedad",
+    healthSelectVisible: "Seleccionar visibles",
+    healthClearSelection: "Limpiar selección",
+    healthExportSelected: "Exportar seleccionados (JSON)",
+    healthSelectedCount: "seleccionados",
+    healthAll: "Todos",
+    healthNoFindings: "No hay resultados para este filtro.",
+    healthExported: "Informe de salud guardado",
     healthSelectVisible: "Seleccionar visibles", healthClearSelection: "Limpiar selección", healthExport: "Exportar seleccionados (JSON)", healthAll: "Todos los resultados", healthErrors: "Errores", healthWarnings: "Avisos", healthInformation: "Información", healthSelectedCount: "seleccionados",
     createSnapshot: "Crear Snapshot",
     snapshots: "Snapshots",
@@ -1768,6 +1795,10 @@ const state = {
   healthReport: null,
   healthSelected: new Set(),
   healthFilter: "all",
+  healthSeverity: "all",
+  healthExported: null,
+  healthSelected: new Set(),
+  healthFilter: "all",
   snapshots: [],
   snapshotDiff: null,
   compareRoot: "",
@@ -2121,6 +2152,12 @@ const el = {
   toolsAddRule: document.querySelector("#tools-add-rule"),
   toolsRulesList: document.querySelector("#tools-rules-list"),
   toolsHealthRun: document.querySelector("#tools-health-run"),
+  toolsHealthFilter: document.querySelector("#tools-health-filter"),
+  toolsHealthSeverity: document.querySelector("#tools-health-severity"),
+  toolsHealthSelectVisible: document.querySelector("#tools-health-select-visible"),
+  toolsHealthClearSelection: document.querySelector("#tools-health-clear-selection"),
+  toolsHealthExport: document.querySelector("#tools-health-export"),
+  toolsHealthSelectionCount: document.querySelector("#tools-health-selection-count"),
   healthFilter: document.querySelector("#tools-health-filter"),
   healthSelectVisible: document.querySelector("#tools-health-select-visible"),
   healthClearSelection: document.querySelector("#tools-health-clear-selection"),
@@ -5984,6 +6021,14 @@ function renderProfileTools() {
   }
 }
 
+function visibleHealthFindings() {
+  const findings = state.healthReport?.findings || [];
+  return findings.filter((item) =>
+    (state.healthFilter === "all" || item.category === state.healthFilter) &&
+    (state.healthSeverity === "all" || item.severity === state.healthSeverity)
+  );
+}
+
 function renderHealthTools() {
   const report = state.healthReport;
   el.toolsHealthSummary.innerHTML = "";
@@ -6041,39 +6086,81 @@ function renderHealthTools() {
     el.toolsResourcecfg.appendChild(toolListItem("Resource.cfg", t("missingResourceCfg"), "tools-health-bad"));
   }
 
-  el.toolsHealthFindings.innerHTML = "";
+
   const findings = report?.findings || [];
-  const ids = new Set(findings.map(f => f.id));
-  for (const id of [...state.healthSelected]) if (!ids.has(id)) state.healthSelected.delete(id);
-  el.healthFilter.value = state.healthFilter;
-  const visible = findings.filter(f => state.healthFilter === "all" || f.severity === state.healthFilter);
-  el.healthSelectionStatus.textContent = `${state.healthSelected.size} ${t("healthSelectedCount")}`;
-  el.healthExport.disabled = !report || !state.healthSelected.size || state.toolsBusy;
-  el.healthClearSelection.disabled = !state.healthSelected.size || state.toolsBusy;
-  el.healthSelectVisible.disabled = !visible.length || state.toolsBusy;
-  for (const f of visible) {
+  const known = new Set(findings.map((item) => item.id));
+  for (const id of state.healthSelected) if (!known.has(id)) state.healthSelected.delete(id);
+  const categories = [...new Set(findings.map((item) => item.category))].sort();
+  const categoryOptions = ["all", ...categories];
+  if (!categoryOptions.includes(state.healthFilter)) state.healthFilter = "all";
+  el.toolsHealthFilter.replaceChildren(...categoryOptions.map((category) => {
+    const option = document.createElement("option");
+    option.value = category;
+    option.textContent = category === "all" ? t("healthAll") : category.replaceAll("_", " ");
+    return option;
+  }));
+  el.toolsHealthFilter.value = state.healthFilter;
+  el.toolsHealthSeverity.value = state.healthSeverity;
+  const visible = visibleHealthFindings();
+  el.toolsHealthFindings.replaceChildren();
+  for (const item of visible) {
     const row = document.createElement("label");
-    row.className = "tools-list-item health-review-item";
-    const check = document.createElement("input");
-    check.type = "checkbox";
-    check.checked = state.healthSelected.has(f.id);
-    check.setAttribute("aria-label", f.category + ": " + f.relativePath);
-    check.addEventListener("change", () => {
-      if (check.checked) state.healthSelected.add(f.id); else state.healthSelected.delete(f.id);
+    row.className = "tools-list-item health-finding" + (state.healthSelected.has(item.id) ? " selected" : "");
+    const selection = document.createElement("input");
+    selection.type = "checkbox";
+    selection.checked = state.healthSelected.has(item.id);
+    selection.setAttribute("aria-label", item.category + ": " + item.relativePath);
+    selection.addEventListener("change", () => {
+      if (selection.checked) state.healthSelected.add(item.id);
+      else state.healthSelected.delete(item.id);
       renderHealthTools();
     });
     const content = document.createElement("span");
-    const heading = document.createElement("strong");
-    heading.textContent = `${f.category.replaceAll("_", " ")} (${f.severity})`;
+    const title = document.createElement("strong");
+    title.textContent = item.category.replaceAll("_", " ") + " · " + item.severity;
     const path = document.createElement("code");
-    path.textContent = f.relativePath;
+    path.textContent = item.relativePath;
     const detail = document.createElement("small");
-    detail.textContent = f.detail;
-    content.append(heading, path, detail);
-    row.append(check, content);
-    el.toolsHealthFindings.appendChild(row);
+    detail.textContent = item.detail;
+    content.append(title, path, detail);
+    row.append(selection, content);
+    el.toolsHealthFindings.append(row);
   }
+  if (!visible.length) el.toolsHealthFindings.append(toolListItem(t("healthNoFindings"), ""));
+  el.toolsHealthSelectionCount.textContent = state.healthSelected.size + " " + t("healthSelectedCount");
+  el.toolsHealthSelectVisible.disabled = !visible.length || state.toolsBusy;
+  el.toolsHealthClearSelection.disabled = !state.healthSelected.size || state.toolsBusy;
+  el.toolsHealthExport.disabled = !state.healthSelected.size || state.toolsBusy || !state.folder;
+}
 
+async function exportSelectedHealth() {
+  if (!state.healthReport || !state.healthSelected.size || state.toolsBusy || !state.folder) return;
+  const sourceRoot = state.folder;
+  const selected = state.healthReport.findings.filter((item) => state.healthSelected.has(item.id));
+  const snapshot = {
+    reportKind: "health",
+    generatedAt: new Date().toISOString(),
+    root: sourceRoot,
+    selectionCount: selected.length,
+    stats: state.healthReport.stats,
+    findings: selected
+  };
+  state.toolsBusy = true;
+  state.toolsError = "";
+  renderTools();
+  try {
+    const markdown = ["# Health review", "", "Selected findings: " + selected.length, "",
+      ...selected.flatMap((item) => ["- [" + item.severity + "] " + item.category +
+        " — " + item.relativePath + " — " + item.detail])].join("\n");
+    const result = await invoke("save_audit_report", {
+      folder: sourceRoot, kind: "health", markdown, jsonContent: JSON.stringify(snapshot, null, 2)
+    });
+    if (state.folder === sourceRoot) {
+      state.healthExported = result;
+      state.toolsNotice = t("healthExported") + ": " + result.jsonPath;
+    }
+  } catch (error) { state.toolsError = String(error); }
+  finally { state.toolsBusy = false; renderTools(); }
 }
 
 function renderSnapshotDiff(diff) {
@@ -6602,6 +6689,7 @@ async function analyzeHealth() {
   renderTools();
   try {
     state.healthReport = await invoke("analyze_mods_health", { folder: state.folder });
+    state.healthSelected.clear();
     state.healthSelected.clear();
   } catch (error) { state.toolsError = String(error); }
   finally { state.toolsBusy = false; renderTools(); }
@@ -8702,6 +8790,14 @@ el.toolsDeleteProfile.addEventListener("click", deleteActiveProfile);
 el.toolsAddProtected.addEventListener("click", addProtectedFolder);
 el.toolsAddRule.addEventListener("click", addCustomRule);
 el.toolsHealthRun.addEventListener("click", analyzeHealth);
+el.toolsHealthFilter.addEventListener("change", () => { state.healthFilter = el.toolsHealthFilter.value; renderHealthTools(); });
+el.toolsHealthSeverity.addEventListener("change", () => { state.healthSeverity = el.toolsHealthSeverity.value; renderHealthTools(); });
+el.toolsHealthSelectVisible.addEventListener("click", () => {
+  for (const item of visibleHealthFindings()) state.healthSelected.add(item.id);
+  renderHealthTools();
+});
+el.toolsHealthClearSelection.addEventListener("click", () => { state.healthSelected.clear(); renderHealthTools(); });
+el.toolsHealthExport.addEventListener("click", exportSelectedHealth);
 el.healthFilter.addEventListener("change", () => { state.healthFilter = el.healthFilter.value; renderHealthTools(); });
 el.healthSelectVisible.addEventListener("click", () => {
   for (const f of state.healthReport?.findings || []) if (state.healthFilter === "all" || f.severity === state.healthFilter) state.healthSelected.add(f.id);
