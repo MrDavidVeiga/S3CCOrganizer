@@ -15,6 +15,8 @@ pub struct CatalogClassification {
     pub sub_category: Option<String>,
     pub gender: Option<String>,
     pub age: Option<String>,
+    #[serde(default)]
+    pub age_flags: Option<u32>,
     pub species: Option<String>,
     pub usage_categories: Vec<String>,
     pub folder_parts: Vec<String>,
@@ -764,6 +766,7 @@ pub fn classify_casp(data: &[u8], language: AppLanguage) -> Option<CatalogClassi
         sub_category,
         gender: Some(gender),
         age: Some(age),
+        age_flags: Some(core.age_species_gender & 0x7F),
         species: Some(species),
         usage_categories: casp_usage_categories(core.clothing_category, language),
         candidate_folder_parts: vec![folder_parts.clone()],
@@ -1135,6 +1138,7 @@ pub fn classify_objd(data: &[u8], language: AppLanguage) -> Option<CatalogClassi
             sub_category,
             gender: None,
             age: None,
+            age_flags: None,
             species: None,
             usage_categories: Vec::new(),
             folder_parts,
@@ -1224,6 +1228,7 @@ pub fn classify_objd(data: &[u8], language: AppLanguage) -> Option<CatalogClassi
         sub_category,
         gender: None,
         age: None,
+        age_flags: None,
         species: None,
         usage_categories: {
             let mut usage = room_usage(flags.room_flags, language);
