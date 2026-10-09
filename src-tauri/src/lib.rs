@@ -105,6 +105,7 @@ pub fn run() {
             workspace::save_workspace,
             workspace::set_read_only,
             workspace::set_package_metadata,
+            workspace::toggle_package_favorite,
             workspace::set_manual_classification,
             workspace::save_package_group,
             workspace::delete_package_group,
