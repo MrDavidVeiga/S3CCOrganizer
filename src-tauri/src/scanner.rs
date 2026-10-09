@@ -4,6 +4,7 @@ use crate::{
     i18n::AppLanguage,
     manifest::sha256_file,
     operation::{self, CANCELLED_ERROR},
+    resource_cfg::is_mods_layout_root,
     workspace::{load_workspace_for_root, split_destination},
     package_family::{
         classify_package_family, PackageFamilyClassification, PackageFamilyResult, TYPE_BBLN,
@@ -559,7 +560,10 @@ fn special_package_classification(
     // present in the supplied NRaas corpus, including tuning-only modules.
     if let Some(evidence) = internal_signature(
         package,
-        &[TYPE_NMAP_LOCAL, TYPE_XML_LOCAL, TYPE_ITUN_LOCAL, TYPE_STBL_LOCAL, TYPE_MANIFEST_LOCAL],
+        // A mention of NRaas in XML/ITUN/STBL (e.g. a compatibility hook)
+        // is not proof that the package was authored by NRaas. Require
+        // authoritative internal name/manifest evidence instead.
+        &[TYPE_NMAP_LOCAL, TYPE_MANIFEST_LOCAL],
         &["nraas"],
     ) {
         let folder = localized_special_folder(language, "nraas").to_string();
@@ -2023,8 +2027,9 @@ fn physical_destination_parts(
         .unwrap_or_default();
     let source_top = source_relative.replace('\\', "/")
         .split('/').next().unwrap_or("").to_lowercase();
+    let mods_layout = is_mods_layout_root(root);
     let override_source = root_name == "overrides"
-        || (root_name == "mods" && source_top == "overrides");
+        || (mods_layout && source_top == "overrides");
 
     let mut result = parts.to_vec();
     if result.first().is_some_and(|part| part.eq_ignore_ascii_case("Packages")
@@ -2035,7 +2040,7 @@ fn physical_destination_parts(
     if result.first().is_some_and(|part| part.eq_ignore_ascii_case("CAS")) {
         result.remove(0);
     }
-    if root_name == "mods" && !result.is_empty() {
+    if mods_layout && !result.is_empty() {
         result.insert(0, if override_source {
             "Overrides".to_string()
         } else {
@@ -2048,9 +2053,7 @@ fn physical_destination_parts(
             ancestor.file_name().is_some_and(|name| {
                 name.to_string_lossy().eq_ignore_ascii_case("Packages")
                     || name.to_string_lossy().eq_ignore_ascii_case("Overrides")
-            }) && ancestor.parent().is_some_and(|parent| {
-                parent.file_name().is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("Mods"))
-            })
+            }) && ancestor.parent().is_some_and(is_mods_layout_root)
         });
         if let Some(branch) = branch {
             let existing = root.strip_prefix(branch).ok().into_iter()
@@ -2205,6 +2208,26 @@ pub async fn scan_packages(folder: String, language: AppLanguage) -> Result<Scan
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn copied_mods_root_scanner_keeps_packages_and_overrides_distinct() {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let nonce = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let root = std::env::temp_dir().join(format!("s3cc-scanner-copy-{}-{nonce}",std::process::id()))
+            .join("Mods - Copia");
+        std::fs::create_dir_all(root.join("Packages")).unwrap();
+        std::fs::create_dir_all(root.join("Overrides")).unwrap();
+        let parts = vec!["CAS".into(), "Cabelos".into()];
+        assert_eq!(
+            physical_destination_parts(&root,"Packages\\Legacy\\hair.package",&parts),
+            vec!["Packages", "Cabelos"]
+        );
+        assert_eq!(
+            physical_destination_parts(&root,"Overrides\\Legacy\\hair.package",&parts),
+            vec!["Overrides", "Cabelos"]
+        );
+        std::fs::remove_dir_all(root.parent().unwrap()).unwrap();
+    }
 
     #[test]
     fn eyelash_multi_slot_bundle_is_not_stranded_as_mixed() {
