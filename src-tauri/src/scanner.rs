@@ -2565,6 +2565,33 @@ mod tests {
     }
 
     #[test]
+    fn scanner_preview_respects_packages_for_arbitrary_root_names() {
+        let base = std::env::temp_dir().join(format!(
+            "s3cc-arbitrary-preview-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
+        ));
+        let folder = base.join("An Arbitrary Directory");
+        std::fs::create_dir_all(folder.join("Packages/Old")).unwrap();
+        let categories = vec!["Scripts".into(), "Jogabilidade".into(), "NRaas".into()];
+        assert_eq!(
+            physical_destination_parts(&folder, "Packages/Old/script.package", &categories),
+            vec!["Packages", "Scripts", "Jogabilidade", "NRaas"]
+        );
+        let selected_packages = folder.join("Packages");
+        assert_eq!(
+            physical_destination_parts(&selected_packages, "Old/script.package", &categories),
+            categories
+        );
+        assert_eq!(
+            physical_destination_parts(&folder, "Cabelos/old.package",
+                &["Cabelos".into(), "Masculino".into()]),
+            vec!["Packages", "Cabelos", "Masculino"]
+        );
+        std::fs::remove_dir_all(base).unwrap();
+    }
+
+    #[test]
     fn nested_scan_previews_do_not_recreate_existing_categories() {
         let mods = Path::new("Game").join("Mods");
         let folder = mods.join("Packages").join("Clothing").join("Male");
