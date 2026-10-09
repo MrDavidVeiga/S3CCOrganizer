@@ -291,19 +291,26 @@
             <div id="duplicates-results" class="duplicates-results hidden">
               <div id="duplicates-list" class="duplicates-list" aria-live="polite"></div>
             </div>
-            <div class="analysis-list-footer" data-report-panel="duplicates">
+            <div class="analysis-list-footer duplicates-action-footer" data-report-panel="duplicates">
               <span class="analysis-audit-status" data-audit-status="duplicates" aria-live="polite"></span>
-              <div class="analysis-list-footer-actions">
-                <button id="duplicates-select-exact-btn" class="secondary-btn" type="button" data-i18n="selectExactDuplicates">Select All Exact Copies</button>
-                <button id="duplicates-select-current-btn" class="secondary-btn" type="button" data-i18n="selectCurrentDuplicateGroup">Select Current Group Only</button>
-                <button id="duplicates-select-visible-btn" class="secondary-btn" type="button" data-i18n="selectVisibleExactGroups">Select Filtered Exact Groups</button>
-                <button id="duplicates-preview-all-btn" class="secondary-btn" type="button" data-i18n="previewQuarantine">Preview Quarantine</button>
-                <button id="duplicates-clear-selection-btn" class="secondary-btn" type="button" data-i18n="clearSelection">Clear Selection</button>
-                <button class="secondary-btn" type="button" data-export-audit="duplicates" data-i18n="exportAuditReport">Export Report</button>
-                <button class="secondary-btn hidden" type="button" data-open-report-folder="duplicates" data-i18n="openReportFolder">Open Reports</button>
-                <button id="duplicates-clear-list-btn" class="danger-btn" type="button" data-i18n="clearList">Clear List</button>
+              <div class="duplicates-primary-actions">
+                <button id="duplicates-select-exact-btn" class="secondary-btn" type="button" data-i18n="selectExactDuplicatesCompact">Select Exact Duplicates</button>
+                <button id="duplicates-preview-all-btn" class="primary-btn" type="button" data-i18n="previewQuarantine">Preview Quarantine</button>
               </div>
-              <div id="duplicates-batch-summary" class="analysis-batch-summary" role="status" aria-live="polite"></div>
+              <div class="duplicates-action-details">
+                <div id="duplicates-batch-summary" class="analysis-batch-summary" role="status" aria-live="polite"></div>
+                <details id="duplicates-more-actions" class="duplicate-batch-menu">
+                  <summary class="duplicate-batch-menu-trigger" data-i18n="duplicateBatchActions">More Actions</summary>
+                  <div class="duplicate-batch-menu-content">
+                    <button id="duplicates-select-current-btn" class="secondary-btn" type="button" data-i18n="selectCurrentDuplicateGroup">Select Current Group Only</button>
+                    <button id="duplicates-select-visible-btn" class="secondary-btn" type="button" data-i18n="selectVisibleExactGroups">Select Filtered Exact Groups</button>
+                    <button id="duplicates-clear-selection-btn" class="secondary-btn" type="button" data-i18n="clearSelection">Clear Selection</button>
+                    <button class="secondary-btn" type="button" data-export-audit="duplicates" data-i18n="exportAuditReport">Export Report</button>
+                    <button class="secondary-btn hidden" type="button" data-open-report-folder="duplicates" data-i18n="openReportFolder">Open Reports</button>
+                    <button id="duplicates-clear-list-btn" class="danger-btn" type="button" data-i18n="clearList">Clear List</button>
+                  </div>
+                </details>
+              </div>
               <div id="duplicates-batch-preview" class="quarantine-preview hidden" aria-live="polite"></div>
             </div>
           </section>
