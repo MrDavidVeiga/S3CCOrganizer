@@ -7687,10 +7687,15 @@ async function toggleOrganizerFavorite(item) {
 
 async function openOrganizerMetadataEditor(item) {
   if (!item || !/\.package$/i.test(item.path || "") || !state.folder) return;
+  const folder = state.folder;
   state.tab = "tools";
   state.toolsTab = "metadata";
   persistPreferences();
   render();
+  // Loading metadata from a stale/empty frontend workspace risks displaying
+  // empty tags and overwriting them if the user saves immediately.
+  if (!state.workspaceStore) await loadWorkspaceTools();
+  if (state.folder !== folder) return;
   el.toolsMetadataPackage.value = item.path;
   await loadMetadataSelection();
 }
