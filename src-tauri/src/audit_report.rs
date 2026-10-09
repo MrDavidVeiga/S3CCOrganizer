@@ -27,6 +27,7 @@ fn unique_paths(directory: &Path, kind: &str) -> (PathBuf, PathBuf) {
         "organizer" => "Organizer",
         "duplicates" => "Duplicates",
         "conflicts" => "Conflicts",
+        "health" => "Health",
         _ => unreachable!("Report type must be validated"),
     };
     let stamp = Local::now().format("%Y%m%d-%H%M%S").to_string();
@@ -64,7 +65,7 @@ pub fn save_audit_report(
     markdown: String,
     json_content: String,
 ) -> Result<AuditReportResult, String> {
-    if !matches!(kind.as_str(), "organizer" | "duplicates" | "conflicts") {
+    if !matches!(kind.as_str(), "organizer" | "duplicates" | "conflicts" | "health") {
         return Err("Invalid audit report type.".to_string());
     }
     let root = PathBuf::from(folder.trim())
