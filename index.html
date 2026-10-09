@@ -361,26 +361,28 @@
             <div id="conflicts-results" class="conflicts-results hidden">
               <div id="conflicts-list" class="conflicts-list" aria-live="polite"></div>
             </div>
-            <div class="analysis-list-footer" data-report-panel="conflicts">
+            <div class="analysis-list-footer conflicts-action-footer" data-report-panel="conflicts">
               <span class="analysis-audit-status" data-audit-status="conflicts" aria-live="polite"></span>
-              <div id="conflicts-review-selection-count" class="analysis-batch-summary" role="status" aria-live="polite"></div>
-              <div class="analysis-list-footer-actions conflicts-list-primary-actions">
-                <button id="conflicts-select-detected-btn" class="secondary-btn" type="button" data-i18n="selectAllDetectedConflicts">Select All Detected Conflicts</button>
-                <button id="conflicts-select-all-btn" class="secondary-btn" type="button" data-i18n="selectAllVisibleConflicts">Select Visible Conflicts</button>
-                <button id="conflicts-preview-quarantine-btn" class="secondary-btn" type="button" data-i18n="previewSelectedQuarantine">Preview Selected Quarantine</button>
-                <button class="secondary-btn" type="button" data-export-audit="conflicts" data-i18n="exportAuditReport">Export Report</button>
-                <button class="secondary-btn hidden" type="button" data-open-report-folder="conflicts" data-i18n="openReportFolder">Open Reports</button>
-                <details class="conflicts-batch-menu">
-                  <summary class="conflicts-batch-menu-trigger" data-i18n="conflictBatchActions">More review actions</summary>
+              <div class="conflicts-primary-actions">
+                <button id="conflicts-select-detected-btn" class="secondary-btn" type="button" data-i18n="selectConflictsForReview">Select for Review</button>
+                <button id="conflicts-prioritize-selected-btn" class="primary-btn" type="button" data-i18n="reviewSelectedConflicts">Review Selected</button>
+              </div>
+              <div class="conflicts-action-details">
+                <div id="conflicts-review-selection-count" class="analysis-batch-summary" role="status" aria-live="polite"></div>
+                <details id="conflicts-more-actions" class="conflicts-batch-menu">
+                  <summary class="conflicts-batch-menu-trigger" data-i18n="moreActions">More Actions</summary>
                   <div class="conflicts-batch-menu-content">
+                    <button id="conflicts-select-all-btn" class="secondary-btn" type="button" data-i18n="selectAllVisibleConflicts">Select Visible Conflicts</button>
                     <button id="conflicts-clear-review-btn" class="secondary-btn" type="button" data-i18n="clearReviewSelection">Clear Review Selection</button>
-                    <button id="conflicts-prioritize-selected-btn" class="secondary-btn" type="button" data-i18n="prioritizeSelectedConflicts">Prioritize Selected</button>
-                    <button id="conflicts-mark-intentional-btn" class="secondary-btn" type="button" data-i18n="markSelectedIntentional">Mark Selected Intentional</button>
                     <button id="conflicts-mark-reviewed-btn" class="secondary-btn" type="button" data-i18n="markSelectedReviewed">Mark Selected Reviewed (Session)</button>
+                    <button id="conflicts-mark-intentional-btn" class="secondary-btn" type="button" data-i18n="markSelectedIntentional">Mark Selected Intentional</button>
                     <button id="conflicts-mark-ignored-btn" class="secondary-btn" type="button" data-i18n="ignoreSelectedSession">Ignore Selected (Session)</button>
                     <button id="conflicts-clear-marks-btn" class="secondary-btn" type="button" data-i18n="clearSelectedMarks">Clear Selected Marks</button>
                     <button id="conflicts-prioritize-btn" class="secondary-btn" type="button" data-i18n="prioritizeConflicts">Prioritize All</button>
-                    <button id="conflicts-clear-quarantine-btn" class="secondary-btn" type="button" data-i18n="clearSelection">Clear Selection</button>
+                    <button id="conflicts-preview-quarantine-btn" class="secondary-btn" type="button" data-i18n="previewSelectedQuarantine">Preview Selected Quarantine</button>
+                    <button id="conflicts-clear-quarantine-btn" class="secondary-btn" type="button" data-i18n="clearSelection">Clear Quarantine Selection</button>
+                    <button class="secondary-btn" type="button" data-export-audit="conflicts" data-i18n="exportAuditReport">Export Report</button>
+                    <button class="secondary-btn hidden" type="button" data-open-report-folder="conflicts" data-i18n="openReportFolder">Open Reports</button>
                     <button id="conflicts-clear-list-btn" class="danger-btn" type="button" data-i18n="clearList">Clear List</button>
                   </div>
                 </details>
@@ -937,6 +939,11 @@
           <div id="conflicts-preview" class="conflicts-preview"></div>
         </div>
         <footer class="planner-footer conflict-details-footer">
+          <div id="conflict-review-navigation" class="conflict-review-navigation hidden" role="group" aria-label="Conflict review navigation">
+            <button id="conflict-review-prev-btn" class="secondary-btn" type="button" data-i18n="previousConflict">Previous</button>
+            <span id="conflict-review-position" class="conflict-review-position" role="status" aria-live="polite"></span>
+            <button id="conflict-review-next-btn" class="secondary-btn" type="button" data-i18n="nextConflict">Next</button>
+          </div>
           <span><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> <span data-i18n="conflictDetailsSafety">Reviewing a conflict does not change either package.</span></span>
           <button id="conflict-details-close-footer-btn" class="secondary-btn" type="button" data-i18n="close">Close</button>
         </footer>
