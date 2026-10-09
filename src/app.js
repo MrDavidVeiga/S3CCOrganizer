@@ -1797,8 +1797,6 @@ const state = {
   healthFilter: "all",
   healthSeverity: "all",
   healthExported: null,
-  healthSelected: new Set(),
-  healthFilter: "all",
   snapshots: [],
   snapshotDiff: null,
   compareRoot: "",
@@ -2916,28 +2914,19 @@ function t(key) {
   return I18N[state.language]?.[key] ?? I18N.en[key] ?? key;
 }
 
+// Selection is based on the package's safety state, not just a completed
+// classification. Unknown packages may move to Not Categorized; mixed,
+// ambiguous and corrupt packages must stay available for explicit review.
 function eligibleForPlan(item) {
-  if (!item?.path || item.status !== "classified" || !item.destinationPath) return false;
-  // Old Manager versions wrote category folders directly below Mods.
-  // Allow recognized legacy folders and Overrides, but the backend must
-  // always keep Overrides inside Overrides and honor Resource.cfg rules.
-  if (/[\\/]Mods[\\/]*$/i.test(state.folder || "") &&
-      !/^Packages[\\/]/i.test(String(item.relativePath || ""))) {
-    const legacyRoot = String(item.relativePath || "").split(/[\\/]/)[0].toLocaleLowerCase();
-    const managedCategories = new Set([
-      "cas", "sliders", "clothing", "roupas", "ropa",
-      "hair", "cabelos", "cabello", "accessories", "acessórios", "accesorios",
-      "makeup", "maquiagem", "maquillaje", "genetics", "genética", "genetica",
-      "pets", "animais", "mascotas", "patterns", "padrões", "patrones",
-      "buy", "compra", "build", "construção", "construcción",
-      "objects", "objetos", "gameplay", "jogabilidade", "jugabilidad",
-      "scripts", "store", "nraas", "localization", "localização",
-      "localización", "poses and animations", "poses e animações",
-      "poses y animaciones",
-    ]);
-    if (legacyRoot !== "overrides" && !managedCategories.has(legacyRoot)) return false;
-  }
-  return item.classificationConfidence === "high" || item.classificationConfidence === "manual";
+  if (!item?.path) return false;
+  const status = String(item.status || "");
+  if (status === "unknown") return true;
+  if (status !== "classified" || !item.destinationPath) return false;
+  const verifiedCompanion =
+    item.classificationConfidence === "medium" &&
+    (item.detectedFrom || []).includes("ModFolderCompanion");
+  return item.classificationConfidence === "high" ||
+    item.classificationConfidence === "manual" || verifiedCompanion;
 }
 
 function statusLabel(status) {
@@ -2951,12 +2940,12 @@ function statusLabel(status) {
 }
 
 function supportsResourceCfgUpdate(folder) {
-  const parts = String(folder || "").replaceAll("\\", "/").split("/").filter(Boolean);
-  const mods = parts.findLastIndex(part => part.toLowerCase() === "mods");
-  if (mods < 0) return false;
-  return mods === parts.length - 1 ||
-    (mods === parts.length - 2 && /^(packages|overrides)$/i.test(parts[mods + 1])) ||
-    (mods < parts.length - 2 && /^(packages|overrides)$/i.test(parts[mods + 1]));
+  const parts = String(folder || "").replaceAll("\\\\", "/").split("/").filter(Boolean);
+  const mods = parts.findLastIndex((part, index) =>
+    /^mods(?:[ _-].+| \\(.+\\))?$/i.test(part) &&
+    (index === parts.length - 1 || /^(packages|overrides)$/i.test(parts[index + 1]))
+  );
+  return mods >= 0;
 }
 
 function planCanExecute(plan) {
