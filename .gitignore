@@ -7,3 +7,5 @@ src-tauri/target/
 
 # Local corpus reports and temporary validation scratch (never commit user CC)
 reports/local-corpus/
+reports/reconciliation-20261009/
+reports/reconciliation-20261010-phase2/

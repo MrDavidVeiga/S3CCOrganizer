@@ -563,10 +563,6 @@ fn parse_casp_core(data: &[u8]) -> Option<CaspCore> {
 
 fn casp_age_label(value: u32, language: AppLanguage) -> String {
     let bits = value & 0x7F;
-    if bits == (0x10 | 0x20) {
-        return language.young_adult_adult().to_string();
-    }
-
     let labels = [
         (0x01, language.baby()),
         (0x02, language.toddler()),
@@ -587,13 +583,32 @@ fn casp_age_label(value: u32, language: AppLanguage) -> String {
 
     let selected = labels
         .into_iter()
-        .filter_map(|(flag, label)| ((bits & flag) != 0).then_some(label))
+        .enumerate()
+        .filter_map(|(index, (flag, label))| ((bits & flag) != 0).then_some((index, label)))
         .collect::<Vec<_>>();
 
     if selected.is_empty() {
         language.unknown().to_string()
+    } else if selected.len() == 1 {
+        selected[0].1.to_string()
     } else {
-        selected.join("-")
+        let contiguous = selected
+            .windows(2)
+            .all(|pair| pair[1].0 == pair[0].0 + 1);
+        let conjunction = match language {
+            AppLanguage::En => if contiguous { " to " } else { " and " },
+            AppLanguage::Pt => if contiguous { " a " } else { " e " },
+            AppLanguage::Es => if contiguous { " a " } else { " y " },
+        };
+        if contiguous {
+            format!("{}{}", selected.first().unwrap().1, conjunction) + selected.last().unwrap().1
+        } else {
+            selected
+                .iter()
+                .map(|(_, label)| *label)
+                .collect::<Vec<_>>()
+                .join(conjunction)
+        }
     }
 }
 
@@ -739,8 +754,11 @@ pub fn classify_casp(data: &[u8], language: AppLanguage) -> Option<CatalogClassi
         folder_parts.push(gender.clone());
         // Accessories retain gender and optional accessory subtype, but
         // age flags remain available as metadata rather than folder levels.
-        // This also saves Resource.cfg depth in both loading branches.
-        if main_key != "Accessories" {
+        // Body hair and facial hair follow the approved hair layout and do
+        // not receive an age folder. This also saves Resource.cfg depth in
+        // both loading branches.
+        let age_is_physical = !matches!(sub_key, Some("Facial Hair" | "Body Hair"));
+        if main_key != "Accessories" && age_is_physical {
             folder_parts.push(age.clone());
         }
     }
@@ -1553,11 +1571,11 @@ mod tests {
         assert_eq!(classification.main_category, "Clothing");
         assert_eq!(classification.sub_category.as_deref(), Some("Top"));
         assert_eq!(classification.gender.as_deref(), Some("Female"));
-        assert_eq!(classification.age.as_deref(), Some("YA-A"));
+        assert_eq!(classification.age.as_deref(), Some("Young Adult to Adult"));
         assert_eq!(classification.species.as_deref(), Some("Human"));
         assert_eq!(
             classification.folder_parts,
-            vec!["CAS", "Clothing", "Female", "YA-A", "Top"]
+            vec!["CAS", "Clothing", "Female", "Young Adult to Adult", "Top"]
         );
         assert_eq!(
             classification.usage_categories,
@@ -1584,6 +1602,22 @@ mod tests {
         assert_eq!(casp_age_label(0x02, AppLanguage::Pt), "Bebê");
         assert_eq!(casp_age_label(0x01, AppLanguage::Pt), "Recém-Nascido");
         assert_eq!(casp_age_label(0x04, AppLanguage::Pt), "Criança");
+        assert_eq!(casp_age_label(0x04 | 0x20, AppLanguage::Pt), "Criança e Adulto");
+        assert_eq!(casp_age_label(0x04 | 0x08 | 0x10 | 0x20 | 0x40, AppLanguage::Pt), "Criança a Idoso");
+    }
+
+    #[test]
+    fn facial_and_body_hair_have_no_physical_age_level() {
+        for clothing_type in [0x10, 0x27] {
+            let item = classify_casp(
+                &minimal_casp(clothing_type, 0, 0x0000_2178, 0),
+                AppLanguage::Pt,
+            )
+            .unwrap();
+            assert_eq!(item.main_category, "Cabelos");
+            assert!(item.folder_parts.iter().all(|part| !part.contains("Idade")));
+            assert!(item.folder_parts.iter().all(|part| part != "Múltiplas Idades"));
+        }
     }
 
     #[test]

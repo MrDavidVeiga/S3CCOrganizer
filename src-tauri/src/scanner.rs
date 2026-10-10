@@ -217,7 +217,7 @@ const TYPE_CLIP_LOCAL: u32 = 0x6B20_C4F3;
 
 fn localized_special_folder(language: AppLanguage, key: &str) -> &'static str {
     match (language, key) {
-        (_, "nraas") => "NRaas Mods",
+        (_, "nraas") => "NRaas",
         (AppLanguage::En, "poses") => "Poses and Animations",
         (AppLanguage::Pt, "poses") => "Poses e Animações",
         (AppLanguage::Es, "poses") => "Poses y Animaciones",
@@ -462,19 +462,168 @@ fn script_category(name: &str, language: AppLanguage) -> &'static str {
 // verified internal author or an explicitly scripted source tree is independent
 // evidence that the assembly is primary rather than embedded object behavior.
 fn script_creator_folder(language: AppLanguage, creator: Option<&str>) -> Vec<String> {
-    // Canonical user-requested path. Keep the *mod name* and gameplay topic
-    // as searchable metadata, not as extra physical directory levels.
-    // Unverified names are never guessed from unrelated filenames.
-    let unnamed = match language {
-        AppLanguage::En => "Unknown Author",
-        AppLanguage::Pt => "Autor Não Identificado",
-        AppLanguage::Es => "Autor Desconocido",
-    };
+    // A verified author is metadata, not a physical destination. Gameplay
+    // packages stay under the localized gameplay category; only NRaas has a
+    // creator-level tree because its package family is part of the approved
+    // physical organization. Named mod folders are added later only when a
+    // real source folder contains a related set of packages.
+    if creator.is_some_and(|name| name.eq_ignore_ascii_case("NRaas")) {
+        return vec![
+            localized_special_folder(language, "scripts").to_string(),
+            localized_special_folder(language, "gameplay").to_string(),
+            "NRaas".to_string(),
+        ];
+    }
     vec![
         localized_special_folder(language, "scripts").to_string(),
         localized_special_folder(language, "gameplay").to_string(),
-        creator.filter(|name| !name.trim().is_empty()).unwrap_or(unnamed).to_string(),
     ]
+}
+
+fn compact_identifier(value: &str) -> String {
+    value
+        .chars()
+        .filter(|ch| ch.is_ascii_alphanumeric())
+        .collect::<String>()
+        .to_ascii_lowercase()
+}
+
+fn authoritative_nraas_identifier(value: &str) -> bool {
+    let trimmed = value.trim();
+    let lower = trimmed.to_ascii_lowercase();
+    let compact = compact_identifier(trimmed);
+    if !compact.starts_with("nraas") || compact == "nraas" {
+        return false;
+    }
+
+    // A logo/reference such as Battery.NRaasLogo2 is intentionally rejected:
+    // the identifier must be a namespace/mod name boundary, not a substring.
+    let remainder = lower.strip_prefix("nraas").unwrap_or_default();
+    matches!(remainder.chars().next(), Some('_' | '.' | ':' | '/' | '\\'))
+        && !remainder.contains("logo")
+}
+
+fn nraas_internal_evidence(package: &Package, name: &str, relative: &str) -> Option<String> {
+    if is_explicit_non_nraas_integration(name) {
+        return None;
+    }
+
+    for entry in &package.entries {
+        if entry.type_id != TYPE_NMAP_LOCAL {
+            continue;
+        }
+        let Ok(data) = package.data(entry) else { continue };
+        if let Some(identifier) = nmap_names(&data)
+            .into_iter()
+            .find(|value| authoritative_nraas_identifier(value))
+        {
+            return Some(format!("NMAP authoritative identifier '{identifier}'"));
+        }
+    }
+
+    // Assembly/manifest evidence is accepted only when the namespace has a
+    // boundary and the package is actually scripted. Raw 'nraas' mentions in
+    // XML, ITUN, STBL or UI assets are never sufficient.
+    if package.entries.iter().any(|entry| entry.type_id == TYPE_S3SA)
+        && internal_signature(
+            package,
+            &[TYPE_S3SA, TYPE_MANIFEST_LOCAL],
+            &["nraas.", "nraas_", "nraas\\"],
+        )
+        .is_some()
+    {
+        return Some("S3SA/manifest namespace boundary for NRaas".to_string());
+    }
+
+    let normalized_relative = relative.replace('\\', "/").to_ascii_lowercase();
+    if normalized_relative.split('/').any(|part| part == "nraas")
+        && Path::new(name)
+            .file_stem()
+            .is_some_and(|stem| authoritative_nraas_identifier(&stem.to_string_lossy()))
+    {
+        return Some("Existing NRaas source branch plus authoritative package name".to_string());
+    }
+
+    None
+}
+
+// NRaas family folders are conditional physical structure, not a taxonomy
+// guess. The primary package and at least one verified module must coexist in
+// the same scan before a family subfolder is created.
+fn nraas_family_role(name: &str) -> Option<(&'static str, bool)> {
+    let stem = Path::new(name).file_stem()?.to_string_lossy().to_ascii_lowercase();
+    let compact = stem.chars().filter(|ch| ch.is_ascii_alphanumeric()).collect::<String>();
+    for (token, family) in [
+        ("nraasmastercontroller", "MasterController"),
+        ("nraasstoryprogression", "StoryProgression"),
+        ("nraascareers", "Careers"),
+        ("nraascareer", "Careers"),
+        ("nraaswoohooer", "Woohooer"),
+        ("nraasvector", "Vector"),
+    ] {
+        if compact == token {
+            return Some((family, false));
+        }
+        if let Some(suffix) = compact.strip_prefix(token) {
+            let module = !suffix.is_empty()
+                && !matches!(suffix, "translation" | "english" | "portuguese" | "spanish" | "ptbr" | "en" | "es");
+            if module {
+                return Some((family, true));
+            }
+        }
+    }
+    None
+}
+
+fn nraas_family_destination(
+    language: AppLanguage,
+    family: &str,
+    has_primary: bool,
+    has_module: bool,
+) -> Vec<String> {
+    let mut destination = script_creator_folder(language, Some("NRaas"));
+    if has_primary && has_module {
+        destination.push(family.to_string());
+    }
+    destination
+}
+
+fn apply_nraas_family_subfolders(language: AppLanguage, items: &mut [ScanPackageItem]) {
+    let mut families = HashMap::<String, (bool, bool)>::new();
+    for item in items.iter().filter(|item| item.detected_from.iter().any(|source| source == "NRaasInternal")) {
+        let Some((family, module)) = nraas_family_role(&item.name) else { continue };
+        let state = families.entry(family.to_string()).or_default();
+        if module { state.1 = true; } else { state.0 = true; }
+    }
+
+    for item in items.iter_mut().filter(|item| item.detected_from.iter().any(|source| source == "NRaasInternal")) {
+        let Some((family, module)) = nraas_family_role(&item.name) else { continue };
+        let Some((has_primary, has_module)) = families.get(family).copied() else { continue };
+        if module && !has_primary {
+            item.warnings.push(format!(
+                "NRaas family module '{}' was detected without its primary package; it remains directly under NRaas.",
+                family
+            ));
+        }
+        let destination = nraas_family_destination(language, family, has_primary, has_module);
+        item.destination_parts = destination;
+        item.destination_path = Some(item.destination_parts.join("\\"));
+        item.detected_from.push("NRaasConditionalFamily".to_string());
+        item.detected_from.sort();
+        item.detected_from.dedup();
+        item.classification_reason = Some(format!(
+            "{} | NRaas family '{}' uses a subfolder only when primary={} and module={}",
+            item.classification_reason.clone().unwrap_or_default(), family, has_primary, has_module
+        ));
+    }
+}
+
+fn is_explicit_non_nraas_integration(name: &str) -> bool {
+    let value = name.to_ascii_lowercase();
+    let compact = value.chars().filter(|ch| ch.is_ascii_alphanumeric()).collect::<String>();
+    ["simpanel", "smoothpatch", "monopatcher", "neoh4x0r", "bankingmod", "bakingmod"]
+        .iter()
+        .any(|token| compact.contains(token))
 }
 
 fn script_source_roles(relative: &str) -> (bool, bool, bool) {
@@ -556,20 +705,13 @@ fn special_package_classification(
     language: AppLanguage,
     catalog_resource_count: usize,
 ) -> Option<PackageFamilyClassification> {
-    // NRaas is detected from package internals rather than filenames. NMAP is
-    // present in the supplied NRaas corpus, including tuning-only modules.
-    if let Some(evidence) = internal_signature(
-        package,
-        // A mention of NRaas in XML/ITUN/STBL (e.g. a compatibility hook)
-        // is not proof that the package was authored by NRaas. Require
-        // authoritative internal name/manifest evidence instead.
-        &[TYPE_NMAP_LOCAL, TYPE_MANIFEST_LOCAL],
-        &["nraas"],
-    ) {
+    // NRaas is detected from an authoritative namespace/mod identifier, never
+    // from a loose substring in NMAP, manifest, UI icon, STBL, XML or ITUN.
+    if let Some(evidence) = nraas_internal_evidence(package, name, relative) {
         let folder = localized_special_folder(language, "nraas").to_string();
         return Some(PackageFamilyClassification {
             main_category: localized_special_folder(language, "scripts").to_string(),
-            sub_category: Some(localized_special_folder(language, "gameplay").to_string()),
+            sub_category: None,
             folder_parts: script_creator_folder(language, Some("NRaas")),
             detected_from: vec!["NRaasInternal".to_string()],
             technical_reason: format!("Internal NRaas signature ({evidence}) => {folder}"),
@@ -1337,7 +1479,7 @@ fn value_is_authoritative_mod_source(source: &str) -> bool {
 }
 
 fn apply_named_mod_companions(items: &mut [ScanPackageItem]) {
-    let mut destinations = HashMap::<String, BTreeSet<String>>::new();
+    let mut destinations = HashMap::<String, (BTreeSet<String>, usize, String)>::new();
 
     for item in items.iter() {
         if !item.scripted || item.status != "classified" {
@@ -1349,18 +1491,53 @@ fn apply_named_mod_companions(items: &mut [ScanPackageItem]) {
         let Some(folder) = named_mod_companion_folder(&item.relative_path) else {
             continue;
         };
-        destinations
+        let state = destinations
             .entry(folder.to_ascii_lowercase())
-            .or_default()
-            .insert(item.destination_parts.join("\\"));
+            .or_default();
+        state.0.insert(item.destination_parts.join("\\"));
+        state.1 += 1;
+        state.2 = folder;
     }
 
     let unique = destinations
         .into_iter()
-        .filter_map(|(folder, values)| {
-            (values.len() == 1).then(|| (folder, values.into_iter().next().unwrap()))
+        .filter_map(|(folder_key, (values, scripted_count, folder))| {
+            // A single script with an author-like source folder is not enough
+            // to create a physical mod directory. Require a related set.
+            (values.len() == 1 && scripted_count >= 2).then(|| {
+                let base = values.into_iter().next().unwrap();
+                let destination = format!("{base}\\{folder}");
+                (folder_key, destination)
+            })
         })
         .collect::<HashMap<_, _>>();
+
+    for item in items.iter_mut() {
+        if !item.scripted || !item.detected_from.iter().any(|value| value == "ModName") {
+            continue;
+        }
+        let Some(folder) = named_mod_companion_folder(&item.relative_path) else {
+            continue;
+        };
+        let Some(destination) = unique.get(&folder.to_ascii_lowercase()) else {
+            continue;
+        };
+        let parts = destination.split('\\').map(str::to_string).collect::<Vec<_>>();
+        if item.destination_parts == parts {
+            continue;
+        }
+        item.destination_parts = parts.clone();
+        item.destination_path = Some(destination.clone());
+        item.detected_from.push("NamedModFamily".to_string());
+        item.detected_from.sort();
+        item.detected_from.dedup();
+        item.classification_reason = Some(format!(
+            "{} | Related scripted packages in named source folder '{}' share a deterministic mod folder => {}",
+            item.classification_reason.clone().unwrap_or_default(),
+            folder,
+            destination
+        ));
+    }
 
     for item in items.iter_mut() {
         if !may_reclassify_as_companion(item) {
@@ -2127,6 +2304,13 @@ fn physical_destination_parts(
     result
 }
 
+fn remove_generic_unknown_levels(parts: Vec<String>) -> Vec<String> {
+    parts.into_iter()
+        .filter(|part| !matches!(part.trim().to_ascii_lowercase().as_str(),
+            "unknown" | "desconhecido" | "desconocido"))
+        .collect()
+}
+
 pub fn scan_packages_core(
     folder: String,
     language: AppLanguage,
@@ -2176,10 +2360,25 @@ pub fn scan_packages_core(
     }
 
     apply_slider_companion_classification(&package_paths, &mut items, &slider_instances);
+    apply_nraas_family_subfolders(language, &mut items);
     apply_named_mod_companions(&mut items);
     apply_manual_classifications(&root, &mut items);
 
     for item in &mut items {
+        let sanitized = remove_generic_unknown_levels(item.destination_parts.clone());
+        if sanitized != item.destination_parts {
+            item.destination_parts = sanitized;
+            item.destination_path = (!item.destination_parts.is_empty())
+                .then(|| item.destination_parts.join("\\"));
+            item.detected_from.push("UnknownLevelRemoved".to_string());
+            item.detected_from.sort();
+            item.detected_from.dedup();
+            item.warnings.push("Generic Unknown/Desconhecido level was removed; no unsupported gender or age was invented.".to_string());
+            if item.destination_parts.is_empty() && item.status == "classified" {
+                item.status = "needs_review".to_string();
+                item.classification_confidence = classification_confidence(&item.status).to_string();
+            }
+        }
         item.destination_parts = physical_destination_parts(&root, &item.relative_path, &item.destination_parts);
         if item.destination_path.is_some() {
             item.destination_path = Some(item.destination_parts.join("\\"));
@@ -2811,6 +3010,34 @@ mod tests {
         assert_eq!(
             slider_region_keys("Pupil Heart"),
             Some(("face", Some("eyes")))
+        );
+    }
+
+    #[test]
+    fn nraas_family_folder_requires_primary_and_module() {
+        assert_eq!(nraas_family_role("NRaas_MasterController.package"), Some(("MasterController", false)));
+        assert_eq!(nraas_family_role("NRaas_MasterControllerCheats.package"), Some(("MasterController", true)));
+        assert_eq!(nraas_family_role("NRaas_Careers.package"), Some(("Careers", false)));
+        assert_eq!(nraas_family_destination(AppLanguage::Pt, "MasterController", true, false),
+            vec!["Scripts", "Jogabilidade", "NRaas"]);
+        assert_eq!(nraas_family_destination(AppLanguage::Pt, "MasterController", true, true),
+            vec!["Scripts", "Jogabilidade", "NRaas", "MasterController"]);
+    }
+
+    #[test]
+    fn integrations_do_not_become_nraas_from_a_logo_reference() {
+        assert!(is_explicit_non_nraas_integration("Battery.Simpanel_1.03.package"));
+        assert!(is_explicit_non_nraas_integration("NeoH4x0rGlobalOnlineBankingMod.package"));
+        assert!(!is_explicit_non_nraas_integration("NRaas_MasterController.package"));
+        assert!(!authoritative_nraas_identifier("Battery.NRaasLogo2"));
+        assert!(authoritative_nraas_identifier("NRaas.MasterController"));
+    }
+
+    #[test]
+    fn non_nraas_scripts_use_gameplay_root_without_creator_fallback() {
+        assert_eq!(
+            script_creator_folder(AppLanguage::Pt, Some("TwinSimming")),
+            vec!["Scripts", "Jogabilidade"]
         );
     }
 }
